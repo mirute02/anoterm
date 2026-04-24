@@ -128,6 +128,7 @@ fun HostListScreen(
                   }
                   Text(h.label)
                   AuthBadge(h.auth)
+                  if (h.useTmux) TmuxBadge(h.tmuxSession)
                 }
               },
               supportingContent = { Text("${h.username}@${h.address}:${h.port} · 長押しで新規接続") },
@@ -250,6 +251,23 @@ private fun AuthBadge(auth: AuthMethod) {
         text,
         style = MaterialTheme.typography.labelSmall,
         color = fg,
+        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+  }
+}
+
+/** tmux 統合 ON のホストに「tmux:<session>」を表示して attach 先を見えるようにする。 */
+@Composable
+private fun TmuxBadge(session: String) {
+  Surface(
+      color = MaterialTheme.colorScheme.secondaryContainer,
+      shape = RoundedCornerShape(4.dp),
+      modifier = Modifier.padding(start = 6.dp),
+  ) {
+    Text(
+        "tmux:$session",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSecondaryContainer,
         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
     )
   }

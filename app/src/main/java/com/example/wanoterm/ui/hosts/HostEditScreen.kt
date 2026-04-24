@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -124,8 +125,14 @@ fun HostEditScreen(
       }
   ) { inner ->
     Column(
+        // imePadding で IME の高さを content に含める。verticalScroll と組み合わせると
+        // フォーカスされた TextField が自動で IME の上に送り込まれる（隠れない）。
         modifier =
-            Modifier.fillMaxSize().padding(inner).padding(16.dp).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxSize()
+                .padding(inner)
+                .padding(16.dp)
+                .imePadding()
+                .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       OutlinedTextField(

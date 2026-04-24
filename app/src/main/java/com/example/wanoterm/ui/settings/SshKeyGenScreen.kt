@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -85,10 +86,12 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
       },
   ) { inner ->
     Column(
+        // IME で入力欄が隠れないよう imePadding を当てて verticalScroll を combine。
         modifier =
             Modifier.fillMaxSize()
                 .padding(inner)
                 .padding(horizontal = 20.dp, vertical = 16.dp)
+                .imePadding()
                 .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
