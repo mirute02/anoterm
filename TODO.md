@@ -514,6 +514,91 @@ wanoterm を「Android だけで完結する SSH クライアント」として�
 
 - [x] **Navigation3 backstack deserialize** — `adb shell am force-stop` → `am start` で LaunchState=COLD 再起動し、Local echo タブが復元されることを確認。crash ログ 0 件。`prefs.lastTabId` と Nav3 backstack 両方が機能
 
+## R. エージェント連携 — リモート Claude/CLI からの人間介入通知
+
+SSH 先で動く AI エージェント（Claude Code 等）が「ここは人間の判断が要る」局面で **Android push 通知 + 3 択ボタン** を出し、ユーザがロック画面・他アプリ使用中でも即答できる仕組み。iTerm2 の shell integration (OSC 1337) と同じ方式。
+
+### R-1. プロトコル定義
+
+- [ ] **独自 OSC シーケンス設計** — `ESC ] 1337 ; wanoterm-ask ; title=<...> ; body=<...> ; choices=<a>|<b>|<c> ; id=<uuid> BEL`
+  - iTerm2 の OSC 1337 と番号は同じだが key=value パートは wanoterm 独自。将来衝突したら `11337` にでも逃げる
+  - `id` を付けると 1 セッションに複数未解決があっても個別に回答できる
+- [ ] **リモート側ヘルパスクリプト** `wanoterm-ask` — bash / fish 関数として配布
+  - 引数: `wanoterm-ask "title" "body" "choice1" "choice2" "choice3"`
+  - 内部: OSC を stdout に出して、一時 FIFO から 1 行読み取って返す
+  - 終了コードで選ばれた index (1/2/3) を返す or stdout に選択肢テキストを返す
+
+### R-2. wanoterm 側パース
+
+- [ ] **`TerminalEmulator.onAskUser` コールバック追加** — 既存の `onTitleChanged` / `onBell` と同じパターン
+- [ ] **`TerminalSessionController.askRequest: SharedFlow<AskRequest>`** — パースした要求を emit
+- [ ] **VT パーサ拡張** — 現状 OSC 0/1/2 のみ処理、1337 分岐を追加、セミコロン区切り key=value を map 化
+
+### R-3. Android 通知発行
+
+- [ ] **`AgentPromptNotifier`** — `NotificationCompat.Builder.addAction(icon, label, pendingIntent)` ×3 で 3 択を渡す
+- [ ] **`WanotermNotifyReceiver: BroadcastReceiver`** — intent extra に `tabId` / `askId` / `choiceIndex` を持たせて登録
+- [ ] **Receiver 側で `SshSessionManager.get(tabId)?.controller?.sendToRemote("${choice}\n".toByteArray())`** — SSH stdin に直接書き戻す
+- [ ] **通知チャンネル `wanoterm_agent_ask`** — IMPORTANCE_HIGH（ユーザを呼び戻すため音 + heads-up 可）
+- [ ] **確認済み askId の通知自動キャンセル** — 回答後にリモートが ack を OSC で返してきたら通知を consume
+
+### R-4. UX 詳細
+
+- [ ] **通知内で選択肢が 4+ になる場合** — addAction は 3 個制限。`RemoteInput` テキスト回答に fallback
+- [ ] **FG Service が死んでる間に来た ask は?** — controller 経由で buffer、復帰時に再発行
+- [ ] **同時に複数タブから ask が来たら?** — タブラベル付きで通知を並べる
+- [ ] **Pro 限定にするか?** — 差別化要素として有償化候補。Free は 1 セッション 1 ask までとか制限可能
+- [ ] **セキュリティ** — OSC は信頼されたリモートからしか読まない。authorized_keys に登録済みのホストのみ許可する設定
+
+### R-5. ドキュメント
+
+- [ ] **`docs/AGENT_INTEGRATION.md`** — リモート側のインストール手順、プロトコル仕様、デモ
+- [ ] **Play Store 訴求** — 「Claude Code と連携して、人間が介入する時だけ Android 通知で即答」
+
+## S. ホーム画面 Widget — tmux セッションのステータス表示
+
+Android AppWidget でアタッチ中の tmux セッションをホーム画面に常駐させ、数秒ごとに画面 (pane 内容 / window 一覧 / 進捗) を更新して一目で状況が分かるようにする。
+
+### S-1. 最小 Widget（MVP）
+
+- [ ] **`WanotermWidgetProvider: AppWidgetProvider`** — 1×1 もしくは 2×2、RemoteViews ベース
+- [ ] **表示内容**: アタッチ中のホスト label、tmux session 名、最終出力 1〜2 行、接続状態 dot
+- [ ] **タップで対応タブ起動** — `deepLink` 相当の PendingIntent で `MainActivity` に `tabId` extra 付きで遷移
+- [ ] **更新間隔** — AppWidget は最短 30 分なので、FG Service 側から `AppWidgetManager.updateAppWidget()` を短周期で push する方式に
+- [ ] **複数 widget サポート** — widget id と tabId の紐付けを SharedPreferences で管理。ユーザが widget 追加時に「どのセッションを見るか」を選ぶ設定 Activity
+
+### S-2. 進捗を見たい向けの強化
+
+- [ ] **tmux control mode 統合と連携（#56-60）** — `%output` から pane 末尾 N 行を拾って widget 表示
+- [ ] **進捗バー風表示** — 定期的に `capture-pane` で現状取って、特定 regex（`%` / `Progress:` 等）にマッチしたら progress indicator 化
+- [ ] **ウィンドウ数・pane 数バッジ** — tmux の `%window-add` / `%window-close` を subscribe して数を表示
+- [ ] **色分け** — running / idle / failed / disconnected で背景色を変える（緑/黄/赤/灰）
+
+### S-3. 更新機構
+
+- [ ] **FG Service からの broadcast 送出** — tmux output が来たら `AppWidgetManager.updateAppWidget(widgetId, views)` を 1〜2 秒 throttle で呼ぶ
+- [ ] **Dozeモード対策** — doze 中は widget 更新も抑制される。`setExactAndAllowWhileIdle` は電池消費が大きいので使わず、doze 明けに最新状態を一括 push
+- [ ] **電池効率** — 画面 OFF 時は widget 更新を停止。`Display.STATE_ON` を監視
+- [ ] **widget が複数ある場合の負荷** — 同じセッションを複数 widget が見てたら RemoteViews をキャッシュして配信
+
+### S-4. UX / 設計
+
+- [ ] **widget 設定 Activity** — 追加時にどのホスト / tmux session を見るか選ばせる（sessionManager 経由）
+- [ ] **未接続時の表示** — 「タップして接続」ボタン状態
+- [ ] **エラー表示** — 「切断されました」＋タップで再接続
+- [ ] **プライバシー** — 出力テキストがロック画面に出る可能性を考慮。`visibility` を PRIVATE にしてロック中は hostname だけ
+
+### S-5. Widget × エージェント連携（R と組み合わせ）
+
+- [ ] **R セクションの ask 要求が来たら widget 背景を赤点滅** — 通知と二重で気づかせる
+- [ ] **widget から直接 3 択回答** — 技術的には RemoteViews の `setOnClickPendingIntent` で可能。ただし widget のタップ領域は狭いので要 UX 検討
+
+### 参考
+
+- Android AppWidget: <https://developer.android.com/develop/ui/views/appwidgets>
+- Glance（Compose for Widget）: API 制約は RemoteViews と同等だが記述は楽。API 30+ 前提
+- Material You Widget: dynamic theming 対応
+
 ---
 
 ## 作業の進め方
