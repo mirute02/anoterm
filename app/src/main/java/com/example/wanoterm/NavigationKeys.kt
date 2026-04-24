@@ -17,4 +17,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object SshKeyHelp : NavKey
 
+@Serializable data object SshKeyGen : NavKey
+
 @Serializable data object Lock : NavKey
