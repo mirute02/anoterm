@@ -200,26 +200,6 @@ fun SettingsScreen(
         Switch(checked = ambiguous, onCheckedChange = { prefs.setAmbiguousWide(it) })
       }
 
-      // Claude Code / Codex の 1. 2. 3. 選択肢が画面に出たとき、下部に大ボタンで
-      // 1/2/3 を即送出する機能。普段は隠れていて、選択肢を検出した時だけ表示される。
-      val paletteEnabled by prefs.responsePaletteEnabled.collectAsStateWithLifecycle()
-      Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-      ) {
-        Column(modifier = Modifier.weight(1f)) {
-          Text("応答パレット（1/2/3 選択時に大ボタン）")
-          Text(
-              "Claude Code 等の選択肢プロンプトを検出した時だけ表示",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-        Switch(
-            checked = paletteEnabled,
-            onCheckedChange = { prefs.setResponsePaletteEnabled(it) },
-        )
-      }
 
       // 開発者モード: Loopback 等のデバッグ UI を出すかどうか。debug build のみ露出。
       // release では AppPrefs.developerMode は存在しても UI は出さず、loopback は永遠に

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -37,9 +38,10 @@ import com.example.wanoterm.R
 fun KeyboardToolbar(
     ctrlArmed: Boolean,
     shortcutBarVisible: Boolean,
+    keyboardVisible: Boolean,
     onToggleCtrl: () -> Unit,
     onToggleShortcutBar: () -> Unit,
-    onHideKeyboard: () -> Unit,
+    onToggleKeyboard: () -> Unit,
     onSend: (ByteArray) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -83,11 +85,12 @@ fun KeyboardToolbar(
       KeyButton(stringResource(R.string.kbd_pgup)) { onSend(ESC_PGUP) }
       KeyButton(stringResource(R.string.kbd_pgdn)) { onSend(ESC_PGDN) }
     }
-    // 右端は固定: ショートカット展開 / キーボード閉じ
+    // 右端は固定: ショートカット展開 / キーボードトグル
     IconToggleButtonBar(
         shortcutBarVisible = shortcutBarVisible,
+        keyboardVisible = keyboardVisible,
         onToggleShortcutBar = onToggleShortcutBar,
-        onHideKeyboard = onHideKeyboard,
+        onToggleKeyboard = onToggleKeyboard,
     )
   }
 }
@@ -95,8 +98,9 @@ fun KeyboardToolbar(
 @Composable
 private fun IconToggleButtonBar(
     shortcutBarVisible: Boolean,
+    keyboardVisible: Boolean,
     onToggleShortcutBar: () -> Unit,
-    onHideKeyboard: () -> Unit,
+    onToggleKeyboard: () -> Unit,
 ) {
   Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
     IconKeyButton(
@@ -104,10 +108,14 @@ private fun IconToggleButtonBar(
         contentDescription = "custom shortcuts toggle",
         onClick = onToggleShortcutBar,
     )
+    // IME 表示中は「隠す」アイコン、非表示中は「表示する」アイコン。
+    // 以前は Hide 専用で、一度閉じたあと同じボタンを押しても何も起きなかった。
     IconKeyButton(
-        icon = Icons.Filled.KeyboardHide,
-        contentDescription = "hide keyboard",
-        onClick = onHideKeyboard,
+        icon =
+            if (keyboardVisible) Icons.Filled.KeyboardHide
+            else Icons.Filled.Keyboard,
+        contentDescription = if (keyboardVisible) "hide keyboard" else "show keyboard",
+        onClick = onToggleKeyboard,
     )
   }
 }

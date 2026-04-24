@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -247,21 +249,6 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
       (currentBundle?.controller?.connectionState ?: remember { kotlinx.coroutines.flow.MutableStateFlow(ConnectionState.Idle) })
           .collectAsStateWithLifecycle(initialValue = ConnectionState.Idle)
 
-  // 応答パレット: Claude Code / Codex が「1. 2. 3.」の選択肢を表示しているか
-  // を buffer 末尾から検出し、検出時だけ大ボタンを表示する。
-  val paletteEnabled by app.prefs.responsePaletteEnabled.collectAsStateWithLifecycle()
-  val selectionChoices by androidx.compose.runtime.produceState(0, currentBundle) {
-    val ctrl = currentBundle?.controller
-    if (ctrl == null) {
-      value = 0
-      return@produceState
-    }
-    // 最初に 1 回検出、以降は redrawSignal 毎に再評価。
-    value = com.example.wanoterm.terminal.SelectionDetector.detect(ctrl.emulator.buffer)
-    ctrl.redrawSignal.collect {
-      value = com.example.wanoterm.terminal.SelectionDetector.detect(ctrl.emulator.buffer)
-    }
-  }
 
   val context = LocalContext.current
   val composeView = LocalView.current
@@ -419,29 +406,33 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
                 onSend = sendBytes,
             )
           }
-          // 応答パレット：Claude Code / Codex の選択肢が検出された時だけ表示。
-          // AnimatedVisibility のスライドが選択肢 flicker と相まって「繰り返しスライド」に
-          // 見えるため、単純な if で出し入れのみにする（アニメーション無し）。
-          if (paletteEnabled && selectionChoices >= 2) {
-            ResponsePalette(
-                // 選択肢の数だけボタンを並べる。ResponsePalette 内で 9 までに上限付け。
-                maxChoice = selectionChoices,
-                onSelect = { n ->
-                  sendBytes(byteArrayOf((0x30 + n).toByte()) + lineEnding.bytes)
-                },
-            )
-          }
+          // IME 可視状態を WindowInsets の ime bottom で判定。0 より大きければ出ている。
+          // isImeVisible ext prop は Compose 1.5+ なので、こちらの書き方で互換性確保。
+          val imeBottomPx =
+              WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
+          val imeVisible = imeBottomPx > 0
           KeyboardToolbar(
               ctrlArmed = ctrlArmed,
               shortcutBarVisible = showShortcutBar,
+              keyboardVisible = imeVisible,
               onToggleCtrl = {
                 ctrlArmed = !ctrlArmed
                 currentView?.ctrlArmed = ctrlArmed
               },
               onToggleShortcutBar = { showShortcutBar = !showShortcutBar },
-              onHideKeyboard = {
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
+              onToggleKeyboard = {
+                val imm =
+                    context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                if (imeVisible) {
+                  imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
+                } else {
+                  // TerminalView に focus させてから soft input を要求する。
+                  // focus が取れないと IME は開かないので requestFocus を先に。
+                  currentView?.let { v ->
+                    v.requestFocus()
+                    imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
+                  }
+                }
               },
               onSend = sendBytes,
           )
