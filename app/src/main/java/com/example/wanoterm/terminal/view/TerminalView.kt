@@ -243,12 +243,12 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
 
   override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
     super.onWindowFocusChanged(hasWindowFocus)
-    Logger.d("IME", "onWindowFocusChanged hasWindowFocus=$hasWindowFocus focused=$isFocused")
-    // app 切替→戻りで focus と IME 接続を復活させる。ただし isFocused が false の
-    // 時（ダイアログ表示中など、意図的に他に focus がある）は奪わない。
-    // isFocused が true のままウインドウ focus だけ戻ったケース（典型的な app 切替）では
-    // IME の再接続だけ行う。
-    if (hasWindowFocus && isFocused) restartInputAndShowKeyboard()
+    Logger.d("IME", "onWindowFocusChanged hasWindowFocus=$hasWindowFocus focused=$isFocused attached=$isAttachedToWindow")
+    // window 取得時、この view が画面上に表示されている（attach 中）なら focus + IME 復活。
+    // HOME→戻り時に isFocused は false に落ちていることが多いので、focus ごと取り戻す必要あり。
+    // ダイアログは別 window 扱いなので、ダイアログ閉じた時点でこちらの window focus が戻る
+    // = その時に terminal に focus 戻すのは妥当。
+    if (hasWindowFocus && isAttachedToWindow) requestInputFocus()
   }
 
   override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
