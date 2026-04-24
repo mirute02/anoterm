@@ -52,6 +52,8 @@ import kotlinx.coroutines.withContext
 fun HostEditScreen(
     hostId: Long?,
     onDone: () -> Unit,
+    onOpenKeyHelp: () -> Unit = {},
+    onOpenKeyGen: () -> Unit = {},
     vm: HostEditViewModel = viewModel(factory = HostEditViewModel.factory(hostId)),
 ) {
   val state by vm.state.collectAsStateWithLifecycle()
@@ -167,6 +169,13 @@ fun HostEditScreen(
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
               modifier = Modifier.fillMaxWidth(),
           )
+          // 鍵が未設定・未作成のユーザが「何をすればいいか」を迷わないための導線。
+          // ここに出さないと Settings → SSH 鍵ヘルプ まで 2 画面潜る必要があり、
+          // 初心者は鍵の用意もできないまま詰む。
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onOpenKeyGen) { Text("鍵を新規作成") }
+            TextButton(onClick = onOpenKeyHelp) { Text("サーバへの登録方法") }
+          }
         }
       }
 

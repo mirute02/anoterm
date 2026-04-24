@@ -199,6 +199,21 @@ fun SettingsScreen(
         Text("East-Asian ambiguous width → 2 cells")
         Switch(checked = ambiguous, onCheckedChange = { prefs.setAmbiguousWide(it) })
       }
+
+      // 開発者モード: Loopback 等のデバッグ UI を出すかどうか。debug build のみ露出。
+      // release では AppPrefs.developerMode は存在しても UI は出さず、loopback は永遠に
+      // 見えないまま（HostListScreen 側が BuildConfig.DEBUG && developerMode で gating）。
+      if (BuildConfig.DEBUG) {
+        HorizontalDivider()
+        val devMode by prefs.developerMode.collectAsStateWithLifecycle()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+          Text("開発者モード（Loopback を表示）")
+          Switch(checked = devMode, onCheckedChange = { prefs.setDeveloperMode(it) })
+        }
+      }
     }
   }
 }

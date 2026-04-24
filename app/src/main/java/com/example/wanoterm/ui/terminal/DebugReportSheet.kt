@@ -105,7 +105,19 @@ fun DebugReportSheet(
         TextButton(onClick = onDismiss) { Text("閉じる") }
       }
 
-      Text("既存レポート (${reports.size})", style = MaterialTheme.typography.titleMedium)
+      val doneCount = reports.count { it.status == "done" }
+      Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text("既存レポート (${reports.size})", style = MaterialTheme.typography.titleMedium)
+        if (doneCount > 0) {
+          TextButton(
+              onClick = { scope.launch(Dispatchers.IO) { dao.purgeDone() } },
+          ) { Text("完了済み ${doneCount} 件を削除") }
+        }
+      }
       LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         items(reports, key = { it.id }) { r ->
           ReportRow(

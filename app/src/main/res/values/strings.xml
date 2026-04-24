@@ -10,6 +10,7 @@
     <string name="hosts_empty_title">No saved hosts</string>
     <string name="hosts_empty_desc">Tap + to add your first SSH host.</string>
     <string name="hosts_add">Add host</string>
+    <string name="hosts_edit">Edit host</string>
     <string name="hosts_delete_confirm_title">Delete host?</string>
     <string name="hosts_delete_confirm_message">This cannot be undone.</string>
 

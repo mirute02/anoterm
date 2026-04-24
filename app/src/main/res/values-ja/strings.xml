@@ -8,6 +8,7 @@
     <string name="hosts_empty_title">ホストが登録されていません</string>
     <string name="hosts_empty_desc">右下の + から最初の SSH ホストを追加してください。</string>
     <string name="hosts_add">ホストを追加</string>
+    <string name="hosts_edit">ホストを編集</string>
     <string name="hosts_delete_confirm_title">ホストを削除しますか?</string>
     <string name="hosts_delete_confirm_message">この操作は取り消せません。</string>
 

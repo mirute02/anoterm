@@ -65,7 +65,12 @@ fun MainNavigation() {
               )
             }
             entry<HostEdit> { key ->
-              HostEditScreen(hostId = key.hostId, onDone = { backStack.removeLastOrNull() })
+              HostEditScreen(
+                  hostId = key.hostId,
+                  onDone = { backStack.removeLastOrNull() },
+                  onOpenKeyHelp = { backStack.add(SshKeyHelp) },
+                  onOpenKeyGen = { backStack.add(SshKeyGen) },
+              )
             }
             entry<Terminal> { key ->
               TerminalScreen(tabId = key.tabId, onBack = { backStack.removeLastOrNull() })

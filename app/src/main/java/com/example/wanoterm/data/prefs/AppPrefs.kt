@@ -61,6 +61,11 @@ class AppPrefs(context: Context) {
   private val _isPro = MutableStateFlow(readIsPro())
   val isPro: StateFlow<Boolean> = _isPro.asStateFlow()
 
+  // 開発者モード。Loopback チャネル等のデバッグ専用 UI を出すかどうか。
+  // debug ビルドでのみ Settings にトグルが出る（release では false 固定）。
+  private val _developerMode = MutableStateFlow(readDeveloperMode())
+  val developerMode: StateFlow<Boolean> = _developerMode.asStateFlow()
+
   /** Lock 画面に遷移するかどうかを算出するためのフロー（Navigation から購読） */
   val biometricLock: Flow<Boolean>
     get() = _biometricLockEnabled.asStateFlow()
@@ -113,6 +118,11 @@ class AppPrefs(context: Context) {
     _isPro.value = pro
   }
 
+  fun setDeveloperMode(enabled: Boolean) {
+    sp.edit().putBoolean(KEY_DEV_MODE, enabled).apply()
+    _developerMode.value = enabled
+  }
+
   fun localeList(): LocaleListCompat =
       when (_locale.value) {
         AppLocale.SYSTEM -> LocaleListCompat.getEmptyLocaleList()
@@ -159,6 +169,8 @@ class AppPrefs(context: Context) {
 
   private fun readIsPro(): Boolean = sp.getBoolean(KEY_IS_PRO, false)
 
+  private fun readDeveloperMode(): Boolean = sp.getBoolean(KEY_DEV_MODE, false)
+
   private fun readCustomShortcuts(): List<CustomShortcut> {
     val raw = sp.getString(KEY_CUSTOM_SHORTCUTS, null) ?: return DEFAULT_SHORTCUTS
     return try {
@@ -179,6 +191,7 @@ class AppPrefs(context: Context) {
     private const val KEY_CUSTOM_SHORTCUTS = "custom_shortcuts"
     private const val KEY_LAST_TAB_ID = "last_tab_id"
     private const val KEY_IS_PRO = "is_pro"
+    private const val KEY_DEV_MODE = "developer_mode"
 
     // Free tier の上限。Pro で解除。
     const val FREE_TIER_HOST_LIMIT = 3

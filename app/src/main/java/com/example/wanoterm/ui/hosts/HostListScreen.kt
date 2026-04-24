@@ -3,9 +3,7 @@ package com.example.wanoterm.ui.hosts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +54,7 @@ fun HostListScreen(
   val state by vm.state.collectAsStateWithLifecycle()
   val app = remember { WanotermApp.get() }
   val isPro by app.prefs.isPro.collectAsStateWithLifecycle()
+  val developerMode by app.prefs.developerMode.collectAsStateWithLifecycle()
   var showUpgradeDialog by remember { mutableStateOf(false) }
 
   Scaffold(
@@ -82,7 +82,9 @@ fun HostListScreen(
       },
   ) { inner ->
     LazyColumn(modifier = Modifier.fillMaxSize().padding(inner)) {
-      if (BuildConfig.DEBUG) {
+      // Loopback は開発者モード (debug build かつ Settings で有効化) のときだけ見せる。
+      // 一般ユーザの目に触れるとノイズでしかなく、release では存在を隠す。
+      if (BuildConfig.DEBUG && developerMode) {
         item {
           ListItem(
               leadingContent = { Icon(Icons.Outlined.Computer, contentDescription = null) },
@@ -90,9 +92,7 @@ fun HostListScreen(
               supportingContent = { Text("echo back / IME 動作確認用 (長押しで新規)") },
               modifier =
                   Modifier.fillMaxWidth().combinedClickable(
-                      // タップ: 既存タブがあれば再利用（tabId 固定）、無ければ新規作成
                       onClick = { onOpenTerminal("loopback") },
-                      // 長押し: 強制的に新規セッションを開く
                       onLongClick = { onOpenTerminal("loopback:${System.currentTimeMillis()}") },
                   ),
           )
@@ -106,6 +106,14 @@ fun HostListScreen(
           ListItem(
               headlineContent = { Text(h.label) },
               supportingContent = { Text("${h.username}@${h.address}:${h.port} · 長押しで新規接続") },
+              trailingContent = {
+                IconButton(onClick = { onEditHost(h.id) }) {
+                  Icon(
+                      Icons.Filled.Edit,
+                      contentDescription = stringResource(R.string.hosts_edit),
+                  )
+                }
+              },
               modifier =
                   Modifier.fillMaxWidth().combinedClickable(
                       // タップ: 既存タブがあれば再利用、新規なら作成
@@ -166,8 +174,3 @@ private fun EmptyHostsInline() {
   }
 }
 
-@Suppress("unused")
-@Composable
-private fun EmptyHosts(padding: PaddingValues) {
-  Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { EmptyHostsInline() }
-}

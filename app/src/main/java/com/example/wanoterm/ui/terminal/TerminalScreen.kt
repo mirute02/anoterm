@@ -1,6 +1,7 @@
 package com.example.wanoterm.ui.terminal
 
 import android.content.Context
+import android.view.HapticFeedbackConstants
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -308,6 +309,14 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
             ctrlArmed = false
             currentView?.ctrlArmed = false
             currentView?.focusAndRequestKeyboard()
+          }
+          // リモートが BEL (0x07) を送ってきたら短い触覚フィードバック。
+          // 音は鳴らさない方針（夜間 SSH 作業で迷惑なので）。視覚フラッシュも今はなし。
+          val hapticView = LocalView.current
+          LaunchedEffect(s.bundle.controller) {
+            s.bundle.controller.bell.collect {
+              hapticView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            }
           }
           val sendBytes: (ByteArray) -> Unit = { bytes ->
             currentView?.scrollToBottom()
