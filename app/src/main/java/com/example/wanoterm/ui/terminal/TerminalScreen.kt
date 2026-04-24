@@ -85,6 +85,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   val lineEnding by app.prefs.lineEnding.collectAsStateWithLifecycle()
   val activeTabs by app.sessionManager.activeTabs.collectAsStateWithLifecycle()
   val customShortcuts by app.prefs.customShortcuts.collectAsStateWithLifecycle()
+  val isPro by app.prefs.isPro.collectAsStateWithLifecycle()
 
   var state: TabScreenState by remember { mutableStateOf(TabScreenState.Loading) }
   var showHelp by remember { mutableStateOf(false) }
@@ -95,31 +96,32 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   var showShortcutBar by remember { mutableStateOf(false) }
 
   // 端末ラベル resolver。tabId → 表示名を DB から引いてキャッシュ。
-  // さらにリモートが OSC 2 で送ってきたタイトルがあればそれを優先表示。
+  // リモートが OSC 2 で送ってきたタイトルがあればそれを優先表示。
+  // 2 つの LaunchedEffect に分けると activeTabs 変化で片方だけ発火した瞬間の race が
+  // 発生するため、1 本にまとめて「DB label の解決」と「remoteTitle の collect 購読」を
+  // 同時に開始する。
   val tabLabels = remember { mutableStateMapOf<String, String>() }
-  LaunchedEffect(activeTabs) {
-    for (t in activeTabs) {
-      if (tabLabels.containsKey(t)) continue
-      tabLabels[t] =
-          when {
-            t.startsWith("loopback") -> "Local echo"
-            t.startsWith("host:") -> {
-              val hostId = t.removePrefix("host:").substringBefore(":").toLongOrNull()
-              val host = hostId?.let { app.database.hostDao().findById(it) }
-              host?.label ?: t.removePrefix("host:").substringBefore(":")
-            }
-            else -> t
-          }
-    }
-  }
-  // リモートタイトル (OSC 0/2) があればそれを優先してタブ表示
   val remoteTitles = remember { mutableStateMapOf<String, String?>() }
   LaunchedEffect(activeTabs) {
     for (t in activeTabs) {
-      val b = app.sessionManager.get(t) ?: continue
-      launch {
-        b.controller.remoteTitle.collect { title ->
-          remoteTitles[t] = title?.takeIf { it.isNotBlank() }
+      if (!tabLabels.containsKey(t)) {
+        tabLabels[t] =
+            when {
+              t.startsWith("loopback") -> "Local echo"
+              t.startsWith("host:") -> {
+                val hostId = t.removePrefix("host:").substringBefore(":").toLongOrNull()
+                val host = hostId?.let { app.database.hostDao().findById(it) }
+                host?.label ?: t.removePrefix("host:").substringBefore(":")
+              }
+              else -> t
+            }
+      }
+      val b = app.sessionManager.get(t)
+      if (b != null) {
+        launch {
+          b.controller.remoteTitle.collect { title ->
+            remoteTitles[t] = title?.takeIf { it.isNotBlank() }
+          }
         }
       }
     }
@@ -136,7 +138,6 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
       return@LaunchedEffect
     }
     // Free tier のタブ上限チェック（既存タブの再利用ではない = 新規作成時のみ）
-    val isPro = app.prefs.isPro.value
     val currentCount = app.sessionManager.activeTabIds().size
     if (!isPro && currentCount >= com.example.wanoterm.data.prefs.AppPrefs.FREE_TIER_TAB_LIMIT) {
       state = TabScreenState.Error("Free 版は同時 ${com.example.wanoterm.data.prefs.AppPrefs.FREE_TIER_TAB_LIMIT} タブまで。設定から Pro にアップグレードしてください。")

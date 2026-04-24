@@ -125,12 +125,18 @@ fun HostListScreen(
           text = {
             Text(
                 "Free 版ではホストを ${AppPrefs.FREE_TIER_HOST_LIMIT} 個まで保存できます。\n"
-                    + "Pro 版（買い切り ¥980）で無制限に保存、tmux 統合・SFTP・ポートフォワード等が解放されます。",
+                    + "Pro 版（買い切り ¥980）で無制限に保存、tmux 統合・SFTP・ポートフォワード等が解放されます。\n\n"
+                    + "現在 Play Billing は準備中。設定画面の Pro スイッチから一時的に有効化できます。",
             )
           },
           confirmButton = {
-            TextButton(onClick = { showUpgradeDialog = false }) {
-              Text("アップグレード（準備中）")
+            TextButton(
+                onClick = {
+                  showUpgradeDialog = false
+                  onOpenSettings()
+                },
+            ) {
+              Text("設定を開く")
             }
           },
           dismissButton = {
