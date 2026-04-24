@@ -9,7 +9,7 @@ import com.example.wanoterm.util.Logger
  * 対応範囲（MVP）:
  * - C0 制御文字（BEL, BS, HT, LF, VT, FF, CR, SO, SI）
  * - CSI：CUU/CUD/CUF/CUB (A/B/C/D)、CNL/CPL (E/F)、CHA (G)、CUP/HVP (H, f)、ED (J)、EL (K)、
- *   IL (L)、DL (M)、DCH (P)、ICH (@)、VPA (d)、SGR (m)、DSR (n) 基本
+ *   IL (L)、DL (M)、DCH (P)、ECH (X)、ICH (@)、VPA (d)、SGR (m)、DSR (n) 基本
  * - SGR: reset(0)、bold(1)、dim(2)、italic(3)、underline(4)、reverse(7)、strike(9)、
  *   bold off(22)、italic off(23)、underline off(24)、reverse off(27)、strike off(29)、
  *   FG 30-37 / 38;5;n / 38;2;r;g;b / 39、BG 40-47 / 48;5;n / 48;2;r;g;b / 49、bright 90-97 / 100-107
@@ -39,6 +39,8 @@ class TerminalEmulator(
   private var savedPrimaryRow = 0
   private var savedPrimaryCol = 0
   private var savedPrimaryStyle: CellStyle = CellStyle.Default
+  private var savedPrimaryScrollTop = 0
+  private var savedPrimaryScrollBottom = initialRows - 1
 
   var cursorRow: Int = 0
     private set
@@ -49,10 +51,33 @@ class TerminalEmulator(
   var cursorVisible: Boolean = true
     private set
 
+  /**
+   * DECCKM (Cursor Keys Mode, CSI ? 1 h/l)。true のとき方向キーは
+   * `ESC O X` (SS3 系) で送信されるべき。false (default) は `ESC [ X`。
+   * tmux や readline が active なときに on になることがある。
+   */
+  var applicationCursorKeys: Boolean = false
+    private set
+
+  /** mouse tracking 有効 (ボタン/モーション報告のどれか)。tmux `set -g mouse on` 等で ON。 */
+  var mouseTrackingEnabled: Boolean = false
+    private set
+
+  /** SGR 拡張 mouse 報告フォーマット (`ESC [ < b ; x ; y M/m`) を使うか。1006 系。 */
+  var mouseSgrMode: Boolean = false
+    private set
+
   private var style: CellStyle = CellStyle.Default
   private var savedRow = 0
   private var savedCol = 0
   private var savedStyle: CellStyle = CellStyle.Default
+
+  // DECSTBM (Set Top/Bottom Margins) によるスクロール領域。inclusive, 0-based。
+  // tmux は content 行 0..rows-2 だけを自スクロール領域に指定し、最下行の status は
+  // 固定したい。未実装だと LF が画面全体を push-to-scrollback してしまい、status 行が
+  // 何度も scrollback に積まれて「同じ行が繰り返し流れる」症状になる。
+  private var scrollTop = 0
+  private var scrollBottom = initialRows - 1
 
   private val utf8 = Utf8Decoder()
 
@@ -60,6 +85,11 @@ class TerminalEmulator(
   private enum class State {
     Ground,
     Esc,
+    // ESC の後に中間バイト (0x20-0x2F: '(' ')' '*' '+' '#' など) が来た時、
+    // 直後にもう 1 バイト (final byte) を食わせて捨てる状態。代表的には
+    // `ESC ( B` (US-ASCII を G0 に指定) — これを扱わないと 'B' が通常テキストとして
+    // 画面に描かれて「B が勝手に入力欄に出る」症状になる。
+    EscIntermediate,
     Csi,
     Osc,
     // 下の 4 つは payload を読み飛ばすだけ。ST (ESC\) か BEL で Ground に戻る。
@@ -84,6 +114,12 @@ class TerminalEmulator(
 
   fun currentStyle(): CellStyle = style
 
+  /**
+   * 描画・feed と同じ emulator monitor を取得して直列化する。これがないと UI スレッドの
+   * `onSizeChanged` 起因の resize が、背景スレッドの `feed` と並行で動き、buffer の
+   * grid 入れ替えと put が競合して「gradlew が g a l w に見える」ような中抜け描画になる。
+   */
+  @Synchronized
   fun resize(newRows: Int, newCols: Int) {
     if (newRows == buffer.rows && newCols == buffer.cols) return
     // 縮小時はカーソルを画面内に収めるため、旧行のうち cursor を含む下側を保持する。
@@ -96,6 +132,11 @@ class TerminalEmulator(
     alternateBuffer.resize(newRows, newCols, if (buffer === alternateBuffer) rowOffset else 0)
     cursorRow = (cursorRow - rowOffset).coerceIn(0, buffer.rows - 1)
     cursorCol = cursorCol.coerceIn(0, buffer.cols - 1)
+    pendingWrap = false
+    // resize で rows が変わるので scroll 領域を全画面に戻す。tmux 等は SIGWINCH で
+    // 改めて DECSTBM を送り直すので、一旦リセットしておくのが安全。
+    scrollTop = 0
+    scrollBottom = buffer.rows - 1
   }
 
   /**
@@ -105,11 +146,25 @@ class TerminalEmulator(
    * 読まれて「前フレームと新フレームが重なって見える」視覚バグになる。
    * そのため feed 全体を `this` の monitor で直列化し、描画側も同じ monitor を
    * 取得してから読むようにする（呼び出し側で synchronized(emulator) を使う）。
+   *
+   * ただし、大きい SSH チャンク (tmux の全画面再描画等で数 KB) を 1 ロックで処理すると
+   * UI スレッドの draw が数十 ms ブロックされフレーム落ちになる。そのため内部で 1KB
+   * ごとに lock を解放し、draw に割り込む隙を作る。
    */
-  @Synchronized
   fun feed(bytes: ByteArray, length: Int = bytes.size) {
+    val chunkSize = 1024
     var i = 0
     while (i < length) {
+      val end = (i + chunkSize).coerceAtMost(length)
+      feedChunk(bytes, i, end)
+      i = end
+    }
+  }
+
+  @Synchronized
+  private fun feedChunk(bytes: ByteArray, start: Int, end: Int) {
+    var i = start
+    while (i < end) {
       processByte(bytes[i])
       i++
     }
@@ -120,6 +175,11 @@ class TerminalEmulator(
     when (state) {
       State.Ground -> handleGround(x)
       State.Esc -> handleEsc(x)
+      State.EscIntermediate -> {
+        // ESC ( B / ESC ) 0 / ESC # 8 等の final 文字を読み捨て。中身のチャーセット
+        // テーブル切替は実装しない（UTF-8 運用前提、DEC Special Graphics などはごく稀）。
+        state = State.Ground
+      }
       State.Csi -> handleCsi(x)
       State.Osc -> handleOsc(x)
       State.Dcs, State.Apc, State.Pm, State.Sos -> handleStringTerminated(x)
@@ -161,7 +221,7 @@ class TerminalEmulator(
         moveCursor(cursorRow, next.coerceAtMost(cols - 1))
       }
       0x0A, 0x0B, 0x0C -> { // LF/VT/FF
-        if (cursorRow == rows - 1) buffer.scrollUp(style) else moveCursor(cursorRow + 1, cursorCol)
+        indexDown()
       }
       0x0D -> moveCursor(cursorRow, 0) // CR
       0x1B -> state = State.Esc
@@ -199,21 +259,26 @@ class TerminalEmulator(
         cursorRow = savedRow.coerceIn(0, rows - 1)
         cursorCol = savedCol.coerceIn(0, cols - 1)
         style = savedStyle
+        pendingWrap = false
         state = State.Ground
       }
       'D' -> { // IND
-        if (cursorRow == rows - 1) buffer.scrollUp(style) else cursorRow++
+        indexDown()
         state = State.Ground
       }
       'E' -> { // NEL
-        if (cursorRow == rows - 1) buffer.scrollUp(style) else cursorRow++
+        indexDown()
         cursorCol = 0
         state = State.Ground
       }
       'M' -> { // RI
-        if (cursorRow == 0) buffer.scrollDown(style) else cursorRow--
+        indexUp()
         state = State.Ground
       }
+      // ESC ( / ) / * / + — G0..G3 文字集合指定。final 1 バイトを食わせて捨てる。
+      // ESC # — DEC 二重高/幅・DECALN 等。ここも 1 バイト読み捨てで Ground 復帰。
+      // 実装しないと次の文字が素通しで画面に描かれる。
+      '(', ')', '*', '+', '#' -> state = State.EscIntermediate
       else -> state = State.Ground
     }
   }
@@ -307,7 +372,24 @@ class TerminalEmulator(
       'L' -> buffer.scrollDown(style, param(0)) // IL (粗)
       // DL は画面内 editing 操作なので primary buffer でも scrollback に残さない
       'M' -> buffer.scrollUp(style, param(0), pushToScrollback = false) // DL (粗)
+      // SU (Scroll Up) / SD (Scroll Down): スクロール領域内を N 行ぶんシフトする。
+      // Claude Code (ratatui) が `CSI 31 S` のような形でまとめてスクロールを要求する。
+      // カーソル位置は変更しない。未実装だと画面が追従せず旧内容が重なって残骸に見える。
+      'S' -> {
+        val n = param(0).coerceAtLeast(1)
+        repeat(n.coerceAtMost(rows)) { scrollRegionUpOne() }
+        pendingWrap = false
+      }
+      'T' -> {
+        val n = param(0).coerceAtLeast(1)
+        repeat(n.coerceAtMost(rows)) { scrollRegionDownOne() }
+        pendingWrap = false
+      }
       'P' -> deleteChars(param(0))
+      // ECH (Erase Character): カーソルを動かさず現在位置から N 文字を空セルに。
+      // tmux のステータスバー更新や ratatui 系 TUI (Claude Code 等) が部分再描画で
+      // 多用する。未実装だと旧文字が残り、新文字と重なって「表示がグチャグチャ」に見える。
+      'X' -> eraseChars(param(0))
       '@' -> insertChars(param(0))
       'm' -> applySgr()
       'n' -> {
@@ -317,6 +399,18 @@ class TerminalEmulator(
           output.write(report.toByteArray(Charsets.US_ASCII))
         }
       }
+      'r' -> {
+        // DECSTBM: Set Top/Bottom Margins (scroll region)。引数は 1-based inclusive。
+        // 引数省略時は画面全体。tmux が最下行の status bar を固定するために常用する。
+        val top = (param(0, default = 1) - 1).coerceIn(0, rows - 1)
+        val bottom = (param(1, default = rows) - 1).coerceIn(top, rows - 1)
+        scrollTop = top
+        scrollBottom = bottom
+        // DECSTBM 後はカーソルを Home に戻す（xterm 互換）
+        cursorRow = 0
+        cursorCol = 0
+        pendingWrap = false
+      }
       's' -> {
         savedRow = cursorRow; savedCol = cursorCol; savedStyle = style
       }
@@ -324,6 +418,7 @@ class TerminalEmulator(
         cursorRow = savedRow.coerceIn(0, rows - 1)
         cursorCol = savedCol.coerceIn(0, cols - 1)
         style = savedStyle
+        pendingWrap = false
       }
       else -> Logger.d("VT", "Unhandled CSI ${csiParams.joinToString(";")} $final")
     }
@@ -335,6 +430,10 @@ class TerminalEmulator(
     if (!set && !reset) return
     for (p in csiParams) {
       when (p) {
+        // DECCKM: application cursor keys mode。tmux / readline が enable にすると
+        // 矢印キーを `ESC O A` 系で送ってくる期待に変わる。TerminalView.sendBytes で
+        // この flag を見て送信バイトを remap する。
+        1 -> applicationCursorKeys = set
         25 -> cursorVisible = set
         // 1049: 代替画面 + カーソル保存/復元 (xterm 拡張、vim/tmux/less で必須)
         1049 -> if (set) enterAlternateScreen() else leaveAlternateScreen()
@@ -350,8 +449,20 @@ class TerminalEmulator(
             cursorRow = savedPrimaryRow.coerceIn(0, rows - 1)
             cursorCol = savedPrimaryCol.coerceIn(0, cols - 1)
             style = savedPrimaryStyle
+            pendingWrap = false
           }
         }
+        // マウストラッキング系は flag を保持して wheel event 送信可否に使う。
+        //  1000: X10/VT200 mouse button tracking
+        //  1002: button-event mouse tracking
+        //  1003: any-event mouse tracking
+        //  1006: SGR extended mouse reporting (現代の tmux はほぼ常にこちら)
+        1000, 1002, 1003 -> mouseTrackingEnabled = set
+        1006 -> mouseSgrMode = set
+        // カーソル blink / focus events / bracketed paste は実装せず受理のみ。
+        // 受理せず Unhandled を吐くと tmux/Claude Code が set/reset を連打して
+        // logcat が埋まる。
+        1004, 2004, 12 -> { /* 受理のみ */ }
         // 他の DECSET は保留
         else -> Logger.d("VT", "Unhandled DEC ${if (set) "SET" else "RST"} $p")
       }
@@ -367,6 +478,8 @@ class TerminalEmulator(
     savedPrimaryRow = cursorRow
     savedPrimaryCol = cursorCol
     savedPrimaryStyle = style
+    savedPrimaryScrollTop = scrollTop
+    savedPrimaryScrollBottom = scrollBottom
     onAlternate = true
     // 代替画面に切替える前に alternate 側を現在サイズに合わせる（resize 追従）
     alternateBuffer.resize(primaryBuffer.rows, primaryBuffer.cols)
@@ -375,6 +488,10 @@ class TerminalEmulator(
     cursorRow = 0
     cursorCol = 0
     style = CellStyle.Default
+    pendingWrap = false
+    // alt screen は fresh な scroll 領域（全画面）でスタート。tmux が必要なら改めて設定。
+    scrollTop = 0
+    scrollBottom = buffer.rows - 1
   }
 
   /** 代替画面から抜け、プライマリバッファに戻る。カーソル・スタイルを復元。 */
@@ -385,6 +502,9 @@ class TerminalEmulator(
     cursorRow = savedPrimaryRow.coerceIn(0, rows - 1)
     cursorCol = savedPrimaryCol.coerceIn(0, cols - 1)
     style = savedPrimaryStyle
+    pendingWrap = false
+    scrollTop = savedPrimaryScrollTop.coerceIn(0, buffer.rows - 1)
+    scrollBottom = savedPrimaryScrollBottom.coerceIn(scrollTop, buffer.rows - 1)
   }
 
   private fun eraseInDisplay(mode: Int) {
@@ -416,6 +536,11 @@ class TerminalEmulator(
       buffer.cellAt(cursorRow, c).copyFrom(buffer.cellAt(cursorRow, c + n))
     }
     for (c in cols - n until cols) buffer.clearCell(cursorRow, c, style)
+  }
+
+  private fun eraseChars(count: Int) {
+    val n = count.coerceAtLeast(1).coerceAtMost(cols - cursorCol)
+    for (c in cursorCol until cursorCol + n) buffer.clearCell(cursorRow, c, style)
   }
 
   private fun insertChars(count: Int) {
@@ -484,18 +609,92 @@ class TerminalEmulator(
   private fun moveCursor(row: Int, col: Int) {
     cursorRow = row.coerceIn(0, rows - 1)
     cursorCol = col.coerceIn(0, cols - 1)
+    // カーソル移動（CUP/CUF/CUB/HVP/CR/BS/HT 等）は必ず pendingWrap を解除。
+    // これがないと CUP で移動した先でも「前の右端到達フラグ」が残って、次の文字が
+    // 不要に改行してしまう。
+    pendingWrap = false
   }
+
+  /**
+   * xterm 互換の pending-wrap (DECAWM の末端挙動)。右端列に 1 文字書き込んだ直後は
+   * カーソルを動かさず、次の 1 文字が来たタイミングで初めて改行する。これを実装しないと
+   * 長い行の最終列に書かれた文字が次々と上書きされ、行末の文字列が欠落して「表示が
+   * グチャグチャ」に見える症状になる。
+   */
+  private var pendingWrap = false
 
   private fun writeCodePoint(cp: Int) {
     val width = CharWidth.widthOf(cp).coerceAtLeast(1)
+    if (pendingWrap) {
+      pendingWrap = false
+      indexDownForWrap()
+      cursorCol = 0
+    }
     if (cursorCol + width > cols) {
-      // 自動改行
-      if (cursorRow == rows - 1) buffer.scrollUp(style) else cursorRow++
+      // width=2 の文字で cursorCol = cols-1 に乗り上げた場合のみここに入る。
+      indexDownForWrap()
       cursorCol = 0
     }
     buffer.put(cursorRow, cursorCol, cp, style)
     cursorCol += width
-    if (cursorCol >= cols) cursorCol = cols - 1
+    if (cursorCol >= cols) {
+      cursorCol = cols - 1
+      pendingWrap = true
+    }
+  }
+
+  /**
+   * LF/IND/NEL 系の下方向 index。scrollBottom 到達なら領域スクロール、領域内なら単純にカーソル
+   * 下げ、scroll region より下の行（tmux の status bar 等）にいる場合は rows-1 を超えないよう
+   * clamp する。この clamp がないと autowrap で cursorRow が rows まで飛び、put() が bounds
+   * 越えで no-op になり続ける。
+   */
+  private fun indexDown() {
+    when {
+      cursorRow == scrollBottom -> scrollRegionUpOne()
+      cursorRow < rows - 1 -> cursorRow++
+      // else: scroll region の下に取り残された最下行 (status 行など) — 移動せず
+    }
+    pendingWrap = false
+  }
+
+  /** autowrap 用: scroll region 外にいるときは現行で clamp。物理最下行からの wrap は無視。 */
+  private fun indexDownForWrap() {
+    when {
+      cursorRow == scrollBottom -> scrollRegionUpOne()
+      cursorRow < rows - 1 -> cursorRow++
+    }
+  }
+
+  private fun indexUp() {
+    when {
+      cursorRow == scrollTop -> scrollRegionDownOne()
+      cursorRow > 0 -> cursorRow--
+    }
+    pendingWrap = false
+  }
+
+  /**
+   * LF/IND/自動折返し等でカーソルが scrollBottom に達した時のスクロール。
+   * スクロール領域が画面全体 (0..rows-1) なら従来通り scrollback に push するが、
+   * 部分領域なら push せず、領域内だけを上にシフトする。これをやらないと tmux の
+   * status 行付きレイアウトで「LF のたびに status 行が scrollback に積まれ、
+   * 画面が同じ行で埋め尽くされる」症状になる。
+   */
+  private fun scrollRegionUpOne() {
+    if (scrollTop == 0 && scrollBottom == rows - 1) {
+      buffer.scrollUp(style)
+    } else {
+      buffer.scrollUpRegion(scrollTop, scrollBottom, style)
+    }
+  }
+
+  private fun scrollRegionDownOne() {
+    if (scrollTop == 0 && scrollBottom == rows - 1) {
+      buffer.scrollDown(style)
+    } else {
+      buffer.scrollDownRegion(scrollTop, scrollBottom, style)
+    }
   }
 
   /**
@@ -505,6 +704,7 @@ class TerminalEmulator(
    * scrollback deque には触れない。ユーザが `reset` コマンドで画面をリセットしても、
    * 過去に流れたログまで失われると使い勝手が悪い。
    */
+  @Synchronized
   fun reset() {
     utf8.reset()
     csiParams.clear()
@@ -515,6 +715,12 @@ class TerminalEmulator(
     cursorRow = 0
     cursorCol = 0
     cursorVisible = true
+    applicationCursorKeys = false
+    mouseTrackingEnabled = false
+    mouseSgrMode = false
+    pendingWrap = false
+    scrollTop = 0
+    scrollBottom = buffer.rows - 1
     style = CellStyle.Default
     savedRow = 0
     savedCol = 0

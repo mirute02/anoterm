@@ -99,6 +99,8 @@ class TerminalRenderer(
       composing: ComposingState,
       cursorBlinkOn: Boolean,
       scrollOffset: Int = 0,
+      selectionStart: CellPos? = null,
+      selectionEnd: CellPos? = null,
   ) {
     val cw = cellWidth
     val ch = cellHeight
@@ -125,11 +127,44 @@ class TerminalRenderer(
           if (br in 0 until buffer.rows) buffer.cellAt(br, c) else null
         }
 
+    // ===== 選択範囲の正規化 =====
+    // 選択は「可視行 r (scrollback 含む拡張行番号)」ではなく、TerminalView 側の CellPos が
+    // 画面上の `row`（0 = 最上段可視行）として来るので、そのまま比較する。
+    val selBgInt = palette.selection.toAndroidColorInt()
+    val sr1: Int
+    val sc1: Int
+    val sr2: Int
+    val sc2: Int
+    val selEnabled: Boolean
+    if (selectionStart != null && selectionEnd != null) {
+      val s = selectionStart
+      val e = selectionEnd
+      val swap = s.row > e.row || (s.row == e.row && s.col > e.col)
+      sr1 = if (swap) e.row else s.row
+      sc1 = if (swap) e.col else s.col
+      sr2 = if (swap) s.row else e.row
+      sc2 = if (swap) s.col else e.col
+      selEnabled = true
+    } else {
+      sr1 = 0; sc1 = 0; sr2 = 0; sc2 = 0
+      selEnabled = false
+    }
+
+    fun isSelected(r: Int, c: Int): Boolean {
+      if (!selEnabled) return false
+      if (r < sr1 || r > sr2) return false
+      if (sr1 == sr2) return c in sc1..sc2
+      if (r == sr1) return c >= sc1
+      if (r == sr2) return c <= sc2
+      return true
+    }
+
     // ===== Pass 1: 全セルの背景矩形 =====
     // continuation セル（全角文字の右半分）は本セルの bg を引き継ぐべき。
     // bgOfCell() で continuation 側を左隣の bg にマッピングする。
     // DrawStyle を作らず resolveBgInt で int を直接取る（GC 圧軽減）。
     fun bgOfCell(r: Int, c: Int): Int {
+      if (isSelected(r, c)) return selBgInt
       val cell = cellAtVisible(r, c) ?: return bgDefault
       if (cell.continuation) {
         val left = cellAtVisible(r, c - 1)
@@ -168,7 +203,7 @@ class TerminalRenderer(
         val x = cw * c
         val cellRectWidth = cw * w
         if (cell.codePoint != 0) {
-          drawGlyph(canvas, cell.codePoint, cell.style.toDrawStyle(), x, y, cellRectWidth, ch)
+          drawGlyphInline(canvas, cell.codePoint, cell.style, x, y, cellRectWidth, ch)
         }
         c += w
       }
@@ -196,26 +231,35 @@ class TerminalRenderer(
     }
   }
 
-  private fun drawGlyph(
+  /**
+   * CellStyle を直接受けてそのまま描画する。DrawStyle data class を経由しないので、
+   * 1 フレームあたり数千のセル描画で数千回走る per-cell アロケーションを避けられる。
+   */
+  private fun drawGlyphInline(
       canvas: Canvas,
       codePoint: Int,
-      style: DrawStyle,
+      style: com.example.wanoterm.terminal.emulator.CellStyle,
       x: Float,
       y: Float,
       cellRectWidth: Float,
       cellRectHeight: Float,
   ) {
-    textPaint.color = style.fg
+    val fgBase = style.fg.resolve(palette, defaultIsForeground = true)
+    val bgBase = style.bg.resolve(palette, defaultIsForeground = false)
+    val finalFg = if (style.reverse) bgBase else fgBase
+    val boldFg =
+        if (style.bold && style.fg is AnsiColor.Indexed && style.fg.index < 8) {
+          palette.ansi[style.fg.index + 8].toAndroidColorInt()
+        } else finalFg
+    textPaint.color = boldFg
     textPaint.isFakeBoldText = style.bold
     textPaint.typeface = if (style.italic) programFontItalic else programFont
     textPaint.isUnderlineText = style.underline
     textPaint.isStrikeThruText = style.strike
     val s = glyphStringFor(codePoint)
-    // セル矩形を超えるグリフ（emoji 等）が隣セルに漏れないよう clip してから描画。
     canvas.save()
     canvas.clipRect(x, y, x + cellRectWidth, y + cellRectHeight)
     val tw = textPaint.measureText(s)
-    // セル幅より大きいグリフは左寄せ、そうでなければ中央寄せ（等幅 ASCII 用）
     val dx = if (tw > cellRectWidth) 0f else (cellRectWidth - tw) / 2f
     canvas.drawText(s, x + dx, y + baselineOffset, textPaint)
     canvas.restore()
@@ -244,25 +288,6 @@ class TerminalRenderer(
     textPaint.isUnderlineText = false
   }
 
-  /** CellStyle から実際の描画色へ解決（DrawStyle 生成あり）。glyph 描画用。 */
-  private fun com.example.wanoterm.terminal.emulator.CellStyle.toDrawStyle(): DrawStyle {
-    val fgBase = fg.resolve(palette, defaultIsForeground = true)
-    val bgBase = bg.resolve(palette, defaultIsForeground = false)
-    val finalFg = if (reverse) bgBase else fgBase
-    val finalBg = if (reverse) fgBase else bgBase
-    val boldFg = if (bold && fg is AnsiColor.Indexed && fg.index < 8) {
-      palette.ansi[fg.index + 8].toAndroidColorInt()
-    } else finalFg
-    return DrawStyle(
-        fg = boldFg,
-        bg = finalBg,
-        bold = bold,
-        italic = italic,
-        underline = underline,
-        strike = strike,
-    )
-  }
-
   /**
    * 背景色だけを int で返す。DrawStyle を作らないので GC 圧にならない。
    * 背景 pass は 1 フレームで rows × cols 回呼ばれるため、allocation を避けたい。
@@ -271,15 +296,6 @@ class TerminalRenderer(
     val bgBase = bg.resolve(palette, defaultIsForeground = false)
     return if (reverse) fg.resolve(palette, defaultIsForeground = true) else bgBase
   }
-
-  private data class DrawStyle(
-      val fg: Int,
-      val bg: Int,
-      val bold: Boolean,
-      val italic: Boolean,
-      val underline: Boolean,
-      val strike: Boolean,
-  )
 }
 
 private fun AnsiColor.resolve(palette: TerminalPalette, defaultIsForeground: Boolean): Int =

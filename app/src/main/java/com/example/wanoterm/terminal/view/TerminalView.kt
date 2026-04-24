@@ -1,13 +1,19 @@
 package com.example.wanoterm.terminal.view
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.text.InputType
 import android.util.AttributeSet
+import android.view.ActionMode
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.GestureDetector
+import android.view.Menu
+import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -15,6 +21,7 @@ import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import com.example.wanoterm.data.prefs.LineEnding
 import com.example.wanoterm.terminal.TerminalSessionController
 import com.example.wanoterm.theme.TerminalPalette
@@ -46,6 +53,17 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
    * scrollback の行数で上限クランプ。新しい出力が届いたら 0 に戻す。
    */
   private var scrollOffset: Int = 0
+
+  // 長押し → ドラッグ → リリース で画面上のテキストを範囲選択しクリップボードへ。
+  // alt screen / primary どちらでも可視セルから抽出する。選択中は renderer に始端/終端を
+  // 渡して選択背景色で塗らせる。シンプルさ優先で「リリース時に自動コピー + Toast」。
+  private var selStart: CellPos? = null
+  private var selEnd: CellPos? = null
+  private val selectionActive: Boolean get() = selStart != null && selEnd != null
+  private var selectionActionMode: ActionMode? = null
+  // 選択中のドラッグが動かしているのは start か end か。touch down 時にどちらの端点に
+  // 近いかで決まり、リリースまで固定。これで両端を自在に調節できる。
+  private var draggingStart: Boolean = false
 
   /**
    * キーボードツールバーの Ctrl が押されたら次の文字を Ctrl+X に変換する one-shot 修飾子。
@@ -90,11 +108,48 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
             }
 
             // ダブルタップで Tab (0x09) を送る。他ターミナルアプリ（Termius 等）の慣習に合わせ、
-            // シェル補完を素早く呼び出せるようにする UX。setOnClickListener 経由の
-            // IME フォーカス取得と併存する（1 回目のタップで IME、素早く 2 回目で Tab）。
+            // シェル補完を素早く呼び出せるようにする UX。
             override fun onDoubleTap(e: MotionEvent): Boolean {
               sendBytes(byteArrayOf(0x09))
               return true
+            }
+
+            // 長押し開始で選択モード突入。cellAtPixel で開始位置をセルに量子化。
+            override fun onLongPress(e: MotionEvent) {
+              Logger.d("SEL", "onLongPress x=${e.x} y=${e.y}")
+              val pos = cellAtPixel(e.x, e.y)
+              if (pos == null) {
+                Logger.d("SEL", "cellAtPixel returned null (cell dims not ready?)")
+                return
+              }
+              beginSelection(pos)
+              parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
+            // シングルタップの領域分割 (タップ位置で動作が変わる):
+            //   ・上 3/8 (0 - 0.375h)  : 半画面分 scrollback 上方向 (過去へ)
+            //   ・中間 (0.375 - 0.75h) : 半画面分 scrollback 下方向 (現在へ)
+            //   ・下 1/4 (0.75 - 1.0h) : IME 起動
+            // `onSingleTapConfirmed` はダブルタップ待機後に発火するので、ダブルタップで
+            // 誤爆しない。~300ms の遅延は意図したもの（スクロール量は cell 数で指定、
+            // 縦セルの半分ぶん動かす）。
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+              // 選択中の単タップは ActionMode で Copy メニュー出してるので基本 no-op。
+              // もし ActionMode が出てなければ新規選択解除として扱う (保険)。
+              if (selectionActive && selectionActionMode == null) {
+                clearSelection()
+                return true
+              }
+              if (selectionActive) return false // ActionMode が拾うので素通し
+              val h = height
+              if (h <= 0) return false
+              // 下 1/4 タップのみ IME 起動、他は no-op（スクロールしたい時は swipe）。
+              return if (e.y > h * 0.75f) {
+                requestInputFocus()
+                true
+              } else {
+                false
+              }
             }
 
             override fun onScroll(
@@ -103,6 +158,12 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
                 distanceX: Float,
                 distanceY: Float,
             ): Boolean {
+              // 選択中のドラッグは範囲拡張に流用。scrollback は動かさない。
+              if (selectionActive) {
+                cellAtPixel(e2.x, e2.y)?.let { extendSelection(it) }
+                parent?.requestDisallowInterceptTouchEvent(true)
+                return true
+              }
               val ch = renderer.cellHeight
               if (ch <= 0f) return false
               // 縦ドラッグ優勢のときだけ scrollback を動かす。横ドラッグ中は false を返して
@@ -119,7 +180,12 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               val lines = (scrollAccumPx / ch).toInt()
               if (lines != 0) {
                 scrollAccumPx -= lines * ch
-                scrollBy(lines)
+                // tmux / 類似 TUI が mouse tracking を ON にしていれば wheel event を
+                // リモートに送る。tmux が `mouse on` だと自動で copy mode に入って
+                // 内部 scrollback を動かしてくれる。OFF なら従来通り local scrollback。
+                if (!sendWheelIfTracking(e2, lines)) {
+                  scrollBy(lines)
+                }
                 return true
               }
               return false
@@ -130,7 +196,12 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   init {
     isFocusable = true
     isFocusableInTouchMode = true
-    setOnClickListener { requestInputFocus() }
+    // isClickable を true にしないと onTouchEvent が ACTION_DOWN 以降を受け取らず、
+    // GestureDetector のコールバック (onSingleTapUp / onDoubleTap / onScroll) も
+    // scaleDetector も全く発火しない。以前は setOnClickListener 呼出で暗黙に
+    // isClickable=true になっていたが、キーボード無差別起動をやめるため setOnClickListener
+    // を外した結果、ここが false に戻って全ジェスチャが死んでいた。
+    isClickable = true
   }
 
   fun bind(controller: TerminalSessionController) {
@@ -204,7 +275,13 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     // feed 側は @Synchronized、draw 側は explicit synchronized で同じ `emulator` を共有。
     synchronized(ctl.emulator) {
       renderer.draw(
-          canvas, ctl.emulator, composingState, cursorBlinkOn = true, scrollOffset = scrollOffset,
+          canvas,
+          ctl.emulator,
+          composingState,
+          cursorBlinkOn = true,
+          scrollOffset = scrollOffset,
+          selectionStart = selStart,
+          selectionEnd = selEnd,
       )
     }
   }
@@ -229,12 +306,24 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   override fun onTouchEvent(event: MotionEvent): Boolean {
     // 処理したかを明示的に積み上げる。`|| true` で無条件に消費していた過去版だと
     // Compose HorizontalPager の横スワイプが届かずタブ切替できなかった。
+    // ACTION_DOWN で requestInputFocus していた処理は削除。IME 表示はシングルタップ
+    // (画面下 1/4) に限定したので、ここでは focus を要求しない。
+    // 選択中は ACTION_DOWN 時点で近い端点を選んでおき、それ以降のドラッグで動かす。
+    if (event.action == MotionEvent.ACTION_DOWN && selectionActive) {
+      pickDragEndpoint(event.x, event.y)
+    }
     scaleDetector.onTouchEvent(event)
     val scrolled = scrollGestureDetector.onTouchEvent(event)
-    if (event.action == MotionEvent.ACTION_DOWN) {
-      requestInputFocus()
-    }
     val superHandled = super.onTouchEvent(event)
+    // 選択ドラッグ終了時は ActionMode (floating CAB) を起動して選択範囲近くに
+    // 「コピー」メニューを出す。ユーザが明示的に Copy をタップするまで選択は残る。
+    // ACTION_CANCEL は pager 譲渡等の異常系、選択だけ解除。
+    if (event.action == MotionEvent.ACTION_UP && selectionActive
+        && selectionActionMode == null) {
+      showSelectionActionMode()
+    } else if (event.action == MotionEvent.ACTION_CANCEL && selectionActive) {
+      clearSelection()
+    }
     return scaleDetector.isInProgress || scrolled || superHandled
   }
 
@@ -294,7 +383,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   }
 
   override fun onSpecialKey(event: KeyEvent): Boolean {
-    val ctl = controller ?: return false
+    controller ?: return false
     // 修飾キーの xterm 方式: mod = 1 + (shift) + 2*(alt) + 4*(ctrl)
     val mod =
         1 +
@@ -320,7 +409,9 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
           KeyEvent.KEYCODE_PAGE_DOWN -> csiTildeMod(6, mod)
           else -> return false
         }
-    ctl.sendToRemote(bytes)
+    // sendBytes 経由で DECCKM remap + scrollToBottom を一本化。直接 sendToRemote を呼ぶと
+    // application cursor mode の書換えが走らず、tmux 上で矢印が効かなくなる。
+    sendBytes(bytes)
     return true
   }
 
@@ -453,11 +544,259 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
 
   override fun sendBackspace() = sendBytes(byteArrayOf(0x7F))
 
+  /**
+   * mouse tracking が ON ならホイール event を SGR (または X10) 形式で送って true。
+   * OFF (= local scrollback 動作) なら false を返す。
+   *
+   * tmux で `set -g mouse on` されていると、ホイール event を受けて自動的に copy mode へ
+   * 入って内部 scrollback をスクロールしてくれる。Claude Code / vim 等でも同じ仕組みで
+   * その TUI の解釈に任せられる。
+   *
+   * [positiveLines] が正で「過去方向スクロール」= wheel up (button 64)、
+   * 負なら「現在方向スクロール」= wheel down (button 65)。
+   */
+  private fun sendWheelIfTracking(e: MotionEvent, positiveLines: Int): Boolean {
+    val ctl = controller ?: return false
+    val emu = ctl.emulator
+    if (!emu.mouseTrackingEnabled) return false
+    val cw = renderer.cellWidth
+    val ch = renderer.cellHeight
+    if (cw <= 0f || ch <= 0f) return false
+    val col = (e.x / cw).toInt().coerceAtLeast(0) + 1 // 1-based
+    val row = (e.y / ch).toInt().coerceAtLeast(0) + 1
+    val count = kotlin.math.abs(positiveLines)
+    val button = if (positiveLines > 0) 64 else 65
+    val sgr = emu.mouseSgrMode
+    repeat(count) {
+      val bytes =
+          if (sgr) {
+            "[<$button;$col;${row}M".toByteArray(Charsets.US_ASCII)
+          } else {
+            // X10 レガシー形式: `ESC [ M <b+32> <x+32> <y+32>`。値域が 223 を超えると
+            // 壊れるため大きい row/col では SGR が必須。tmux は通常 1006 も一緒に立てる。
+            byteArrayOf(
+                0x1B,
+                '['.code.toByte(),
+                'M'.code.toByte(),
+                (button + 32).toByte(),
+                (col + 32).coerceAtMost(255).toByte(),
+                (row + 32).coerceAtMost(255).toByte(),
+            )
+          }
+      ctl.sendToRemote(bytes)
+    }
+    return true
+  }
+
   /** キーボードツールバーなどから外部的にバイト列を投入。 */
   fun sendBytes(bytes: ByteArray) {
     // 何か入力したらスクロール位置を底へ戻す（典型的なターミナル挙動）。
     scrollToBottom()
-    controller?.sendToRemote(bytes)
+    controller?.sendToRemote(remapArrowIfAppMode(bytes))
+  }
+
+  // --- テキスト選択 ---
+
+  /** ピクセル座標を画面上のセル位置 (row/col) に変換。見えない位置は null。 */
+  private fun cellAtPixel(x: Float, y: Float): CellPos? {
+    val cw = renderer.cellWidth
+    val ch = renderer.cellHeight
+    if (cw <= 0f || ch <= 0f) return null
+    val col = (x / cw).toInt().coerceAtLeast(0)
+    val row = (y / ch).toInt().coerceAtLeast(0)
+    val ctl = controller ?: return null
+    val rows = ctl.emulator.rows
+    val cols = ctl.emulator.cols
+    return CellPos(row.coerceAtMost(rows - 1), col.coerceAtMost(cols - 1))
+  }
+
+  private fun beginSelection(pos: CellPos) {
+    Logger.d("SEL", "beginSelection row=${pos.row} col=${pos.col}")
+    selStart = pos
+    selEnd = pos
+    // 新規選択は end を伸ばしていくのが自然なので end-drag モード。
+    draggingStart = false
+    // FLAG_IGNORE_VIEW_SETTING を付けて、View 側 haptic が無効でも振動させる。
+    // これを付けないとユーザ側で「触覚フィードバック」をオフにしていると振動 0 になり、
+    // 「長押しが効いてない」と感じる。
+    performHapticFeedback(
+        HapticFeedbackConstants.LONG_PRESS,
+        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+    )
+    invalidate()
+  }
+
+  private fun extendSelection(pos: CellPos) {
+    if (selStart == null) return
+    if (draggingStart) selStart = pos else selEnd = pos
+    invalidate()
+    // CAB 位置を選択範囲に追従させる
+    selectionActionMode?.invalidateContentRect()
+  }
+
+  /**
+   * 選択中の ACTION_DOWN で、タッチ位置がどちらの端点に近いかを判定し、以後のドラッグで
+   * 動かす側を決める。
+   */
+  private fun pickDragEndpoint(x: Float, y: Float) {
+    val s = selStart ?: return
+    val e = selEnd ?: return
+    val cw = renderer.cellWidth
+    val ch = renderer.cellHeight
+    if (cw <= 0f || ch <= 0f) return
+    val dxs = (x - (s.col + 0.5f) * cw)
+    val dys = (y - (s.row + 0.5f) * ch)
+    val dxe = (x - (e.col + 0.5f) * cw)
+    val dye = (y - (e.row + 0.5f) * ch)
+    val distStart = dxs * dxs + dys * dys
+    val distEnd = dxe * dxe + dye * dye
+    draggingStart = distStart < distEnd
+  }
+
+  private fun clearSelection() {
+    if (selStart == null && selEnd == null) return
+    selStart = null
+    selEnd = null
+    // ActionMode が立っていたら一緒に閉じる。finish() は onDestroyActionMode を呼ぶが
+    // その中で clearSelection() を呼び直さないように selectionActionMode を先に null 化。
+    val am = selectionActionMode
+    selectionActionMode = null
+    am?.finish()
+    invalidate()
+  }
+
+  /**
+   * 選択範囲の近くに floating ActionMode (CAB) を出して「コピー」メニューを提示する。
+   * `TYPE_FLOATING` は API 23+。`onGetContentRect` で選択範囲の矩形を返すと OS が
+   * 最適な位置に CAB を配置してくれる（選択の直上 or 直下）。
+   */
+  private fun showSelectionActionMode() {
+    val callback = object : ActionMode.Callback2() {
+      override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+        menu.add(0, MENU_COPY, 0, "コピー")
+        return true
+      }
+
+      override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean = false
+
+      override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean =
+          when (item.itemId) {
+            MENU_COPY -> {
+              copySelectionAndClear()
+              mode.finish()
+              true
+            }
+            else -> false
+          }
+
+      override fun onDestroyActionMode(mode: ActionMode) {
+        // Copy 選択以外（外側タップ・戻るキー・mode.finish() 等）の経路で閉じたら
+        // 選択もクリア。selectionActionMode を先に null にしておかないと
+        // clearSelection() → finish() で再帰してしまう。
+        if (selectionActionMode === mode) {
+          selectionActionMode = null
+          clearSelection()
+        }
+      }
+
+      override fun onGetContentRect(mode: ActionMode, view: View?, outRect: android.graphics.Rect) {
+        val s = selStart
+        val e = selEnd
+        if (s == null || e == null) {
+          super.onGetContentRect(mode, view, outRect)
+          return
+        }
+        val cw = renderer.cellWidth.toInt().coerceAtLeast(1)
+        val ch = renderer.cellHeight.toInt().coerceAtLeast(1)
+        val minRow = minOf(s.row, e.row)
+        val maxRow = maxOf(s.row, e.row)
+        val minCol = minOf(s.col, e.col)
+        val maxCol = maxOf(s.col, e.col)
+        outRect.set(minCol * cw, minRow * ch, (maxCol + 1) * cw, (maxRow + 1) * ch)
+      }
+    }
+    selectionActionMode = startActionMode(callback, ActionMode.TYPE_FLOATING)
+  }
+
+  /**
+   * 現在の選択範囲からテキストを抽出してクリップボードへ。終わったら選択をクリア。
+   * 選択は表示中の可視セルを対象に、startRow..endRow のテキストを改行結合する。
+   * 行末の空セルは trim して余計な空白を吐かない。
+   */
+  private fun copySelectionAndClear() {
+    val s = selStart
+    val e = selEnd
+    val text = extractSelectionText()
+    Logger.d(
+        "SEL",
+        "copySelectionAndClear s=$s e=$e textLen=${text?.length ?: -1} preview=${text?.take(32) ?: "null"}",
+    )
+    clearSelection()
+    if (text.isNullOrEmpty()) {
+      Toast.makeText(context, "選択範囲が空でした", Toast.LENGTH_SHORT).show()
+      return
+    }
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    if (cm == null) {
+      Logger.w("SEL", "ClipboardManager not available")
+      return
+    }
+    cm.setPrimaryClip(ClipData.newPlainText("wanoterm selection", text))
+    Toast.makeText(context, "コピーしました (${text.length}文字)", Toast.LENGTH_SHORT).show()
+  }
+
+  private fun extractSelectionText(): String? {
+    val s = selStart ?: return null
+    val e = selEnd ?: return null
+    val buffer = controller?.emulator?.buffer ?: return null
+    // 正規化: (r1,c1) が左上、(r2,c2) が右下になるように。
+    val swap = s.row > e.row || (s.row == e.row && s.col > e.col)
+    val r1 = if (swap) e.row else s.row
+    val c1 = if (swap) e.col else s.col
+    val r2 = if (swap) s.row else e.row
+    val c2 = if (swap) s.col else e.col
+    val sb = StringBuilder()
+    for (r in r1..r2) {
+      val startCol = if (r == r1) c1 else 0
+      val endCol = if (r == r2) c2 else buffer.cols - 1
+      val lineStart = sb.length
+      var c = startCol
+      while (c <= endCol) {
+        val cell = buffer.cellAt(r, c)
+        if (cell.continuation) { c++; continue }
+        if (cell.codePoint == 0) sb.append(' ')
+        else sb.appendCodePoint(cell.codePoint)
+        c += if (cell.wide) 2 else 1
+      }
+      // 行末の trailing space は削る（セル配列は空きも space になるので行末が散らかる）
+      while (sb.length > lineStart && sb[sb.length - 1] == ' ') sb.setLength(sb.length - 1)
+      if (r < r2) sb.append('\n')
+    }
+    return sb.toString()
+  }
+
+  /**
+   * DECCKM (application cursor keys mode) が有効なとき、ソフト矢印・DPAD 由来の
+   * `ESC [ A/B/C/D/H/F` を `ESC O A/B/C/D/H/F` に書き換える。tmux や readline は
+   * application mode でだけ後者を期待するので、この remap をしないと矢印が効かなくなる。
+   *
+   * modifier 付き（`ESC [ 1;5 A` など）は元々 CSI 固定の規約なので対象外（3 バイト長で
+   * 絞り込み済み）。
+   */
+  private fun remapArrowIfAppMode(bytes: ByteArray): ByteArray {
+    val ctl = controller ?: return bytes
+    if (!ctl.emulator.applicationCursorKeys) return bytes
+    if (bytes.size != 3) return bytes
+    if (bytes[0] != 0x1B.toByte() || bytes[1] != '['.code.toByte()) return bytes
+    val final = bytes[2]
+    val remap =
+        when (final) {
+          'A'.code.toByte(), 'B'.code.toByte(), 'C'.code.toByte(), 'D'.code.toByte(),
+          'H'.code.toByte(), 'F'.code.toByte() -> true
+          else -> false
+        }
+    if (!remap) return bytes
+    return byteArrayOf(0x1B, 'O'.code.toByte(), final)
   }
 
   private fun requestInputFocus() {
@@ -494,3 +833,8 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     return dp * dm.density * resources.configuration.fontScale
   }
 }
+
+/** 可視画面上のセル位置。選択範囲の端点に使う。 */
+data class CellPos(val row: Int, val col: Int)
+
+private const val MENU_COPY = 1

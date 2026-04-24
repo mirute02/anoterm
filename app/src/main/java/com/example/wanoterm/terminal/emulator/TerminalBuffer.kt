@@ -92,6 +92,9 @@ class TerminalBuffer(
   @Synchronized
   fun resize(newRows: Int, newCols: Int, rowOffset: Int = 0) {
     if (newRows == rows && newCols == cols) return
+    // cols 不変なら scrollback は触らない。IME アニメの毎フレームで rows だけ動く
+    // ときに 2000 行全 copy していたのが frame drop の主因だった。
+    val colsChanged = newCols != cols
     val newGrid = makeGrid(newRows, newCols)
     val copyCols = minOf(cols, newCols)
     for (r in 0 until newRows) {
@@ -105,8 +108,8 @@ class TerminalBuffer(
     cols = newCols
     // cols が変わると scrollback の各行が異なる幅を持つことになり、遡った時に
     // 表示がガタガタになる。各行を newCols に合わせて詰め直す（短縮は切り詰め、
-    // 拡大は空セルで埋める）。2000 行の全 copy だが resize は稀なので許容。
-    if (scrollback.isNotEmpty()) {
+    // 拡大は空セルで埋める）。
+    if (colsChanged && scrollback.isNotEmpty()) {
       val repaired = ArrayDeque<Array<Cell>>(scrollback.size)
       for (line in scrollback) {
         val newLine = Array(newCols) { c -> if (c < line.size) line[c].copy() else Cell() }
@@ -140,7 +143,15 @@ class TerminalBuffer(
     if (row !in 0 until rows || col !in 0 until cols) return
     val width = CharWidth.widthOf(codePoint).coerceAtLeast(1)
     val cell = grid[row][col]
+    // 書込先が wide セルの右半分 (continuation) なら、左半分の wide を消す（孤児防止）。
     if (cell.continuation && col > 0) grid[row][col - 1].clear(style)
+    // 書込先が wide セルの左半分だった場合、右隣に残っている continuation フラグを必ず
+    // 消す。消さないと次に narrow 文字が右隣に書かれる時に「左の wide を消す」ロジックが
+    // 暴走して 2 文字ぶん消えて見える（これが「1 文字おきに抜ける」症状の主因）。
+    if (cell.wide && col + 1 < cols) {
+      val right = grid[row][col + 1]
+      if (right.continuation) right.clear(style)
+    }
     cell.codePoint = codePoint
     cell.style = style
     cell.wide = width == 2
@@ -158,15 +169,27 @@ class TerminalBuffer(
   @Synchronized
   fun clearCell(row: Int, col: Int, style: CellStyle) {
     if (row !in 0 until rows || col !in 0 until cols) return
-    grid[row][col].clear(style)
+    val cell = grid[row][col]
+    // wide セルの左半分を消すなら、右隣の continuation も一緒に消す。放置すると
+    // 右半分が「孤児の continuation」として残り、次の put が暴走する。
+    if (cell.wide && col + 1 < cols && grid[row][col + 1].continuation) {
+      grid[row][col + 1].clear(style)
+    }
+    // continuation (右半分) だけ消されたら、左半分の wide も連動して消す。
+    if (cell.continuation && col > 0) grid[row][col - 1].clear(style)
+    cell.clear(style)
     bump()
   }
 
   @Synchronized
   fun clearRow(row: Int, style: CellStyle, fromCol: Int = 0, toCol: Int = cols - 1) {
     if (row !in 0 until rows) return
-    val a = fromCol.coerceAtLeast(0)
-    val b = toCol.coerceAtMost(cols - 1)
+    var a = fromCol.coerceAtLeast(0)
+    var b = toCol.coerceAtMost(cols - 1)
+    // 範囲端が wide 文字の半分を割る場合は片側に伸ばす。これをしないと EL (CSI K) で
+    // 全角文字の片半分だけ消えて「半身になったまま表示される」症状になる。
+    if (a > 0 && grid[row][a].continuation) a -= 1
+    if (b < cols - 1 && grid[row][b].wide) b += 1
     for (c in a..b) grid[row][c].clear(style)
     bump()
   }
@@ -210,6 +233,36 @@ class TerminalBuffer(
       for (c in 0 until cols) grid[r][c].copyFrom(grid[r - n][c])
     }
     for (r in 0 until n) clearRow(r, style)
+  }
+
+  /**
+   * DECSTBM で指定されたスクロール領域 [top..bottom] を 1 行ぶん上にスクロール。
+   * scrollback には push しない（領域外の行は触らない）。tmux の status bar 固定など
+   * 部分レイアウト用。
+   */
+  @Synchronized
+  fun scrollUpRegion(top: Int, bottom: Int, style: CellStyle, count: Int = 1) {
+    val t = top.coerceIn(0, rows - 1)
+    val b = bottom.coerceIn(t, rows - 1)
+    val n = count.coerceAtMost(b - t + 1)
+    if (n <= 0) return
+    for (r in t..(b - n)) {
+      for (c in 0 until cols) grid[r][c].copyFrom(grid[r + n][c])
+    }
+    for (r in (b - n + 1)..b) clearRow(r, style)
+  }
+
+  /** 同じく領域版の scrollDown。RI で scrollTop を跨ぐとき等に使う。 */
+  @Synchronized
+  fun scrollDownRegion(top: Int, bottom: Int, style: CellStyle, count: Int = 1) {
+    val t = top.coerceIn(0, rows - 1)
+    val b = bottom.coerceIn(t, rows - 1)
+    val n = count.coerceAtMost(b - t + 1)
+    if (n <= 0) return
+    for (r in b downTo (t + n)) {
+      for (c in 0 until cols) grid[r][c].copyFrom(grid[r - n][c])
+    }
+    for (r in t until (t + n)) clearRow(r, style)
   }
 
   companion object {

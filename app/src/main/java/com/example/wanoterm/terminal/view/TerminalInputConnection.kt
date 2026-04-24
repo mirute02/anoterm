@@ -32,6 +32,16 @@ class TerminalInputConnection(
 
   private val editable = SpannableStringBuilder()
 
+  /**
+   * IME が setSelection で絶対位置を渡してきた時の直前位置。Gboard の「長押し spacebar →
+   * 左右スワイプ」などで IME が setSelection でカーソルを動かしてくるケースで、
+   * delta を検出して DPAD_LEFT/RIGHT に変換し PTY に送るために使う。
+   * editable 側のカーソル位置は `Selection.getSelectionStart(editable)` で拾えるが、
+   * 複数回連続で setSelection が来ると「既に適用済み」の値と区別できないため、
+   * 独立して保持する。
+   */
+  private var lastRawSelection = 0
+
   override fun getEditable(): android.text.Editable? {
     return editable
   }
@@ -139,7 +149,30 @@ class TerminalInputConnection(
     return super.sendKeyEvent(event)
   }
 
+  // --- IME trace ログ ---
+  //
+  // Android のソフトキーボード「テキスト編集」パネル（↑↓←→、選択、コピー等）の矢印が
+  // 効かない時に経路を特定するためのログ。多くの IME は `sendKeyEvent` ではなく
+  // `setSelection` / `deleteSurroundingText` / `performPrivateCommand` 経由で来るので、
+  // 全メソッドにトレースを仕込んで何が呼ばれているかを logcat で確認する。
+
+  override fun beginBatchEdit(): Boolean {
+    Logger.d("IME", "beginBatchEdit")
+    return super.beginBatchEdit()
+  }
+
+  override fun endBatchEdit(): Boolean {
+    Logger.d("IME", "endBatchEdit")
+    return super.endBatchEdit()
+  }
+
+  override fun performContextMenuAction(id: Int): Boolean {
+    Logger.d("IME", "performContextMenuAction id=$id")
+    return super.performContextMenuAction(id)
+  }
+
   override fun performEditorAction(editorAction: Int): Boolean {
+    Logger.d("IME", "performEditorAction action=$editorAction")
     // Enter 扱い。composing があればまず確定。
     if (view.composingState.isActive) {
       val committed = view.composingState.text
@@ -153,6 +186,7 @@ class TerminalInputConnection(
   }
 
   override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+    Logger.d("IME", "deleteSurroundingText before=$beforeLength after=$afterLength composing=${view.composingState.isActive}")
     if (view.composingState.isActive) {
       // composing 中の削除は composing から削る。Backspace を SSH へは送らない
       // （まだ SSH に行っていない文字なので）。
@@ -214,14 +248,42 @@ class TerminalInputConnection(
       }
 
   override fun setSelection(start: Int, end: Int): Boolean {
+    // 合成中は editable と composing 内のカーソル位置を同期するだけ（従来挙動）。
+    if (view.composingState.isActive) {
+      val clampedStart = start.coerceIn(0, editable.length)
+      val clampedEnd = end.coerceIn(0, editable.length)
+      Selection.setSelection(editable, clampedStart, clampedEnd)
+      if (clampedStart == clampedEnd) {
+        view.composingState.setAbsolute(view.composingState.text, clampedStart)
+        view.requestTerminalRedraw()
+      }
+      lastRawSelection = start
+      Logger.d("IME", "setSelection (composing) start=$clampedStart end=$clampedEnd")
+      notifyImeState()
+      return true
+    }
+    // 合成なしで caret が動いた場合: IME の「テキストカーソル移動」操作とみなし、
+    // delta ぶんの DPAD_LEFT/RIGHT を合成して PTY に送る。これをしないと Gboard の
+    // 長押しスペース→スワイプや Samsung Keyboard の方向矢印キーが全く効かない。
+    if (start == end) {
+      val delta = start - lastRawSelection
+      if (delta != 0) {
+        val keycode =
+            if (delta > 0) android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+            else android.view.KeyEvent.KEYCODE_DPAD_LEFT
+        val count = kotlin.math.abs(delta).coerceAtMost(16) // 暴走防止
+        repeat(count) {
+          val ev = android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keycode)
+          view.onSpecialKey(ev)
+        }
+        Logger.d("IME", "setSelection → arrow delta=$delta sent=${count}×${keycode}")
+      }
+    }
+    lastRawSelection = start
+    // editable 側も同期（IME が次回 delta 計算のため内部状態に合わせたがることがある）。
     val clampedStart = start.coerceIn(0, editable.length)
     val clampedEnd = end.coerceIn(0, editable.length)
     Selection.setSelection(editable, clampedStart, clampedEnd)
-    if (view.composingState.isActive && clampedStart == clampedEnd) {
-      view.composingState.setAbsolute(view.composingState.text, clampedStart)
-      view.requestTerminalRedraw()
-    }
-    Logger.d("IME", "setSelection start=$clampedStart end=$clampedEnd")
     notifyImeState()
     return true
   }
@@ -260,6 +322,7 @@ class TerminalInputConnection(
   private fun clearEditable() {
     editable.clear()
     Selection.setSelection(editable, 0)
+    lastRawSelection = 0
   }
 
   private fun selectionStart(): Int = Selection.getSelectionStart(editable).coerceAtLeast(0)

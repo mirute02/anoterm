@@ -13,10 +13,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -82,7 +85,7 @@ sealed interface TabScreenState {
   data class Error(val message: String) : TabScreenState
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   val app = remember { WanotermApp.get() }
@@ -300,11 +303,14 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
         )
       }
   ) { inner ->
+    // adjustNothing + edge-to-edge 構成。imePadding は「ツールバーだけ」に付け、
+    // ターミナル領域は IME による window resize の影響を受けないようにする。
+    // これで tmux / Claude Code に SIGWINCH が連打されず、キーボード開閉時の
+    // 「画面が縦に圧縮・復元される」ちらつきが消える。
     Column(
         modifier =
             Modifier.fillMaxSize()
                 .padding(inner)
-                .imePadding()
                 .navigationBarsPadding(),
     ) {
       // タブ数の変化（1→2 や 2→1）で TabBar が「ヒュッと出て消える」flicker に見えないよう、
@@ -362,19 +368,29 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
             currentView?.scrollToBottom()
             app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
           }
+          // IME 可視状態を WindowInsets の ime bottom で判定。
+          val imeBottomPx =
+              WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
+          val imeVisible = imeBottomPx > 0
+          // Termius 風のレイアウト: ターミナルが weight(1f) で残余を占め、ツールバーは
+          // そのすぐ下に Column の子として並ぶ。ツールバーに `imePadding` を付けると
+          // IME 表示時にその下に IME 高さ分の余白が入り、結果としてターミナルが
+          // その分だけ縮む → リモートシェルの入力行（cursor 行）がツールバーの直上、
+          // つまり IME の上に見える。ターミナルが縮むので SIGWINCH は飛ぶが、
+          // adjustNothing + Compose 内のレイアウト変化だけなので一度で settle する。
           if (sortedTabs.size <= 1) {
             TerminalHost(
                 controller = s.bundle.controller,
                 palette = theme.toPalette(),
                 fontSizeSp = fontSizeSp,
                 lineEnding = lineEnding,
-                modifier = Modifier.weight(1f).fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 viewBinding = { v -> terminalViews[currentTabId] = v },
             )
           } else {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.weight(1f).fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 key = { page -> sortedTabs.getOrNull(page) ?: page },
             ) { page ->
               val pageTabId = sortedTabs.getOrNull(page)
@@ -393,49 +409,54 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
               }
             }
           }
-
-          // ショートカットバーは開閉可能。閉じておくと端末の表示領域が増える。
-          AnimatedVisibility(
-              visible = showShortcutBar,
-              enter = expandVertically(),
-              exit = shrinkVertically(),
+          // ツールバー + ショートカットバーはターミナル直下に固定し、IME が出れば
+          // その上に押し上げる。`imePadding()` はアニメ補間値を読むので毎フレーム
+          // 再レイアウトが走り terminal 側の SIGWINCH も連発される。代わりに
+          // `imeAnimationTarget` (最終値) を windowInsetsPadding で当てることで、
+          // 開閉開始時点で position を snap させる — Termius がカクカク見えない理由。
+          Column(
+              modifier =
+                  Modifier.fillMaxWidth()
+                      .background(MaterialTheme.colorScheme.surface)
+                      .windowInsetsPadding(WindowInsets.imeAnimationTarget),
           ) {
-            CustomShortcutBar(
-                shortcuts = customShortcuts,
-                lineEnding = lineEnding,
+            // AnimatedVisibility だと expand/shrink 中に毎フレーム terminal が縮み、
+            // PTY resize → feed/draw が連発して「ショートカット展開がカクつく」。
+            // snap 表示にすれば layout は 1 回で決まる。
+            if (showShortcutBar) {
+              CustomShortcutBar(
+                  shortcuts = customShortcuts,
+                  lineEnding = lineEnding,
+                  onSend = sendBytes,
+              )
+            }
+            KeyboardToolbar(
+                ctrlArmed = ctrlArmed,
+                shortcutBarVisible = showShortcutBar,
+                keyboardVisible = imeVisible,
+                onToggleCtrl = {
+                  ctrlArmed = !ctrlArmed
+                  currentView?.ctrlArmed = ctrlArmed
+                },
+                onToggleShortcutBar = { showShortcutBar = !showShortcutBar },
+                onToggleKeyboard = {
+                  val imm =
+                      context.getSystemService(Context.INPUT_METHOD_SERVICE)
+                          as? InputMethodManager
+                  if (imeVisible) {
+                    imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
+                  } else {
+                    // TerminalView に focus させてから soft input を要求する。
+                    // focus が取れないと IME は開かないので requestFocus を先に。
+                    currentView?.let { v ->
+                      v.requestFocus()
+                      imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
+                    }
+                  }
+                },
                 onSend = sendBytes,
             )
           }
-          // IME 可視状態を WindowInsets の ime bottom で判定。0 より大きければ出ている。
-          // isImeVisible ext prop は Compose 1.5+ なので、こちらの書き方で互換性確保。
-          val imeBottomPx =
-              WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
-          val imeVisible = imeBottomPx > 0
-          KeyboardToolbar(
-              ctrlArmed = ctrlArmed,
-              shortcutBarVisible = showShortcutBar,
-              keyboardVisible = imeVisible,
-              onToggleCtrl = {
-                ctrlArmed = !ctrlArmed
-                currentView?.ctrlArmed = ctrlArmed
-              },
-              onToggleShortcutBar = { showShortcutBar = !showShortcutBar },
-              onToggleKeyboard = {
-                val imm =
-                    context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                if (imeVisible) {
-                  imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
-                } else {
-                  // TerminalView に focus させてから soft input を要求する。
-                  // focus が取れないと IME は開かないので requestFocus を先に。
-                  currentView?.let { v ->
-                    v.requestFocus()
-                    imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
-                  }
-                }
-              },
-              onSend = sendBytes,
-          )
         }
       }
     }
