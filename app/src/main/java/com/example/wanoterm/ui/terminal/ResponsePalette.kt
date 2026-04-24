@@ -14,13 +14,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 /**
- * Claude Code / Codex の「1. ... / 2. ... / 3. ...」選択肢プロンプトに応答するための
+ * Claude Code / Codex 等の「1. ... / 2. ... / 3. ...」選択肢プロンプトに応答するための
  * 大ボタン行。検出時のみ表示される前提。
  *
- * ボタンには数字だけ出す。「承認/拒否/継続」のような意味ラベルは Yes/No 以外の選択肢
- * （ファイル編集/絞込 etc.）で混乱を招くので廃止。
+ * 選択肢数だけ数字ボタンを並べる（意味ラベルなし）。Yes/No 以外の選択肢でも破綻しない。
+ * 画面幅の関係で最大 9 までに制限（Claude / Codex 実例は 3-4 が多く、9 超えはほぼ無い）。
  *
- * maxChoice=2 → [1 / 2] 2 ボタン、maxChoice=3 → [1 / 2 / 3] 3 ボタン。
  * 送信は Enter 込み（上位の sendBytes が `lineEnding.bytes` を連結する）。
  */
 @Composable
@@ -29,16 +28,16 @@ fun ResponsePalette(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+  val count = maxChoice.coerceIn(2, 9)
   Row(
       modifier =
           modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    for (n in 1..maxChoice.coerceIn(2, 3)) {
+    for (n in 1..count) {
       Button(
           onClick = { onSelect(n) },
           modifier = Modifier.weight(1f).heightIn(min = 52.dp),
-          // 全ボタン同じ色。数字だけなので誤解を招かない。
           colors =
               ButtonDefaults.buttonColors(
                   containerColor = MaterialTheme.colorScheme.primary,

@@ -424,7 +424,8 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
           // 見えるため、単純な if で出し入れのみにする（アニメーション無し）。
           if (paletteEnabled && selectionChoices >= 2) {
             ResponsePalette(
-                maxChoice = selectionChoices.coerceAtMost(3),
+                // 選択肢の数だけボタンを並べる。ResponsePalette 内で 9 までに上限付け。
+                maxChoice = selectionChoices,
                 onSelect = { n ->
                   sendBytes(byteArrayOf((0x30 + n).toByte()) + lineEnding.bytes)
                 },
