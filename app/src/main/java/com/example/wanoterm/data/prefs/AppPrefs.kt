@@ -66,6 +66,12 @@ class AppPrefs(context: Context) {
   private val _developerMode = MutableStateFlow(readDeveloperMode())
   val developerMode: StateFlow<Boolean> = _developerMode.asStateFlow()
 
+  // 応答パレット（Claude Code 等の 1/2/3 選択肢で大ボタンを出す機能）。
+  // デフォルト有効。ボタンが邪魔と感じるユーザは Settings で OFF にできる。
+  // 選択肢プロンプトを検出した時だけ表示される仕組みなので、普段は出ない。
+  private val _responsePaletteEnabled = MutableStateFlow(readResponsePaletteEnabled())
+  val responsePaletteEnabled: StateFlow<Boolean> = _responsePaletteEnabled.asStateFlow()
+
   /** Lock 画面に遷移するかどうかを算出するためのフロー（Navigation から購読） */
   val biometricLock: Flow<Boolean>
     get() = _biometricLockEnabled.asStateFlow()
@@ -123,6 +129,11 @@ class AppPrefs(context: Context) {
     _developerMode.value = enabled
   }
 
+  fun setResponsePaletteEnabled(enabled: Boolean) {
+    sp.edit().putBoolean(KEY_RESPONSE_PALETTE, enabled).apply()
+    _responsePaletteEnabled.value = enabled
+  }
+
   fun localeList(): LocaleListCompat =
       when (_locale.value) {
         AppLocale.SYSTEM -> LocaleListCompat.getEmptyLocaleList()
@@ -171,6 +182,8 @@ class AppPrefs(context: Context) {
 
   private fun readDeveloperMode(): Boolean = sp.getBoolean(KEY_DEV_MODE, false)
 
+  private fun readResponsePaletteEnabled(): Boolean = sp.getBoolean(KEY_RESPONSE_PALETTE, true)
+
   private fun readCustomShortcuts(): List<CustomShortcut> {
     val raw = sp.getString(KEY_CUSTOM_SHORTCUTS, null) ?: return DEFAULT_SHORTCUTS
     return try {
@@ -192,6 +205,7 @@ class AppPrefs(context: Context) {
     private const val KEY_LAST_TAB_ID = "last_tab_id"
     private const val KEY_IS_PRO = "is_pro"
     private const val KEY_DEV_MODE = "developer_mode"
+    private const val KEY_RESPONSE_PALETTE = "response_palette_enabled"
 
     // Free tier の上限。Pro で解除。
     const val FREE_TIER_HOST_LIMIT = 3

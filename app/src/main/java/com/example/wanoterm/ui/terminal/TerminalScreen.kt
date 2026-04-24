@@ -247,6 +247,22 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
       (currentBundle?.controller?.connectionState ?: remember { kotlinx.coroutines.flow.MutableStateFlow(ConnectionState.Idle) })
           .collectAsStateWithLifecycle(initialValue = ConnectionState.Idle)
 
+  // 応答パレット: Claude Code / Codex が「1. 2. 3.」の選択肢を表示しているか
+  // を buffer 末尾から検出し、検出時だけ大ボタンを表示する。
+  val paletteEnabled by app.prefs.responsePaletteEnabled.collectAsStateWithLifecycle()
+  val selectionChoices by androidx.compose.runtime.produceState(0, currentBundle) {
+    val ctrl = currentBundle?.controller
+    if (ctrl == null) {
+      value = 0
+      return@produceState
+    }
+    // 最初に 1 回検出、以降は redrawSignal 毎に再評価。
+    value = com.example.wanoterm.terminal.SelectionDetector.detect(ctrl.emulator.buffer)
+    ctrl.redrawSignal.collect {
+      value = com.example.wanoterm.terminal.SelectionDetector.detect(ctrl.emulator.buffer)
+    }
+  }
+
   val context = LocalContext.current
   val composeView = LocalView.current
 
@@ -401,6 +417,18 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
                 shortcuts = customShortcuts,
                 lineEnding = lineEnding,
                 onSend = sendBytes,
+            )
+          }
+          // 応答パレット：Claude Code / Codex の選択肢が検出された時だけ表示。
+          // キーボードツールバーの上に出して、親指で押しやすい高さ・幅を確保する。
+          androidx.compose.animation.AnimatedVisibility(
+              visible = paletteEnabled && selectionChoices >= 2,
+          ) {
+            ResponsePalette(
+                maxChoice = selectionChoices.coerceAtMost(3),
+                onSelect = { n ->
+                  sendBytes(byteArrayOf((0x30 + n).toByte()) + lineEnding.bytes)
+                },
             )
           }
           KeyboardToolbar(
