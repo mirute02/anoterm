@@ -30,8 +30,12 @@ class WanotermApp : Application() {
     // Android 組み込みの BouncyCastle は X25519 / CHACHA20 などが未提供のため、
     // フル機能の BC を手元の jar で差し替える。sshj が "BC" プロバイダを要求したときに
     // これが見つかるようにする。
-    Security.removeProvider("BC")
-    Security.insertProviderAt(BouncyCastleProvider(), 1)
+    // 多重起動ガード: 既に同じ org.bouncycastle.* の BC が挿さっていれば no-op。
+    // Android 側の BC は `com.android.org.bouncycastle.*` なので型判定でうちの版と区別できる。
+    if (Security.getProvider("BC") !is BouncyCastleProvider) {
+      Security.removeProvider("BC")
+      Security.insertProviderAt(BouncyCastleProvider(), 1)
+    }
 
     prefs = AppPrefs(applicationContext)
     database = AppDatabase.create(applicationContext)

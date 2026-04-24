@@ -503,13 +503,16 @@ wanoterm を「Android だけで完結する SSH クライアント」として�
 - [x] **#71 remoteTitles / tabLabels の stale entry** — `LaunchedEffect(activeTabs)` 冒頭で `alive` セット差分を削除
 - [x] **#72 Ed25519 `pointEncoding` のサイズ検証** — `SshKeyGenScreen.toOpenSshPublic` で `check(encoded.size == 32)`
 
-### 継続懸念（別タスクで後追い）
+### 追加修正（2nd-audit 継続）
 
-- [ ] **RIS (ESC c) の scrollback 挙動** — alt 画面中に RIS が来ると primary の scrollback が巻き添えで消える可能性。xterm 準拠だと保持すべき
-- [ ] **DebugReport export 効率化** — 変更のたび全件を JSON に再書き出し、件数が増えると重い。追記方式に
-- [ ] **Navigation3 backstack deserialize** — プロセス kill → 復帰で `Terminal(tabId)` が `@Serializable` 経由で復元される経路を実機で確認
-- [ ] **BC provider の重複登録** — `WanotermApp.onCreate` の `removeProvider("BC")` → `insertProviderAt` が ConfigChange で重複起動しないか
-- [ ] **DL (CSI M) が primary buffer の scrollback を汚染** — `TerminalEmulator:296` で `buffer.scrollUp` を呼んでおり、primary 側では delete-line が履歴に行を積んでしまう。alt 側は #67 でカバー済、primary は要別対応
+- [x] **RIS (ESC c) の scrollback 挙動** — コード読み直しで `reset()` は `clearAll` しか呼ばず scrollback deque には触れないと確認。xterm 準拠で OK、コメントで契約を明文化
+- [x] **DebugReport export 効率化** — `LaunchedEffect(reports)` 内に `delay(500)` を挟み debounce、LaunchedEffect の再起動で前回 delay が暗黙 cancel される仕組み
+- [x] **BC provider の重複登録** — `Security.getProvider("BC")` が既に `org.bouncycastle.*` の BC なら no-op。Android 標準の `com.android.org.bouncycastle.*` とは別クラスなので初回だけ差替え
+- [x] **DL (CSI M) が primary buffer の scrollback を汚染** — `TerminalBuffer.scrollUp` に `pushToScrollback: Boolean = true` を追加、DL 呼び出しで false を渡す
+
+### 検証のみ残り（実機テスト待ち）
+
+- [ ] **Navigation3 backstack deserialize** — プロセス kill → 復帰で `Terminal(tabId)` が `@Serializable` 経由で復元される経路を実機で確認。`lastTabId` 経由の独自復元は確認済（前回 Local echo 自動復帰）だが Nav3 の rememberSaveable 経路は未実施（取引アプリ実行中で中断）
 
 ---
 

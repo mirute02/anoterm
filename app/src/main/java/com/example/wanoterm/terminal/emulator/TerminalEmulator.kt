@@ -296,7 +296,8 @@ class TerminalEmulator(
       'J' -> eraseInDisplay(csiParams.firstOrNull() ?: 0)
       'K' -> eraseInLine(csiParams.firstOrNull() ?: 0)
       'L' -> buffer.scrollDown(style, param(0)) // IL (粗)
-      'M' -> buffer.scrollUp(style, param(0)) // DL (粗)
+      // DL は画面内 editing 操作なので primary buffer でも scrollback に残さない
+      'M' -> buffer.scrollUp(style, param(0), pushToScrollback = false) // DL (粗)
       'P' -> deleteChars(param(0))
       '@' -> insertChars(param(0))
       'm' -> applySgr()
@@ -488,6 +489,13 @@ class TerminalEmulator(
     if (cursorCol >= cols) cursorCol = cols - 1
   }
 
+  /**
+   * RIS (ESC c) と同等の soft reset。画面セル・カーソル・SGR 状態をリセットする。
+   *
+   * xterm 準拠でスクロールバックは意図的に保持する。clearAll はセルだけをクリアし
+   * scrollback deque には触れない。ユーザが `reset` コマンドで画面をリセットしても、
+   * 過去に流れたログまで失われると使い勝手が悪い。
+   */
   fun reset() {
     utf8.reset()
     csiParams.clear()

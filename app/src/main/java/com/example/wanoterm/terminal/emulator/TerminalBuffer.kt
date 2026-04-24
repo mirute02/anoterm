@@ -176,12 +176,19 @@ class TerminalBuffer(
     for (r in 0 until rows) clearRow(r, style)
   }
 
-  /** 上 1 行ぶんスクロール（最上段の行が消え、下から新しい空行を足す）。 */
+  /**
+   * 上 1 行ぶんスクロール（最上段の行が消え、下から新しい空行を足す）。
+   *
+   * [pushToScrollback] = false にすると scrollbackEnabled が true でもスクロールバックに
+   * 押し出さない。DL (CSI M) のような「画面内の編集操作」で呼ばれるときに使う。
+   * DL は本来 cursor 行から下を詰める編集コマンドであり、画面上端を履歴に残す LF スクロールとは
+   * 意味が違う。両方とも内部的には同じ配列シフトで処理できるが scrollback への扱いだけ分離する。
+   */
   @Synchronized
-  fun scrollUp(style: CellStyle, count: Int = 1) {
+  fun scrollUp(style: CellStyle, count: Int = 1, pushToScrollback: Boolean = true) {
     val n = count.coerceAtMost(rows)
     if (n <= 0) return
-    if (scrollbackEnabled) {
+    if (scrollbackEnabled && pushToScrollback) {
       for (i in 0 until n) {
         val snapshot = Array(cols) { c -> grid[i][c].copy() }
         scrollback.addLast(snapshot)

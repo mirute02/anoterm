@@ -62,8 +62,12 @@ fun DebugReportSheet(
   var draft by remember { mutableStateOf("") }
   val scope = rememberCoroutineScope()
 
-  // レポートが変わるたびに外部ストレージへ dump
+  // レポートが変わるたびに外部ストレージへ dump。
+  // 連続書き込みがあると全件 JSON serialize を毎回走らせるので 500ms debounce。
+  // reports は Flow 由来なので新しい値が来ると LaunchedEffect が再起動し、前回の delay が
+  // 暗黙に cancel されて最終状態だけ書かれる。
   LaunchedEffect(reports) {
+    kotlinx.coroutines.delay(500)
     withContext(Dispatchers.IO) { exportToFile(androidContext, reports) }
   }
 
