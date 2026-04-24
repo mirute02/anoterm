@@ -16,8 +16,8 @@ class RoomConverters {
 }
 
 @Database(
-    entities = [HostEntity::class, KnownHostEntity::class],
-    version = 1,
+    entities = [HostEntity::class, KnownHostEntity::class, DebugReportEntity::class],
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -25,6 +25,8 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun hostDao(): HostDao
 
   abstract fun knownHostDao(): KnownHostDao
+
+  abstract fun debugReportDao(): DebugReportDao
 
   companion object {
     private const val DB_NAME = "wanoterm.db"

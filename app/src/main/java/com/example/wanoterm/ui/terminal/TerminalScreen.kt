@@ -23,6 +23,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
@@ -89,6 +90,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   var showHelp by remember { mutableStateOf(false) }
   var showHistory by remember { mutableStateOf(false) }
   var showTmux by remember { mutableStateOf(false) }
+  var showDebug by remember { mutableStateOf(false) }
   // カスタムショートカットバーはデフォルトで非表示。下部のツールバー右端の apps アイコンで切替。
   var showShortcutBar by remember { mutableStateOf(false) }
 
@@ -231,6 +233,9 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
               IconButton(onClick = { showTmux = true }) {
                 Icon(Icons.Filled.Dashboard, contentDescription = "tmux")
               }
+              IconButton(onClick = { showDebug = true }) {
+                Icon(Icons.Filled.BugReport, contentDescription = "デバッグ報告")
+              }
               IconButton(onClick = { showHelp = true }) {
                 Icon(Icons.Filled.HelpOutline, contentDescription = "ヘルプ")
               }
@@ -361,6 +366,12 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
       TmuxPanel(
           onSend = { bytes -> readyBundle.controller.sendToRemote(bytes) },
           onDismiss = { showTmux = false },
+      )
+    }
+    if (showDebug) {
+      DebugReportSheet(
+          contextLabel = labelFor(currentTabId),
+          onDismiss = { showDebug = false },
       )
     }
   }

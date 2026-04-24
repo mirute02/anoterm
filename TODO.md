@@ -257,6 +257,112 @@
 - [ ] **ユーザ向け /help 画面の充実** — VT 互換範囲 / ショートカット一覧 / Tips
 - [ ] **Microbenchmark** — 描画 / emulator.feed の FPS / allocation 測定
 
+## L. TopAppBar の 3 アイコン（history / tmux / help）についての棚卸し
+
+現状 TopAppBar 右側に 3 つアイコンがある: history（時計）・tmux（dashboard）・help（?）。本当に全部必要か検証。
+
+- [ ] **history アイコンの中身**: `HistorySheet` を開き、`CommandHistory` が SSH に送った行を出す。保存件数 50、enter で 1 行として確定、`observe()` で bytes → 行アセンブル。**保存されるのはユーザが入力した文字列のみ**（サーバからの echo / 出力は含まない）。ユーザが「このコマンドを再実行したい」時に便利。
+
+  - [ ] **history に「SSH に送ったものだけが本当に保存されてるか」確認する** — Ctrl+C や Esc のような非文字入力も混ざってるか要確認
+  - [ ] **history をタブ間で共有 or 別々か明確化** — 現状は TerminalSessionController ごとなのでタブごと独立
+  - [ ] **history を永続化**（現状メモリのみ、プロセス kill で消える）— SharedPreferences or Room に保存
+  - [ ] **history のフィルタリング / 検索 UI** — 現状は単純リスト
+
+- [ ] **tmux アイコンの中身**: `TmuxPanel` を開く。現状 tmux の prefix (Ctrl-B) と主要キー（n 新 window / , rename / p 前 / d detach / w window-list / % 縦分割 / " 横分割 等）を並べてワンタップ送信する補助パネル。**純粋に送信補助なので機能としては動いている**が、ツールバーの ⌃B 1 つで代替できることも多い。
+
+  - [ ] **tmux パネルの利用ログ**（どのキーが押されたか）で使われてなければ削除 / ⌃B だけにまとめる
+  - [ ] **tmux prefix キーを設定可能に**（Ctrl-B → Ctrl-A 派も多い）
+  - [ ] **tmux のペイン分割後にすぐ編集できるよう、パネル閉じ自動**
+
+- [ ] **help アイコンの中身**: `HelpSheet`。ショートカット一覧や VT 互換の簡単な説明。情報がそこまで厚くないなら統合しても良い。
+
+### 提案: 3 アイコンを 1 つの「⋮ メニュー」にまとめる
+
+- [ ] **TopAppBar アクションを 1 つのオーバーフローメニューに統合** — 3 アイコンを 1 個に、タップで「履歴 / tmux / ヘルプ / デバッグ報告 / 設定」のリスト。画面横幅節約。
+
+## M. デバッグレポート機能（実機使用中にその場でメモ）
+
+- [ ] **Room に DebugReportEntity** — id / timestamp / body / status(open/done) / contextTabId
+- [ ] **DebugReportDao** — observeAll / insert / updateStatus / deleteById
+- [ ] **ツールバー近くに「🐛」ボタン追加** — ショートカットバー右端 or TopAppBar
+- [ ] **ボタンタップで BottomSheet** — 既存レポート一覧 + 新規作成 TextField + 保存ボタン
+- [ ] **各レポートに「完了」トグル** — 修正済みマーク
+- [ ] **レポートを外部ストレージに export** — `adb pull` で取り出せる場所に書き出し（`/sdcard/Android/data/com.example.wanoterm.debug/files/debug_reports.json`）
+- [ ] **Claude 側（私）が pull して読む手順を docs に** — `adb pull` コマンド例
+- [ ] **修正済みを自動削除 or アーカイブ** — 完了後にリストから消すか保持するか選択
+
+## N. tmux ネイティブ統合（iTerm2 方式 `tmux -CC`）← 次の目玉機能
+
+**方針**: iTerm2 の tmux integration と同じく、tmux の control mode (`tmux -CC`) を使って
+リモートの tmux セッション全体を wanoterm のネイティブ UI にマップする。
+現 TmuxPanel はキー送信 fallback として残す。
+
+### Phase 1: 接続時の自動 attach（最小成果）
+
+- [ ] **HostEdit 画面に「tmux integration」チェックボックス** — HostEntity に `useTmux: Boolean` カラム追加、DB migration（version 3）
+- [ ] **接続成功後に `tmux -CC new -A -s wanoterm\r` を送出** — SshChannel 直後に 1 回、Base64-encoded keys option 付き
+- [ ] **「tmux が使えない（未インストール／version 古い）」エラー検出** — `tmux: command not found` が返ってきたら fallback 表示
+- [ ] **接続 label に "tmux" バッジ** — 統合モード動作中を視覚的に
+
+### Phase 2: ControlMessage パーサ
+
+- [ ] **`TmuxControlMessage` sealed class** — Begin/End/Output/WindowAdd/WindowClose/SessionChanged/LayoutChange/Exit 等
+- [ ] **`TmuxControlParser`** — SshChannel の入力を `%` 始まり vs 通常 output で分岐、行単位で parse
+  - [ ] `%begin <timestamp> <number>` / `%end` / `%error` のブロック境界
+  - [ ] `%output %<pane_id> <data>` の data は escape 化されているので decode
+  - [ ] `%window-add @<window_id>` / `%window-close`
+  - [ ] `%session-changed $<sid> <name>`
+  - [ ] `%layout-change @<wid> <layout>`
+  - [ ] `%exit [reason]`
+- [ ] **escape decoding** — tmux は制御文字を `\ooo` (octal) 形式で送る、復号必要
+- [ ] **unit test**: 実 tmux セッションのログから fixture を作って parser を検証
+
+### Phase 3: TmuxSession / TmuxWindow / TmuxPane モデル
+
+- [ ] **`TmuxSession`** — control channel 管理、コマンド送信、メッセージ配信
+- [ ] **`TmuxWindow`** — tmux window ≒ wanoterm タブ
+- [ ] **`TmuxPane`** — tmux pane ≒ 画面分割領域
+- [ ] **TerminalSessionController を分割**: 1 つは tmux 全体 control、pane ごとに個別の emulator/buffer を持つ
+- [ ] **pane の write** は tmux の `send-keys -l -t %<pane_id> <data>` でラップして送る（または `paste-buffer`）
+- [ ] **resize は refresh-client -C <cols>x<rows>** で tmux に通知、tmux 側が layout 再計算
+
+### Phase 4: UI レイヤ
+
+- [ ] **tmux window を wanoterm タブに同期** — `%window-add` でタブ生成、`%window-close` でタブ削除
+- [ ] **tmux pane を split layout で描画** — Compose の Row/Column + Weight で tmux の layout string を解釈
+- [ ] **layout parser** — `Nx{M,a,b{c,d,e}}` 形式を Compose のネスト Row/Column に変換
+- [ ] **pane フォーカス表示** — アクティブ pane を枠線でハイライト
+- [ ] **pane タップで切替** — タップした pane に focus、IME をそこへ
+- [ ] **pane ごとに独立した TerminalView + IME** — 各 pane が自分の InputConnection 持つ
+- [ ] **pane の scrollback は per-pane**（tmux の `capture-pane -p` または wanoterm 側の emulator が記録）
+
+### Phase 5: 状態管理 / ライフサイクル
+
+- [ ] **detach-attach**: UI で detach ボタン → `detach-client`、次回接続時に `-A` で自動 re-attach
+- [ ] **kill-session**: UI からセッション終了
+- [ ] **new window / split pane UI** — 指でタップだけで window/pane 追加できるよう
+- [ ] **切断復帰**: SSH 切断から再接続時に tmux が生きていれば自動 attach、無ければ新規
+
+### Phase 6: 機能拡張
+
+- [ ] **tmux コマンド palette** — `rename-window` `swap-window` 等を UI で
+- [ ] **ペインのコピーバッファをシステムクリップボードに連携**（OSC 52 経由）
+- [ ] **ペイン間のドラッグ&ドロップで並び替え**
+- [ ] **tmux の mouse-mode を活用**（pane 切替を tmux 内イベントで）
+
+### リリース戦略
+
+- [ ] **Play Store の打ち出し文**: 「Android で唯一、tmux をネイティブ UI で扱う SSH クライアント（iTerm2 方式の control mode 統合）」
+- [ ] **スクショ**: tmux 経由で vim + shell + log tail が 3 分割で動く絵
+- [ ] **ヘルプ**: tmux 統合の on/off 切替・使い方説明
+
+### 参考情報
+
+- iTerm2 tmux integration: <https://iterm2.com/documentation-tmux-integration.html>
+- tmux control mode documentation: `man tmux` の CONTROL MODE 章
+- tmux source: `control.c`, `control-notify.c`
+- iTerm2 側の実装 (オープンソース): `iTermTmuxController.m` など
+
 ## K. 未確認の懸念（私の手抜き報告）
 
 - [ ] "completed" 扱いしてるもの大半が実機検証なし — ユーザ叩いて OK もらうか adb でスクショ検証
