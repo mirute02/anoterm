@@ -363,6 +363,120 @@
 - tmux source: `control.c`, `control-notify.c`
 - iTerm2 側の実装 (オープンソース): `iTermTmuxController.m` など
 
+## O. マネタイズ（Freemium + 買い切り Pro $6.99）
+
+### O-1. Free / Pro の切り分け実装
+
+- [ ] **Pro フラグを AppPrefs に追加** — `isPro: Boolean`、StateFlow で全画面に伝搬
+- [ ] **BillingClient 導入** — Google Play Billing Library 7.x、one-time product `wanoterm_pro_unlock`
+- [ ] **起動時に Billing でエンタイトルメントを確認** — Play 側の purchase を毎起動チェック、オフライン時はキャッシュ
+- [ ] **購入フロー UI** — Settings → 「Pro 版にアップグレード」→ Billing dialog 起動
+- [ ] **復元ボタン** — 機種変更後の購入復元用
+- [ ] **Pro ユーザ向けバッジ表示** — 「Pro」ラベル（ささやかに）
+- [ ] **ProGuard keep** — Billing クラスは minify で潰れないように rules 追加
+
+### O-2. Free で使える範囲（「基本 SSH クライアント」として成立）
+
+- [ ] SSH 接続そのものは **無制限・無条件**（接続時間・回数制限なし）
+- [ ] **ホスト保存上限 3 個** — HostListScreen で 4 個目保存時に upgrade ダイアログ
+- [ ] **タブ同時 2 個** — 3 個目開こうとしたら upgrade ダイアログ
+- [ ] **日本語 IME は完全 Free**（差別化点、制限禁止）
+- [ ] **biometric lock / TOFU / Known hosts は Free**（セキュリティなので）
+- [ ] **テーマ 2 種（Tokyo Night / Termius Dark）まで Free**
+- [ ] **フォント: JetBrains Mono のみ Free**
+- [ ] **広告は入れない**（Free でも）
+
+### O-3. Pro unlock される機能（実装が必要な順）
+
+- [ ] **ホスト数・タブ数の制限撤廃** — 実装: AppPrefs.isPro を参照するガード関数
+- [ ] **tmux control mode 統合**（N セクション全体、Pro の最大の目玉）
+- [ ] **SFTP ファイル転送 UI** — 別画面、sshj の SFTPClient
+- [ ] **ポートフォワーディング** — Local/Remote/Dynamic、sshj で対応
+- [ ] **SSH Agent Forwarding** — Pro
+- [ ] **Jump Host (ProxyJump)** — HostEdit に「経由ホスト」選択
+- [ ] **SSH 鍵認証を Pro 限定にするか要検討** — セキュリティ機能として Free に残す選択肢あり。要判断
+- [ ] **テーマ Pro unlock**（Solarized / Gruvbox / Dracula / Nord / 自作）
+- [ ] **フォント拡張** — Cascadia Code 等同梱、カスタム import
+- [ ] **リガチャ on/off**
+- [ ] **スニペット機能** — 保存コマンド集
+- [ ] **履歴の永続化 + 検索** — Room に保存、fuzzy 検索
+- [ ] **画面分割 (Split terminal)** — 1 画面に 2 shell
+- [ ] **スクロールバック行数上限 2000 → 設定可（最大 10000）**
+- [ ] **暗号化バックアップ export/import** — 機種変更用
+- [ ] **セッションログ記録**（compliance）
+- [ ] **自動再接続・スケジュール実行**
+- [ ] **コマンドパレット (Cmd+K 相当)**
+- [ ] **タグ・グループ分類**
+- [ ] **per-host biometric lock**
+
+### O-4. 将来の拡張（Pro 購入後のオプション）
+
+- [ ] **wanoterm Cloud（E2EE 同期）** — 月 ¥300 subscription、複数端末間でホスト同期
+- [ ] **wanoterm Team** — 月 ¥600/ユーザ、チームでホスト共有
+
+### O-5. Play Store 申請周り（Pro 追加時）
+
+- [ ] Google Play Billing の in-app product 登録
+- [ ] Sandbox テスターでの動作確認
+- [ ] Data Safety 更新（課金情報を Google に送信する旨記載）
+- [ ] Privacy Policy 更新（課金情報 / Play レシート保存）
+
+## P. 秘密鍵のセルフサービス作成＆ヘルプ
+
+wanoterm を「Android だけで完結する SSH クライアント」として使えるようにする。
+現状は「外部で作った秘密鍵を持ち込む」前提、これを改善。
+
+### P-1. アプリ内で秘密鍵生成
+
+- [ ] **SSH 鍵生成 UI** — Settings → 「SSH 鍵を作成」画面
+  - [ ] 鍵種選択（ED25519 推奨デフォルト / RSA 4096 / ECDSA P-256）
+  - [ ] コメント（メアド等）入力
+  - [ ] passphrase オプション（空で通す）
+  - [ ] 作成ボタンで生成 → SecretStore に保存
+- [ ] **鍵生成の実装** — BouncyCastle の KeyPairGenerator（すでに依存済み）
+  - [ ] ED25519: `KeyPairGenerator.getInstance("Ed25519", "BC")`
+  - [ ] RSA 4096: `KeyPairGenerator.getInstance("RSA", "BC")` keysize=4096
+  - [ ] PEM フォーマット書き出し（OpenSSH 形式推奨 → sshj が読める）
+- [ ] **公開鍵を見る画面** — authorized_keys に追加するためにコピー
+  - [ ] コピーボタン
+  - [ ] QR code 表示（他端末へ送る用）
+  - [ ] メール送信・メモ送信
+- [ ] **鍵一覧画面** — 保存済み鍵をリスト、使用中のホストを紐付け
+  - [ ] 鍵削除（紐付くホストが壊れる警告）
+  - [ ] 鍵名変更
+- [ ] **鍵 import（外部ファイル）** — SAF で .pub / id_rsa 等をインポート
+- [ ] **鍵 export** — 機種変更・バックアップ用、暗号化 ZIP
+
+### P-2. 秘密鍵ヘルプコンテンツ
+
+- [ ] **Settings → SSH 鍵ヘルプ** で開く画面を用意
+  - [ ] **そもそも SSH 鍵とは何か**（2-3 段落で）
+  - [ ] **wanoterm 内で生成する場合の手順**（画面キャプチャ付き）
+  - [ ] **外部で作った鍵を使う場合の案内**
+    - macOS/Linux: `ssh-keygen -t ed25519 -C "your_email@example.com"`
+    - Windows: PowerShell / PuTTYgen
+    - Android: Termux 内で `ssh-keygen`、または JuiceSSH 等の既存ツール
+  - [ ] **生成した公開鍵をサーバに登録する手順**
+    - `~/.ssh/authorized_keys` への追記方法
+    - `ssh-copy-id` の使い方（ただし Android からは困難）
+    - AWS EC2 の場合の Launch wizard
+    - GitHub / GitLab の場合の Settings → SSH Keys
+  - [ ] **鍵の形式**（PEM vs OpenSSH、RSA/ED25519 の違いと推奨）
+  - [ ] **passphrase の要否とメリット・デメリット**
+  - [ ] **ロストした場合** — 復旧不能、サーバ側で authorized_keys から削除 + 再生成
+
+### P-3. ヘルプ表示の実装
+
+- [ ] **Settings 画面に「SSH 鍵の使い方」リンク**
+- [ ] **HostEdit の認証方式選択で「秘密鍵」にしたときに「鍵がない？ここから作成」リンク**
+- [ ] **Markdown レンダリングまたは静的 Compose スクリーン** — Markdown だと更新楽、静的だとビルド重くない
+
+### P-4. 既存画面との統合
+
+- [ ] **HostEditScreen で「鍵を選ぶ / 新規作成 / インポート」タブ**
+- [ ] **鍵を使っているホストを鍵画面から逆引き**
+- [ ] **鍵とパスワードで認証順 fallback**（公開鍵ダメならパスワード）
+
 ## K. 未確認の懸念（私の手抜き報告）
 
 - [ ] "completed" 扱いしてるもの大半が実機検証なし — ユーザ叩いて OK もらうか adb でスクショ検証

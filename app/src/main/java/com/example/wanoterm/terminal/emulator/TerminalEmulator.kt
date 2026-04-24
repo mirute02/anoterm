@@ -24,7 +24,18 @@ class TerminalEmulator(
     initialCols: Int,
     private val output: TerminalOutput,
 ) {
-  val buffer = TerminalBuffer(initialRows, initialCols)
+  // プライマリバッファ（通常のシェル表示）と、代替画面バッファ（vim/less/tmux が使う）。
+  // `buffer` は現在アクティブな方を指す。切替時は cursor / style も保存・復元する。
+  private val primaryBuffer = TerminalBuffer(initialRows, initialCols)
+  private val alternateBuffer = TerminalBuffer(initialRows, initialCols)
+  var buffer: TerminalBuffer = primaryBuffer
+    private set
+  private var onAlternate = false
+
+  // プライマリに戻るとき用に保存しておくカーソル/スタイル
+  private var savedPrimaryRow = 0
+  private var savedPrimaryCol = 0
+  private var savedPrimaryStyle: CellStyle = CellStyle.Default
 
   var cursorRow: Int = 0
     private set
@@ -77,7 +88,9 @@ class TerminalEmulator(
     val rowOffset =
         if (newRows >= buffer.rows) 0
         else (cursorRow - (newRows - 1)).coerceIn(0, buffer.rows - newRows)
-    buffer.resize(newRows, newCols, rowOffset)
+    // プライマリ・代替両方をリサイズ（非アクティブでも寸法は揃えておく、切替後の表示崩れ防止）
+    primaryBuffer.resize(newRows, newCols, if (buffer === primaryBuffer) rowOffset else 0)
+    alternateBuffer.resize(newRows, newCols, if (buffer === alternateBuffer) rowOffset else 0)
     cursorRow = (cursorRow - rowOffset).coerceIn(0, buffer.rows - 1)
     cursorCol = cursorCol.coerceIn(0, buffer.cols - 1)
   }
@@ -281,10 +294,55 @@ class TerminalEmulator(
     for (p in csiParams) {
       when (p) {
         25 -> cursorVisible = set
+        // 1049: 代替画面 + カーソル保存/復元 (xterm 拡張、vim/tmux/less で必須)
+        1049 -> if (set) enterAlternateScreen() else leaveAlternateScreen()
+        // 47 / 1047: 単純な代替画面切替（1049 のカーソル保存なし版）
+        47, 1047 -> if (set) enterAlternateScreen() else leaveAlternateScreen()
+        // 1048: カーソル位置の保存/復元のみ
+        1048 -> {
+          if (set) {
+            savedPrimaryRow = cursorRow
+            savedPrimaryCol = cursorCol
+            savedPrimaryStyle = style
+          } else {
+            cursorRow = savedPrimaryRow.coerceIn(0, rows - 1)
+            cursorCol = savedPrimaryCol.coerceIn(0, cols - 1)
+            style = savedPrimaryStyle
+          }
+        }
         // 他の DECSET は保留
         else -> Logger.d("VT", "Unhandled DEC ${if (set) "SET" else "RST"} $p")
       }
     }
+  }
+
+  /**
+   * 代替画面バッファへ切替。プライマリバッファのカーソル・スタイルを保存し、
+   * 代替画面は常にクリアされた状態でスタートする（vim 流）。
+   */
+  private fun enterAlternateScreen() {
+    if (onAlternate) return
+    savedPrimaryRow = cursorRow
+    savedPrimaryCol = cursorCol
+    savedPrimaryStyle = style
+    onAlternate = true
+    // 代替画面に切替える前に alternate 側を現在サイズに合わせる（resize 追従）
+    alternateBuffer.resize(primaryBuffer.rows, primaryBuffer.cols)
+    alternateBuffer.clearAll(CellStyle.Default)
+    buffer = alternateBuffer
+    cursorRow = 0
+    cursorCol = 0
+    style = CellStyle.Default
+  }
+
+  /** 代替画面から抜け、プライマリバッファに戻る。カーソル・スタイルを復元。 */
+  private fun leaveAlternateScreen() {
+    if (!onAlternate) return
+    onAlternate = false
+    buffer = primaryBuffer
+    cursorRow = savedPrimaryRow.coerceIn(0, rows - 1)
+    cursorCol = savedPrimaryCol.coerceIn(0, cols - 1)
+    style = savedPrimaryStyle
   }
 
   private fun eraseInDisplay(mode: Int) {
@@ -412,7 +470,11 @@ class TerminalEmulator(
     savedRow = 0
     savedCol = 0
     savedStyle = CellStyle.Default
-    buffer.clearAll(style)
+    // alt screen を抜けて primary に戻してからクリア
+    onAlternate = false
+    buffer = primaryBuffer
+    primaryBuffer.clearAll(style)
+    alternateBuffer.clearAll(style)
   }
 }
 

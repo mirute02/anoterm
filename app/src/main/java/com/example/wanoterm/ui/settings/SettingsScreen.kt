@@ -43,6 +43,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenKnownHosts: () -> Unit,
     onOpenCustomShortcuts: () -> Unit,
+    onOpenSshKeyHelp: () -> Unit,
 ) {
   val app = remember { WanotermApp.get() }
   val prefs = app.prefs
@@ -150,6 +151,11 @@ fun SettingsScreen(
       ListItem(
           headlineContent = { Text("カスタムショートカット") },
           modifier = Modifier.clickable { onOpenCustomShortcuts() },
+      )
+      ListItem(
+          headlineContent = { Text("SSH 鍵の使い方") },
+          supportingContent = { Text("作成・インポート・サーバへの登録方法") },
+          modifier = Modifier.clickable { onOpenSshKeyHelp() },
       )
 
       HorizontalDivider()

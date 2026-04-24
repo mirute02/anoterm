@@ -15,4 +15,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object CustomShortcuts : NavKey
 
+@Serializable data object SshKeyHelp : NavKey
+
 @Serializable data object Lock : NavKey
