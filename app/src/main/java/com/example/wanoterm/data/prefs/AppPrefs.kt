@@ -56,6 +56,11 @@ class AppPrefs(context: Context) {
   private val _lastTabId = MutableStateFlow(readLastTabId())
   val lastTabId: StateFlow<String?> = _lastTabId.asStateFlow()
 
+  // Pro エンタイトルメント。Google Play Billing が有効化されるまでは SharedPreferences
+  // の値を使う。デバッグ時は設定画面から切替可能。
+  private val _isPro = MutableStateFlow(readIsPro())
+  val isPro: StateFlow<Boolean> = _isPro.asStateFlow()
+
   /** Lock 画面に遷移するかどうかを算出するためのフロー（Navigation から購読） */
   val biometricLock: Flow<Boolean>
     get() = _biometricLockEnabled.asStateFlow()
@@ -103,6 +108,11 @@ class AppPrefs(context: Context) {
     _lastTabId.value = tabId
   }
 
+  fun setPro(pro: Boolean) {
+    sp.edit().putBoolean(KEY_IS_PRO, pro).apply()
+    _isPro.value = pro
+  }
+
   fun localeList(): LocaleListCompat =
       when (_locale.value) {
         AppLocale.SYSTEM -> LocaleListCompat.getEmptyLocaleList()
@@ -147,6 +157,8 @@ class AppPrefs(context: Context) {
 
   private fun readLastTabId(): String? = sp.getString(KEY_LAST_TAB_ID, null)
 
+  private fun readIsPro(): Boolean = sp.getBoolean(KEY_IS_PRO, false)
+
   private fun readCustomShortcuts(): List<CustomShortcut> {
     val raw = sp.getString(KEY_CUSTOM_SHORTCUTS, null) ?: return DEFAULT_SHORTCUTS
     return try {
@@ -166,6 +178,11 @@ class AppPrefs(context: Context) {
     private const val KEY_AMBIGUOUS_WIDE = "ambiguous_wide"
     private const val KEY_CUSTOM_SHORTCUTS = "custom_shortcuts"
     private const val KEY_LAST_TAB_ID = "last_tab_id"
+    private const val KEY_IS_PRO = "is_pro"
+
+    // Free tier の上限。Pro で解除。
+    const val FREE_TIER_HOST_LIMIT = 3
+    const val FREE_TIER_TAB_LIMIT = 2
     const val DEFAULT_FONT_SIZE_SP = 14f
 
     // companion object に置くことでインスタンスプロパティの初期化順に依存しない。

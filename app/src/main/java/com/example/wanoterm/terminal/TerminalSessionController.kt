@@ -35,6 +35,14 @@ class TerminalSessionController(
 
   val commandHistory = CommandHistory()
 
+  // リモートから OSC 0/2 で来たタイトル（タブ表示に反映できる）
+  private val _remoteTitle = MutableStateFlow<String?>(null)
+  val remoteTitle: StateFlow<String?> = _remoteTitle.asStateFlow()
+
+  // BEL (0x07) 通知: 受信ごとに 1 回 emit
+  private val _bell = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+  val bell = _bell.asSharedFlow()
+
   val emulator: TerminalEmulator =
       TerminalEmulator(
           initialRows,
@@ -44,7 +52,10 @@ class TerminalSessionController(
               sendOutput.write(bytes)
             }
           },
-      )
+      ).apply {
+        onTitleChanged = { t -> _remoteTitle.value = t }
+        onBell = { _bell.tryEmit(Unit) }
+      }
 
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

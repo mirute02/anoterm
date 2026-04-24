@@ -95,7 +95,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   var showShortcutBar by remember { mutableStateOf(false) }
 
   // 端末ラベル resolver。tabId → 表示名を DB から引いてキャッシュ。
-  // タイトルとタブバー両方で使い回す。
+  // さらにリモートが OSC 2 で送ってきたタイトルがあればそれを優先表示。
   val tabLabels = remember { mutableStateMapOf<String, String>() }
   LaunchedEffect(activeTabs) {
     for (t in activeTabs) {
@@ -112,7 +112,19 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
           }
     }
   }
-  fun labelFor(id: String): String = tabLabels[id] ?: id.substringBefore(":")
+  // リモートタイトル (OSC 0/2) があればそれを優先してタブ表示
+  val remoteTitles = remember { mutableStateMapOf<String, String?>() }
+  LaunchedEffect(activeTabs) {
+    for (t in activeTabs) {
+      val b = app.sessionManager.get(t) ?: continue
+      launch {
+        b.controller.remoteTitle.collect { title ->
+          remoteTitles[t] = title?.takeIf { it.isNotBlank() }
+        }
+      }
+    }
+  }
+  fun labelFor(id: String): String = remoteTitles[id] ?: tabLabels[id] ?: id.substringBefore(":")
 
   // 開いたタブ id を永続化。プロセス kill 後の再起動時に Navigation が参照する。
   LaunchedEffect(tabId) { app.prefs.setLastTabId(tabId) }
@@ -121,6 +133,13 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
     val existing = app.sessionManager.get(tabId)
     if (existing != null) {
       state = TabScreenState.Ready(existing)
+      return@LaunchedEffect
+    }
+    // Free tier のタブ上限チェック（既存タブの再利用ではない = 新規作成時のみ）
+    val isPro = app.prefs.isPro.value
+    val currentCount = app.sessionManager.activeTabIds().size
+    if (!isPro && currentCount >= com.example.wanoterm.data.prefs.AppPrefs.FREE_TIER_TAB_LIMIT) {
+      state = TabScreenState.Error("Free 版は同時 ${com.example.wanoterm.data.prefs.AppPrefs.FREE_TIER_TAB_LIMIT} タブまで。設定から Pro にアップグレードしてください。")
       return@LaunchedEffect
     }
     when {

@@ -55,5 +55,19 @@ fun TerminalHost(
     controller.redrawSignal.collect { viewRef.view?.postInvalidateOnAnimation() }
   }
 
+  // BEL（0x07）受信で軽いハプティック。連続バイブは邪魔なので 500ms 以内は間引く。
+  LaunchedEffect(controller) {
+    var last = 0L
+    controller.bell.collect {
+      val now = System.currentTimeMillis()
+      if (now - last < 500) return@collect
+      last = now
+      viewRef.view?.performHapticFeedback(
+          android.view.HapticFeedbackConstants.KEYBOARD_TAP,
+          android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+      )
+    }
+  }
+
   DisposableEffect(controller) { onDispose { /* タブは SessionManager が保持するので dispose しない */ } }
 }

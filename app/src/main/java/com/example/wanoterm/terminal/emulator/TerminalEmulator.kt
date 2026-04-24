@@ -142,7 +142,7 @@ class TerminalEmulator(
 
   private fun handleC0(x: Int) {
     when (x) {
-      0x07 -> { /* BEL — 無視（音・バイブは上位層が拾う可能性） */ }
+      0x07 -> onBell?.invoke() // BEL — 上位層でハプティックフィードバック等
       0x08 -> moveCursor(cursorRow, (cursorCol - 1).coerceAtLeast(0)) // BS
       0x09 -> { // HT
         val next = ((cursorCol / 8) + 1) * 8
@@ -230,16 +230,45 @@ class TerminalEmulator(
   private fun handleOsc(x: Int) {
     // OSC は BEL または ST (ESC \) で終端
     if (x == 0x07) {
+      dispatchOsc()
       state = State.Ground
       return
     }
     if (x == 0x1B) {
-      // 続くバイトが '\' なら ST
+      // 続くバイトが '\' なら ST — handleEsc 側で Ground に戻す前に dispatchOsc しておく
+      dispatchOsc()
       state = State.Esc
       return
     }
     oscBuffer.append(x.toChar())
   }
+
+  /**
+   * OSC 文字列を解釈。現状サポート:
+   *  - OSC 0;title   ウィンドウタイトル + アイコンタイトル
+   *  - OSC 1;title   アイコンタイトル
+   *  - OSC 2;title   ウィンドウタイトル
+   * タイトルは `onTitleChanged` コールバック経由で UI に通知。
+   */
+  private fun dispatchOsc() {
+    val s = oscBuffer.toString()
+    oscBuffer.setLength(0)
+    val sep = s.indexOf(';')
+    if (sep < 0) return
+    val code = s.substring(0, sep).toIntOrNull() ?: return
+    val arg = s.substring(sep + 1)
+    when (code) {
+      0, 1, 2 -> onTitleChanged?.invoke(arg)
+      // 他の OSC は今はログのみ
+      else -> Logger.d("VT", "Unhandled OSC $code (${arg.length} chars)")
+    }
+  }
+
+  /** リモートから OSC 0/2 でタイトルが来た時に呼ばれるハンドラ。 */
+  var onTitleChanged: ((String) -> Unit)? = null
+
+  /** BEL (0x07) 受信時のハンドラ。UI は軽いハプティック等に使う。 */
+  var onBell: (() -> Unit)? = null
 
   private fun param(index: Int, default: Int = 1): Int {
     val v = csiParams.elementAtOrNull(index) ?: return default

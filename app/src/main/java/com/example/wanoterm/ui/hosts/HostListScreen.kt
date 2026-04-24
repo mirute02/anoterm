@@ -35,6 +35,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wanoterm.BuildConfig
 import com.example.wanoterm.R
+import com.example.wanoterm.WanotermApp
+import com.example.wanoterm.data.prefs.AppPrefs
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -46,6 +53,9 @@ fun HostListScreen(
     vm: HostListViewModel = viewModel(factory = HostListViewModel.Factory),
 ) {
   val state by vm.state.collectAsStateWithLifecycle()
+  val app = remember { WanotermApp.get() }
+  val isPro by app.prefs.isPro.collectAsStateWithLifecycle()
+  var showUpgradeDialog by remember { mutableStateOf(false) }
 
   Scaffold(
       topBar = {
@@ -59,7 +69,14 @@ fun HostListScreen(
         )
       },
       floatingActionButton = {
-        FloatingActionButton(onClick = onAddHost) {
+        FloatingActionButton(
+            onClick = {
+              // Free tier は 3 個までに制限。4 個目以降はアップグレードダイアログ。
+              if (!isPro && state.hosts.size >= AppPrefs.FREE_TIER_HOST_LIMIT) {
+                showUpgradeDialog = true
+              } else onAddHost()
+            },
+        ) {
           Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.hosts_add))
         }
       },
@@ -99,6 +116,27 @@ fun HostListScreen(
           )
         }
       }
+    }
+
+    if (showUpgradeDialog) {
+      AlertDialog(
+          onDismissRequest = { showUpgradeDialog = false },
+          title = { Text("Pro 版にアップグレード") },
+          text = {
+            Text(
+                "Free 版ではホストを ${AppPrefs.FREE_TIER_HOST_LIMIT} 個まで保存できます。\n"
+                    + "Pro 版（買い切り ¥980）で無制限に保存、tmux 統合・SFTP・ポートフォワード等が解放されます。",
+            )
+          },
+          confirmButton = {
+            TextButton(onClick = { showUpgradeDialog = false }) {
+              Text("アップグレード（準備中）")
+            }
+          },
+          dismissButton = {
+            TextButton(onClick = { showUpgradeDialog = false }) { Text("閉じる") }
+          },
+      )
     }
   }
 }

@@ -159,6 +159,22 @@ fun SettingsScreen(
       )
 
       HorizontalDivider()
+      val isPro by prefs.isPro.collectAsStateWithLifecycle()
+      Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text(if (isPro) "Pro 版（有効）" else "Pro 版にアップグレード")
+        Switch(checked = isPro, onCheckedChange = { prefs.setPro(it) })
+      }
+      Text(
+          text = if (isPro) "ホスト・タブ無制限、tmux / SFTP 等が解放されています。" else "Free 版: ホスト ${com.example.wanoterm.data.prefs.AppPrefs.FREE_TIER_HOST_LIMIT} 個 / 同時タブ ${com.example.wanoterm.data.prefs.AppPrefs.FREE_TIER_TAB_LIMIT} 個まで。",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(start = 4.dp),
+      )
+
+      HorizontalDivider()
       Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
