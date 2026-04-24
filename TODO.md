@@ -4,6 +4,37 @@
 **各項目は「何をどう変えるか」「どのファイルに触るか」「完了判定」まで分解して書く**。
 定期的に読み返して取りこぼしを防ぐ。
 
+## 作業原則（全タスク共通・必読）
+
+- **今ある挙動は殺さない。** タスクを進めるとき、現行で動いている UX を壊さないこと。
+  特に「1. ホスト追加 → 2. パスワード接続 → 3. 鍵登録 → 4. 鍵認証」の一連の導線、
+  タブの追加/切替、`tmux -A` auto-attach（Phase 1）は常に生存させる。
+- **破壊的変更は feature flag の裏で。** 既存機能と並行して走らせる必要がある実装（tmux
+  control mode / 分割 UI / Termius 風 UI / Play Billing 等）は、まずデバッグビルド or
+  設定スイッチ裏で試し、既存導線を 1 度も塞がずにロールアウトする。
+- **動作検証 → 記録 → マージ。** 実機で 1 回でも動作を確認していないタスクは `[~]`
+  にとどめ `[x]` にしない。
+- **壊しかねない候補** (着手前に feature flag を先に入れる):
+  `#57 #58 #59 #60` (tmux Phase 2–5) / `#48` (Termius 風 UI) / `#64` (Play Billing)。
+
+## tmux Phase 2 以降の進め方（指針）
+
+Phase 1 (`tmux new -A -s <name>` で auto-attach) は完成していて価値がある。
+Phase 2+ は以下の段取りで既存機能を守りながら進める：
+
+1. **tmux control mode スイッチを Settings に追加**（デフォルト OFF、debug + 開発者モードでだけ UI 露出）
+2. Phase 2: `ControlMessage` パーサを純粋関数ライブラリとして実装 (`ssh/tmux/` 以下)。
+   SSH チャネルには繋がない。unit test で仕様網羅。
+3. Phase 3: `TmuxSession / Window / Pane` モデルを裏で構築。Phase 1 の shell ルートと排他制御。
+   スイッチ ON 時だけ `tmux -CC attach` を叩き、OFF のときは Phase 1 そのまま。
+4. Phase 4: 分割 UI は既存 `TerminalView` を触らず、**別 Composable** で描画。スイッチ ON の
+   ホストだけが別 UI に入る。スイッチ OFF なら従来の `TerminalView` のまま。
+5. Phase 5: detach / attach の lifecycle を整える。Foreground Service と結合。
+
+ゲート条件：
+- スイッチ OFF でアプリを 1 周使い切れる（今できることが全部できる）ことを各 Phase で確認。
+- スイッチ ON → OFF に戻した時、現行のホスト接続がそのまま使える。
+
 ## 凡例
 
 - [x] 完了（実機検証済 / コード反映済）

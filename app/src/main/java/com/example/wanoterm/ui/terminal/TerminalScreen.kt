@@ -90,6 +90,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   val activeTabs by app.sessionManager.activeTabs.collectAsStateWithLifecycle()
   val customShortcuts by app.prefs.customShortcuts.collectAsStateWithLifecycle()
   val isPro by app.prefs.isPro.collectAsStateWithLifecycle()
+  val developerMode by app.prefs.developerMode.collectAsStateWithLifecycle()
 
   var state: TabScreenState by remember { mutableStateOf(TabScreenState.Loading) }
   var showHelp by remember { mutableStateOf(false) }
@@ -271,8 +272,12 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
               IconButton(onClick = { showHistory = true }) {
                 Icon(Icons.Filled.History, contentDescription = "履歴")
               }
-              IconButton(onClick = { showTmux = true }) {
-                Icon(Icons.Filled.Dashboard, contentDescription = "tmux")
+              // tmux ダッシュボードは Phase 2 以降の機能 (control mode 未完成)。
+              // 一般ユーザには未使用機能が紛れて見えるのでノイズ、debug + 開発者モード時のみ出す。
+              if (com.example.wanoterm.BuildConfig.DEBUG && developerMode) {
+                IconButton(onClick = { showTmux = true }) {
+                  Icon(Icons.Filled.Dashboard, contentDescription = "tmux")
+                }
               }
               IconButton(onClick = { showDebug = true }) {
                 Icon(Icons.Filled.BugReport, contentDescription = "デバッグ報告")
@@ -299,7 +304,18 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
                 .imePadding()
                 .navigationBarsPadding(),
     ) {
-      if (sortedTabs.size > 1) {
+      // タブ数の変化（1→2 や 2→1）で TabBar が「ヒュッと出て消える」flicker に見えないよう、
+      // AnimatedVisibility で高さと不透明度を滑らかに変える。
+      // 表示自体は「2 タブ以上」の従来条件のまま。
+      androidx.compose.animation.AnimatedVisibility(
+          visible = sortedTabs.size > 1,
+          enter =
+              androidx.compose.animation.expandVertically() +
+                  androidx.compose.animation.fadeIn(),
+          exit =
+              androidx.compose.animation.shrinkVertically() +
+                  androidx.compose.animation.fadeOut(),
+      ) {
         TabBar(
             tabs = sortedTabs,
             activeTabId = currentTabId,

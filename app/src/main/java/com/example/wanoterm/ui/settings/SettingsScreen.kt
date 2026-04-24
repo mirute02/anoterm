@@ -44,8 +44,6 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenKnownHosts: () -> Unit,
     onOpenCustomShortcuts: () -> Unit,
-    onOpenSshKeyHelp: () -> Unit,
-    onOpenSshKeyGen: () -> Unit,
     onOpenSshKeyList: () -> Unit,
 ) {
   val app = remember { WanotermApp.get() }
@@ -77,7 +75,11 @@ fun SettingsScreen(
     ) {
       Text(stringResource(R.string.settings_appearance), style = MaterialTheme.typography.titleMedium)
       Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyMedium)
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      // 画面幅に入りきらないチップ（Dracula 等）が縦方向に潰れる bug があったので FlowRow で折返し。
+      androidx.compose.foundation.layout.FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
         TerminalThemeChoice.entries.forEach { t ->
           FilterChip(
               selected = theme == t,
@@ -155,20 +157,12 @@ fun SettingsScreen(
           headlineContent = { Text("カスタムショートカット") },
           modifier = Modifier.clickable { onOpenCustomShortcuts() },
       )
+      // SSH 鍵は以前 3 項目 (一覧/作成/使い方) に分かれていたが、一覧画面から
+      // 作成 FAB・ヘルプアイコンでそれぞれに入れるよう統合。導線を 1 本化。
       ListItem(
-          headlineContent = { Text("SSH 鍵一覧") },
-          supportingContent = { Text("保存済みの鍵の管理（名前変更・削除・公開鍵コピー）") },
+          headlineContent = { Text("SSH 鍵") },
+          supportingContent = { Text("一覧・作成・使い方（サーバ登録の手順付き）") },
           modifier = Modifier.clickable { onOpenSshKeyList() },
-      )
-      ListItem(
-          headlineContent = { Text("SSH 鍵を作成") },
-          supportingContent = { Text("Ed25519 / RSA 4096 をアプリ内で生成") },
-          modifier = Modifier.clickable { onOpenSshKeyGen() },
-      )
-      ListItem(
-          headlineContent = { Text("SSH 鍵の使い方") },
-          supportingContent = { Text("作成・インポート・サーバへの登録方法") },
-          modifier = Modifier.clickable { onOpenSshKeyHelp() },
       )
 
       HorizontalDivider()

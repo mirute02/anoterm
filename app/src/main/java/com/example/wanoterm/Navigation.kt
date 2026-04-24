@@ -73,8 +73,6 @@ fun MainNavigation() {
                   onBack = { backStack.removeLastOrNull() },
                   onOpenKnownHosts = { backStack.add(KnownHosts) },
                   onOpenCustomShortcuts = { backStack.add(CustomShortcuts) },
-                  onOpenSshKeyHelp = { backStack.add(SshKeyHelp) },
-                  onOpenSshKeyGen = { backStack.add(SshKeyGen) },
                   onOpenSshKeyList = { backStack.add(SshKeyList) },
               )
             }
@@ -86,6 +84,7 @@ fun MainNavigation() {
               SshKeyListScreen(
                   onBack = { backStack.removeLastOrNull() },
                   onCreateNew = { backStack.add(SshKeyGen) },
+                  onOpenHelp = { backStack.add(SshKeyHelp) },
                   // 鍵一覧 → ホスト選択シートで選ばれたホストに繋ぐ。
                   // クリップボードへのコマンドコピーは画面側で完了済み。
                   onRegisterToHost = { _, hostId ->

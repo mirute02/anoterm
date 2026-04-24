@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -64,6 +65,7 @@ import kotlinx.coroutines.launch
 fun SshKeyListScreen(
     onBack: () -> Unit,
     onCreateNew: () -> Unit,
+    onOpenHelp: () -> Unit = {},
     onRegisterToHost: (publicKey: String, hostId: Long) -> Unit = { _, _ -> },
 ) {
   val ctx = LocalContext.current
@@ -81,10 +83,18 @@ fun SshKeyListScreen(
   Scaffold(
       topBar = {
         TopAppBar(
-            title = { Text("SSH 鍵一覧") },
+            title = { Text("SSH 鍵") },
             navigationIcon = {
               IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+              }
+            },
+            actions = {
+              IconButton(onClick = onOpenHelp) {
+                Icon(
+                    Icons.AutoMirrored.Filled.HelpOutline,
+                    contentDescription = "使い方",
+                )
               }
             },
         )

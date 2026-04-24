@@ -110,12 +110,10 @@ class TerminalSessionController(
                 continue
               }
               // 受信内容（サーバの出力）はユーザデータなので hex/text dump しない。
-              Logger.d("CTL", "id=$debugId readFromRemote bytes=$n")
+              // 以前はバイト数や generation を逐次 Logger.d に流していたが、`yes` のような
+              // 大量出力時に string template 作成の allocation 圧が UI jank に寄与するため削除。
+              // 必要ならローカル実験時に一時的に戻す。
               emulator.feed(buf, n)
-              Logger.d(
-                  "CTL",
-                  "id=$debugId buffer generation=${emulator.buffer.generation} cursor=${emulator.cursorRow},${emulator.cursorCol}",
-              )
               _redrawSignal.tryEmit(Unit)
             }
           } finally {

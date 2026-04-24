@@ -398,7 +398,47 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
       ctrlArmed = false
     }
     val bytes = text.toString().toByteArray(Charsets.UTF_8)
-    sendBytes(bytes)
+    sendBytes(normalizeLineEndings(bytes, lineEnding.bytes))
+  }
+
+  /**
+   * IME の commitText や貼り付け経由で届く CR / LF / CRLF を設定された lineEnding に揃える。
+   *
+   * Gboard の英語モードの Enter は `commitText("\n")` で LF が届くため、そのまま送出すると
+   * シェル系（Claude Code 等）が「改行＝入力継続」として解釈してしまう。日本語 IME 経由の
+   * 変換確定後の Enter は `sendKeyEvent(KEYCODE_ENTER)` → `sendEnter()` 経路で既に
+   * lineEnding に変換されている。両経路の挙動を一致させるため、こちらでも同じ正規化をかける。
+   */
+  private fun normalizeLineEndings(raw: ByteArray, target: ByteArray): ByteArray {
+    // どの改行コードも含まない場合は割り当てを省く（ホットパス）
+    var needsRewrite = false
+    for (b in raw) {
+      if (b == 0x0D.toByte() || b == 0x0A.toByte()) {
+        needsRewrite = true
+        break
+      }
+    }
+    if (!needsRewrite) return raw
+    val out = java.io.ByteArrayOutputStream(raw.size)
+    var i = 0
+    while (i < raw.size) {
+      val b = raw[i]
+      when {
+        b == 0x0D.toByte() && i + 1 < raw.size && raw[i + 1] == 0x0A.toByte() -> {
+          out.write(target)
+          i += 2
+        }
+        b == 0x0D.toByte() || b == 0x0A.toByte() -> {
+          out.write(target)
+          i += 1
+        }
+        else -> {
+          out.write(b.toInt() and 0xFF)
+          i += 1
+        }
+      }
+    }
+    return out.toByteArray()
   }
 
   override fun sendEnter() = sendBytes(lineEnding.bytes)
