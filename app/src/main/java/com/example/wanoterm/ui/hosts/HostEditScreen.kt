@@ -144,13 +144,38 @@ fun HostEditScreen(
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilterChip(
             selected = state.auth == AuthMethod.PASSWORD,
-            onClick = { vm.update { it.copy(auth = AuthMethod.PASSWORD) } },
+            // auth 切り替えは既存 secret 流用を終了させる（型が変わるので流用不可）。
+            onClick = {
+              vm.update {
+                val changed = it.auth != AuthMethod.PASSWORD
+                it.copy(
+                    auth = AuthMethod.PASSWORD,
+                    preserveSecret = if (changed) false else it.preserveSecret,
+                )
+              }
+            },
             label = { Text(stringResource(R.string.host_auth_password)) },
         )
         FilterChip(
             selected = state.auth == AuthMethod.PRIVATE_KEY,
-            onClick = { vm.update { it.copy(auth = AuthMethod.PRIVATE_KEY) } },
+            onClick = {
+              vm.update {
+                val changed = it.auth != AuthMethod.PRIVATE_KEY
+                it.copy(
+                    auth = AuthMethod.PRIVATE_KEY,
+                    preserveSecret = if (changed) false else it.preserveSecret,
+                )
+              }
+            },
             label = { Text(stringResource(R.string.host_auth_key)) },
+        )
+      }
+
+      if (state.preserveSecret && state.originalAuth == state.auth) {
+        Text(
+            "保存済みの認証情報を使用中（変更しない場合はそのまま保存）",
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
 
@@ -158,8 +183,19 @@ fun HostEditScreen(
         AuthMethod.PASSWORD ->
             OutlinedTextField(
                 value = state.password,
-                onValueChange = { v -> vm.update { it.copy(password = v) } },
-                label = { Text(stringResource(R.string.host_password)) },
+                // パスワードを 1 文字でも入れたら既存 secret の流用は中止。
+                onValueChange = { v ->
+                  vm.update {
+                    it.copy(password = v, preserveSecret = if (v.isNotEmpty()) false else it.preserveSecret)
+                  }
+                },
+                label = {
+                  Text(
+                      if (state.preserveSecret && state.originalAuth == AuthMethod.PASSWORD)
+                          "パスワードを変更する場合のみ入力"
+                      else stringResource(R.string.host_password),
+                  )
+                },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),

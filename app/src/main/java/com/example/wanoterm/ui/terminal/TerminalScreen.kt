@@ -28,6 +28,9 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -93,6 +96,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   var showHistory by remember { mutableStateOf(false) }
   var showTmux by remember { mutableStateOf(false) }
   var showDebug by remember { mutableStateOf(false) }
+  var showDisconnectConfirm by remember { mutableStateOf(false) }
   // カスタムショートカットバーはデフォルトで非表示。下部のツールバー右端の apps アイコンで切替。
   var showShortcutBar by remember { mutableStateOf(false) }
 
@@ -276,6 +280,13 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
               IconButton(onClick = { showHelp = true }) {
                 Icon(Icons.Filled.HelpOutline, contentDescription = "ヘルプ")
               }
+              IconButton(onClick = { showDisconnectConfirm = true }) {
+                Icon(
+                    Icons.Filled.PowerSettingsNew,
+                    contentDescription = "切断",
+                    tint = MaterialTheme.colorScheme.error,
+                )
+              }
             },
             colors = TopAppBarDefaults.topAppBarColors(),
         )
@@ -417,6 +428,34 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
       DebugReportSheet(
           contextLabel = labelFor(currentTabId),
           onDismiss = { showDebug = false },
+      )
+    }
+    if (showDisconnectConfirm) {
+      AlertDialog(
+          onDismissRequest = { showDisconnectConfirm = false },
+          title = { Text("切断しますか?") },
+          text = {
+            Text(
+                "このタブの SSH 接続を終了し、ホスト一覧に戻ります。"
+                    + "tmux 統合が ON のホストではリモート側のセッションは残るので、"
+                    + "次回接続時に続きから再開できます。",
+            )
+          },
+          confirmButton = {
+            TextButton(
+                onClick = {
+                  showDisconnectConfirm = false
+                  app.sessionManager.closeTab(currentTabId)
+                  // すべてのタブを閉じた場合 onBack を呼んでホスト一覧へ戻す。
+                  if (app.sessionManager.activeTabIds().isEmpty()) onBack()
+                },
+            ) {
+              Text("切断", color = MaterialTheme.colorScheme.error)
+            }
+          },
+          dismissButton = {
+            TextButton(onClick = { showDisconnectConfirm = false }) { Text("キャンセル") }
+          },
       )
     }
   }

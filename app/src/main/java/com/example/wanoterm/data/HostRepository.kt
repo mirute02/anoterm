@@ -50,6 +50,32 @@ class HostRepository(
     return hostDao.upsert(entity)
   }
 
+  /**
+   * 認証情報に触らない編集（label / address / port / username / tmux 等）。
+   * 既存 secret_id / auth / createdAt はそのまま引き継ぐ。
+   */
+  suspend fun upsertMetadata(
+      id: Long,
+      label: String,
+      address: String,
+      port: Int,
+      username: String,
+      useTmux: Boolean,
+      tmuxSession: String,
+  ): Long {
+    val existing = hostDao.findById(id) ?: return -1L
+    val updated =
+        existing.copy(
+            label = label,
+            address = address,
+            port = port,
+            username = username,
+            useTmux = useTmux,
+            tmuxSession = tmuxSession.ifBlank { "wanoterm" },
+        )
+    return hostDao.upsert(updated)
+  }
+
   suspend fun delete(host: HostEntity) {
     secrets.delete(host.secretId)
     hostDao.delete(host)

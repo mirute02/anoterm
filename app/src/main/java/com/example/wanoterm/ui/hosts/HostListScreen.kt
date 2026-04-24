@@ -7,11 +7,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,7 +58,9 @@ fun HostListScreen(
   val app = remember { WanotermApp.get() }
   val isPro by app.prefs.isPro.collectAsStateWithLifecycle()
   val developerMode by app.prefs.developerMode.collectAsStateWithLifecycle()
+  val activeTabs by app.sessionManager.activeTabs.collectAsStateWithLifecycle()
   var showUpgradeDialog by remember { mutableStateOf(false) }
+  var disconnectTarget by remember { mutableStateOf<Pair<Long, String>?>(null) }
 
   Scaffold(
       topBar = {
@@ -103,15 +108,44 @@ fun HostListScreen(
         item { EmptyHostsInline() }
       } else {
         items(state.hosts, key = { it.id }) { h ->
+          // このホストに紐づいている生きているタブがあるか（"host:<id>" / "host:<id>:<ts>"）。
+          val hostPrefix = "host:${h.id}"
+          val connected =
+              activeTabs.any { it == hostPrefix || it.startsWith("$hostPrefix:") }
           ListItem(
-              headlineContent = { Text(h.label) },
+              headlineContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                  if (connected) {
+                    Icon(
+                        imageVector = Icons.Outlined.Computer,
+                        contentDescription = "接続中",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                    )
+                  }
+                  Text(h.label)
+                }
+              },
               supportingContent = { Text("${h.username}@${h.address}:${h.port} · 長押しで新規接続") },
               trailingContent = {
-                IconButton(onClick = { onEditHost(h.id) }) {
-                  Icon(
-                      Icons.Filled.Edit,
-                      contentDescription = stringResource(R.string.hosts_edit),
-                  )
+                Row {
+                  if (connected) {
+                    IconButton(
+                        onClick = { disconnectTarget = h.id to h.label },
+                    ) {
+                      Icon(
+                          Icons.Filled.PowerSettingsNew,
+                          contentDescription = "切断",
+                          tint = MaterialTheme.colorScheme.error,
+                      )
+                    }
+                  }
+                  IconButton(onClick = { onEditHost(h.id) }) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = stringResource(R.string.hosts_edit),
+                    )
+                  }
                 }
               },
               modifier =
@@ -124,6 +158,36 @@ fun HostListScreen(
           )
         }
       }
+    }
+
+    disconnectTarget?.let { (targetId, targetLabel) ->
+      AlertDialog(
+          onDismissRequest = { disconnectTarget = null },
+          title = { Text("切断しますか?") },
+          text = {
+            Text(
+                "${targetLabel} への SSH 接続を終了します。tmux 統合中の場合、リモート側の "
+                    + "セッションは残るので次回接続時に続きから再開できます。",
+            )
+          },
+          confirmButton = {
+            TextButton(
+                onClick = {
+                  // そのホストに紐づいているタブを全て閉じる（host:<id>, host:<id>:<ts>…）
+                  val prefix = "host:${targetId}"
+                  activeTabs
+                      .filter { it == prefix || it.startsWith("$prefix:") }
+                      .forEach { app.sessionManager.closeTab(it) }
+                  disconnectTarget = null
+                },
+            ) {
+              Text("切断", color = MaterialTheme.colorScheme.error)
+            }
+          },
+          dismissButton = {
+            TextButton(onClick = { disconnectTarget = null }) { Text("キャンセル") }
+          },
+      )
     }
 
     if (showUpgradeDialog) {
