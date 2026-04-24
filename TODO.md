@@ -481,13 +481,35 @@ wanoterm を「Android だけで完結する SSH クライアント」として�
 
 - [ ] "completed" 扱いしてるもの大半が実機検証なし — ユーザ叩いて OK もらうか adb でスクショ検証
 - [ ] 水平/垂直判定のタッチ消費 (#35) の実ジェスチャ確認
-- [ ] Foreground Service の通知アイコン（ic_launcher だと Android 8+ で白抜き NG）- 専用の vector icon 用意
+- [~] Foreground Service の通知アイコン — `drawable/ic_notification_terminal.xml` モノクロ vector に差替え済、実機未検証
 - [ ] タブ削除時の Compose 側 TerminalView 参照残留（弱参照化 / onRelease で明示クリア）
 - [ ] 縦ドラッグと Pager 横スワイプの優先度、どこで取り合うか実機検証
 - [ ] shortcut bar 展開時のアニメーション duration の体感
 - [ ] app 復帰時の LaunchedEffect 発火順序（currentTabId 設定 → focus 要求のタイミング）
 - [ ] 画面回転時の TerminalView 再作成 + 既存 SessionBundle の reuse が壊れてないか
 - [ ] sshj 0.40.0 + AndroidKeyStore の互換性（特定ホスト鍵で reject されないか）
+
+## Q. 2nd-audit 指摘の修正履歴
+
+2 回目の監査で挙がった 11 件のうち「本番で即事故る」3 件 + 中段 4 件を即修正。
+
+### 修正済
+
+- [x] **#66 DB migration v1→v2 でホスト情報消失** — `AppDatabase.MIGRATION_1_2` を追加し `debug_reports` のみ作成、`hosts` / `known_hosts` は温存。`fallbackToDestructiveMigration(dropAllTables=true)` 撤去
+- [x] **#67 Alt screen scrollUp で primary scrollback 汚染** — `TerminalBuffer` に `scrollbackEnabled` を足し、alternateBuffer は false で構築。vim/less スクロールが `hosts` の履歴を汚さない
+- [x] **#68 Pro toggle の SharedPreferences 直書きで課金回避** — SettingsScreen の Switch を `BuildConfig.DEBUG` で囲み、release ではテキスト表示のみ。購入は Play Billing (#64) 経由で
+- [x] **#69 POST_NOTIFICATIONS runtime request** — MainActivity で Android 13+ 向けに `ActivityResultContracts.RequestPermission` を起動
+- [x] **#70 通知アイコン** — `drawable/ic_notification_terminal.xml` 新規、`SshForegroundService.setSmallIcon` 差替え
+- [x] **#71 remoteTitles / tabLabels の stale entry** — `LaunchedEffect(activeTabs)` 冒頭で `alive` セット差分を削除
+- [x] **#72 Ed25519 `pointEncoding` のサイズ検証** — `SshKeyGenScreen.toOpenSshPublic` で `check(encoded.size == 32)`
+
+### 継続懸念（別タスクで後追い）
+
+- [ ] **RIS (ESC c) の scrollback 挙動** — alt 画面中に RIS が来ると primary の scrollback が巻き添えで消える可能性。xterm 準拠だと保持すべき
+- [ ] **DebugReport export 効率化** — 変更のたび全件を JSON に再書き出し、件数が増えると重い。追記方式に
+- [ ] **Navigation3 backstack deserialize** — プロセス kill → 復帰で `Terminal(tabId)` が `@Serializable` 経由で復元される経路を実機で確認
+- [ ] **BC provider の重複登録** — `WanotermApp.onCreate` の `removeProvider("BC")` → `insertProviderAt` が ConfigChange で重複起動しないか
+- [ ] **DL (CSI M) が primary buffer の scrollback を汚染** — `TerminalEmulator:296` で `buffer.scrollUp` を呼んでおり、primary 側では delete-line が履歴に行を積んでしまう。alt 側は #67 でカバー済、primary は要別対応
 
 ---
 

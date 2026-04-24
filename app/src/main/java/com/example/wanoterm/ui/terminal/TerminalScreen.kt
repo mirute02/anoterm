@@ -103,6 +103,12 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   val tabLabels = remember { mutableStateMapOf<String, String>() }
   val remoteTitles = remember { mutableStateMapOf<String, String?>() }
   LaunchedEffect(activeTabs) {
+    // 閉じたタブのキャッシュを掃除。放置するとラベル/タイトルの map が session 寿命を超えて
+    // 肥大化し、同じ tabId が再利用されたときに古い名前を見せてしまう事故もありうる。
+    val alive = activeTabs.toSet()
+    (tabLabels.keys - alive).forEach { tabLabels.remove(it) }
+    (remoteTitles.keys - alive).forEach { remoteTitles.remove(it) }
+
     for (t in activeTabs) {
       if (!tabLabels.containsKey(t)) {
         tabLabels[t] =

@@ -30,8 +30,16 @@ data class Cell(
  * 固定サイズ row x col のセルグリッド。スクロールバックは後続フェーズで追加。
  *
  * すべての座標は 0-based。`row` は 0 が最上段、`cols` 列が 0-based で並ぶ。
+ *
+ * [scrollbackEnabled] = false にすると scrollUp で押し出された行を scrollback に積まない。
+ * 代替画面 (ESC[?1049h で切り替わる alt buffer) 用。vim/less の内部スクロールで
+ * primary buffer の履歴が汚染されるのを防ぐ（VT100 仕様どおり）。
  */
-class TerminalBuffer(initialRows: Int, initialCols: Int) {
+class TerminalBuffer(
+    initialRows: Int,
+    initialCols: Int,
+    private val scrollbackEnabled: Boolean = true,
+) {
   var rows: Int = initialRows
     private set
 
@@ -173,10 +181,12 @@ class TerminalBuffer(initialRows: Int, initialCols: Int) {
   fun scrollUp(style: CellStyle, count: Int = 1) {
     val n = count.coerceAtMost(rows)
     if (n <= 0) return
-    for (i in 0 until n) {
-      val snapshot = Array(cols) { c -> grid[i][c].copy() }
-      scrollback.addLast(snapshot)
-      if (scrollback.size > maxScrollback) scrollback.removeFirst()
+    if (scrollbackEnabled) {
+      for (i in 0 until n) {
+        val snapshot = Array(cols) { c -> grid[i][c].copy() }
+        scrollback.addLast(snapshot)
+        if (scrollback.size > maxScrollback) scrollback.removeFirst()
+      }
     }
     for (r in 0 until rows - n) {
       for (c in 0 until cols) grid[r][c].copyFrom(grid[r + n][c])

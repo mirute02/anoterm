@@ -27,7 +27,10 @@ class TerminalEmulator(
   // プライマリバッファ（通常のシェル表示）と、代替画面バッファ（vim/less/tmux が使う）。
   // `buffer` は現在アクティブな方を指す。切替時は cursor / style も保存・復元する。
   private val primaryBuffer = TerminalBuffer(initialRows, initialCols)
-  private val alternateBuffer = TerminalBuffer(initialRows, initialCols)
+  // 代替画面は vim/less/tmux が「この画面で作業して出ればクリア」用に使うので
+  // スクロールバックに痕跡を残してはいけない（VT100 仕様）。
+  private val alternateBuffer =
+      TerminalBuffer(initialRows, initialCols, scrollbackEnabled = false)
   var buffer: TerminalBuffer = primaryBuffer
     private set
   private var onAlternate = false

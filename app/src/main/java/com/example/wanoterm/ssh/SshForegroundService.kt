@@ -70,7 +70,9 @@ class SshForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     return NotificationCompat.Builder(this, CHANNEL_ID)
-        .setSmallIcon(R.mipmap.ic_launcher)
+        // Android 8+ は status bar の小アイコンを単色 alpha で描画するので mipmap/ic_launcher は
+        // 白い角丸四角に潰れてしまう。専用のモノクロ vector drawable を指す。
+        .setSmallIcon(R.drawable.ic_notification_terminal)
         .setContentTitle("wanoterm SSH 実行中")
         .setContentText("タップして戻る")
         .setOngoing(true)

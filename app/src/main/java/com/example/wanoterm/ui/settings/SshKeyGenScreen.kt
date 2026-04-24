@@ -231,9 +231,15 @@ private fun toOpenSshPublic(kp: KeyPair, algo: KeyAlgo, comment: String): String
   when (algo) {
     KeyAlgo.ED25519 -> {
       kind = "ssh-ed25519"
-      // BC の EdDSAPublicKey から raw 32 bytes を取り出す
+      // BC の EdDSAPublicKey から raw 32 bytes を取り出す。
+      // 万一 pointEncoding の仕様が将来 BC 側で変わって長さが狂うと、authorized_keys に
+      // 書く公開鍵が壊れて SSH 認証が通らなくなる（しかもエラーがサーバ側でしか出ない）
+      // のでここで必ずサイズを assert する。
       val edPub = pub as EdDSAPublicKey
-      val encoded = edPub.pointEncoding // 32 bytes
+      val encoded = edPub.pointEncoding
+      check(encoded.size == 32) {
+        "Ed25519 public key encoding is ${encoded.size} bytes, expected 32"
+      }
       blob = sshWireBytes(listOf(kind.toByteArray(), encoded))
     }
     KeyAlgo.RSA_4096 -> {

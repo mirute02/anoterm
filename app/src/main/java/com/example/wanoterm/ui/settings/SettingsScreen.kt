@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.wanoterm.BuildConfig
 import com.example.wanoterm.R
 import com.example.wanoterm.WanotermApp
 import com.example.wanoterm.data.prefs.AppLocale
@@ -166,12 +167,22 @@ fun SettingsScreen(
 
       HorizontalDivider()
       val isPro by prefs.isPro.collectAsStateWithLifecycle()
-      Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-      ) {
-        Text(if (isPro) "Pro 版（有効）" else "Pro 版にアップグレード")
-        Switch(checked = isPro, onCheckedChange = { prefs.setPro(it) })
+      // Release ビルドでは Pro を切替える UI は出さない（Play Billing 経由の購入でのみ
+      // unlock されるべき）。debug ビルドのみ手動トグルを許可して動作確認する。
+      // ここをガードしないと SharedPreferences 直書きと同じで課金回避できてしまう。
+      if (BuildConfig.DEBUG) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+          Text(if (isPro) "Pro 版（有効・debug）" else "Pro 版切替（debug）")
+          Switch(checked = isPro, onCheckedChange = { prefs.setPro(it) })
+        }
+      } else {
+        Text(
+            text = if (isPro) "Pro 版（有効）" else "Pro 版にアップグレード（近日対応）",
+            style = MaterialTheme.typography.titleSmall,
+        )
       }
       Text(
           text = if (isPro) "ホスト・タブ無制限、tmux / SFTP 等が解放されています。" else "Free 版: ホスト ${com.example.wanoterm.data.prefs.AppPrefs.FREE_TIER_HOST_LIMIT} 個 / 同時タブ ${com.example.wanoterm.data.prefs.AppPrefs.FREE_TIER_TAB_LIMIT} 個まで。",
