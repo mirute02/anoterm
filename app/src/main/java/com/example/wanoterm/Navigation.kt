@@ -19,6 +19,7 @@ import com.example.wanoterm.ui.settings.KnownHostsScreen
 import com.example.wanoterm.ui.settings.SettingsScreen
 import com.example.wanoterm.ui.settings.SshKeyGenScreen
 import com.example.wanoterm.ui.settings.SshKeyHelpScreen
+import com.example.wanoterm.ui.settings.SshKeyListScreen
 import com.example.wanoterm.ui.terminal.TerminalScreen
 
 @Composable
@@ -82,12 +83,19 @@ fun MainNavigation() {
                   onOpenCustomShortcuts = { backStack.add(CustomShortcuts) },
                   onOpenSshKeyHelp = { backStack.add(SshKeyHelp) },
                   onOpenSshKeyGen = { backStack.add(SshKeyGen) },
+                  onOpenSshKeyList = { backStack.add(SshKeyList) },
               )
             }
             entry<KnownHosts> { KnownHostsScreen(onBack = { backStack.removeLastOrNull() }) }
             entry<CustomShortcuts> { CustomShortcutsScreen(onBack = { backStack.removeLastOrNull() }) }
             entry<SshKeyHelp> { SshKeyHelpScreen(onBack = { backStack.removeLastOrNull() }) }
             entry<SshKeyGen> { SshKeyGenScreen(onBack = { backStack.removeLastOrNull() }) }
+            entry<SshKeyList> {
+              SshKeyListScreen(
+                  onBack = { backStack.removeLastOrNull() },
+                  onCreateNew = { backStack.add(SshKeyGen) },
+              )
+            }
           },
   )
   }

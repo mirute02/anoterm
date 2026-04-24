@@ -18,8 +18,8 @@ class RoomConverters {
 }
 
 @Database(
-    entities = [HostEntity::class, KnownHostEntity::class, DebugReportEntity::class],
-    version = 2,
+    entities = [HostEntity::class, KnownHostEntity::class, DebugReportEntity::class, SshKeyEntity::class],
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -29,6 +29,8 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun knownHostDao(): KnownHostDao
 
   abstract fun debugReportDao(): DebugReportDao
+
+  abstract fun sshKeyDao(): SshKeyDao
 
   companion object {
     private const val DB_NAME = "wanoterm.db"
@@ -50,9 +52,25 @@ abstract class AppDatabase : RoomDatabase() {
           }
         }
 
+    // v2 → v3: SshKeyEntity を追加。既存データは温存。
+    internal val MIGRATION_2_3: Migration =
+        object : Migration(2, 3) {
+          override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `ssh_keys` (" +
+                    "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " +
+                    "`label` TEXT NOT NULL, " +
+                    "`algo` TEXT NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL, " +
+                    "`secret_id` TEXT NOT NULL, " +
+                    "`public_ssh` TEXT NOT NULL)",
+            )
+          }
+        }
+
     fun create(context: Context): AppDatabase =
         Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
   }
 }

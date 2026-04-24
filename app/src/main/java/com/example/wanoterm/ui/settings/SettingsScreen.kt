@@ -46,6 +46,7 @@ fun SettingsScreen(
     onOpenCustomShortcuts: () -> Unit,
     onOpenSshKeyHelp: () -> Unit,
     onOpenSshKeyGen: () -> Unit,
+    onOpenSshKeyList: () -> Unit,
 ) {
   val app = remember { WanotermApp.get() }
   val prefs = app.prefs
@@ -153,6 +154,11 @@ fun SettingsScreen(
       ListItem(
           headlineContent = { Text("カスタムショートカット") },
           modifier = Modifier.clickable { onOpenCustomShortcuts() },
+      )
+      ListItem(
+          headlineContent = { Text("SSH 鍵一覧") },
+          supportingContent = { Text("保存済みの鍵の管理（名前変更・削除・公開鍵コピー）") },
+          modifier = Modifier.clickable { onOpenSshKeyList() },
       )
       ListItem(
           headlineContent = { Text("SSH 鍵を作成") },

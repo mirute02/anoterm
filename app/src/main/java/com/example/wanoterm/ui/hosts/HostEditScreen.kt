@@ -3,6 +3,7 @@ package com.example.wanoterm.ui.hosts
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,8 +42,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wanoterm.R
+import com.example.wanoterm.WanotermApp
 import com.example.wanoterm.data.db.AuthMethod
 import com.example.wanoterm.ui.common.ConfirmDialog
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ListItem
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,8 +64,10 @@ fun HostEditScreen(
 ) {
   val state by vm.state.collectAsStateWithLifecycle()
   val ctx = LocalContext.current
+  val app = remember { WanotermApp.get() }
   val scope = rememberCoroutineScope()
   var showDeleteConfirm by remember { mutableStateOf(false) }
+  var showSavedKeyPicker by remember { mutableStateOf(false) }
 
   val keyPicker =
       rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -157,8 +165,13 @@ fun HostEditScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         AuthMethod.PRIVATE_KEY -> {
-          OutlinedButton(onClick = { keyPicker.launch(arrayOf("*/*")) }) {
-            Text(state.keyFileName ?: stringResource(R.string.host_key_import))
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { showSavedKeyPicker = true }) {
+              Text("保存済みから選ぶ")
+            }
+            OutlinedButton(onClick = { keyPicker.launch(arrayOf("*/*")) }) {
+              Text(state.keyFileName ?: stringResource(R.string.host_key_import))
+            }
           }
           OutlinedTextField(
               value = state.keyPassphrase,
@@ -197,6 +210,64 @@ fun HostEditScreen(
           },
           onDismiss = { showDeleteConfirm = false },
       )
+    }
+
+    if (showSavedKeyPicker) {
+      SavedKeyPickerSheet(
+          onDismiss = { showSavedKeyPicker = false },
+          onPick = { entity ->
+            scope.launch {
+              val loaded =
+                  withContext(Dispatchers.IO) {
+                    app.secretStore.loadPrivateKey(entity.secretId)
+                  }
+              if (loaded != null) {
+                val (bytes, pass) = loaded
+                // 鍵本体をホスト用に複製し、passphrase もついでに埋める（あれば）。
+                // 以降、鍵一覧側を削除しても host はこの複製で生き続ける。
+                vm.setKey(bytes, entity.label)
+                if (!pass.isNullOrEmpty()) vm.update { it.copy(keyPassphrase = pass) }
+              }
+              showSavedKeyPicker = false
+            }
+          },
+      )
+    }
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SavedKeyPickerSheet(
+    onDismiss: () -> Unit,
+    onPick: (com.example.wanoterm.data.db.SshKeyEntity) -> Unit,
+) {
+  val app = remember { WanotermApp.get() }
+  val dao = remember { app.database.sshKeyDao() }
+  val keys by dao.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+  ModalBottomSheet(onDismissRequest = onDismiss) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+      androidx.compose.material3.Text(
+          "保存済みの SSH 鍵から選ぶ",
+          style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+      )
+      if (keys.isEmpty()) {
+        androidx.compose.material3.Text(
+            "まだ鍵が保存されていません。設定 → SSH 鍵を作成 から作成してください。",
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(vertical = 16.dp),
+        )
+      } else {
+        LazyColumn {
+          items(keys, key = { it.id }) { k ->
+            ListItem(
+                headlineContent = { androidx.compose.material3.Text(k.label) },
+                supportingContent = { androidx.compose.material3.Text(k.algo.uppercase()) },
+                modifier = Modifier.fillMaxWidth().clickable { onPick(k) },
+            )
+          }
+        }
+      }
     }
   }
 }
