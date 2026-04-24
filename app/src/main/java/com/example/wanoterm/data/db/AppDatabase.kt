@@ -19,7 +19,7 @@ class RoomConverters {
 
 @Database(
     entities = [HostEntity::class, KnownHostEntity::class, DebugReportEntity::class, SshKeyEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -68,9 +68,20 @@ abstract class AppDatabase : RoomDatabase() {
           }
         }
 
+    // v3 → v4: hosts に tmux 連携用 2 列を追加。既存行は useTmux=0 / tmux_session='wanoterm' で埋める。
+    internal val MIGRATION_3_4: Migration =
+        object : Migration(3, 4) {
+          override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `hosts` ADD COLUMN `use_tmux` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL(
+                "ALTER TABLE `hosts` ADD COLUMN `tmux_session` TEXT NOT NULL DEFAULT 'wanoterm'",
+            )
+          }
+        }
+
     fun create(context: Context): AppDatabase =
         Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
   }
 }

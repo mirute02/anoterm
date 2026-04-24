@@ -23,6 +23,8 @@ class HostRepository(
       username: String,
       auth: AuthMethod,
       secret: SecretInput,
+      useTmux: Boolean = false,
+      tmuxSession: String = "wanoterm",
       existingId: Long? = null,
   ): Long {
     // 既存の secret は SecretStore 経由で新規保存し、古い secret は削除
@@ -42,6 +44,8 @@ class HostRepository(
             username = username,
             auth = auth,
             secretId = secretId,
+            useTmux = useTmux,
+            tmuxSession = tmuxSession.ifBlank { "wanoterm" },
         )
     return hostDao.upsert(entity)
   }
@@ -64,6 +68,8 @@ class HostRepository(
         port = host.port,
         username = host.username,
         auth = creds,
+        useTmux = host.useTmux,
+        tmuxSession = host.tmuxSession,
     )
   }
 }

@@ -24,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -190,6 +191,30 @@ fun HostEditScreen(
             TextButton(onClick = onOpenKeyHelp) { Text("サーバへの登録方法") }
           }
         }
+      }
+
+      // tmux 統合（Phase 1: 接続直後に `tmux new -A -s <sessionName>\r` を自動送出）。
+      // Switch と session 名入力を auth の種別と関係なく表示する。
+      Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text("tmux 統合（接続時に自動 attach）")
+        Switch(
+            checked = state.useTmux,
+            onCheckedChange = { v -> vm.update { it.copy(useTmux = v) } },
+        )
+      }
+      if (state.useTmux) {
+        OutlinedTextField(
+            value = state.tmuxSession,
+            onValueChange = { v ->
+              vm.update { it.copy(tmuxSession = v.filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '-' }) }
+            },
+            label = { Text("tmux セッション名") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
       }
 
       Button(

@@ -118,7 +118,9 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
               t.startsWith("host:") -> {
                 val hostId = t.removePrefix("host:").substringBefore(":").toLongOrNull()
                 val host = hostId?.let { app.database.hostDao().findById(it) }
-                host?.label ?: t.removePrefix("host:").substringBefore(":")
+                val base = host?.label ?: t.removePrefix("host:").substringBefore(":")
+                // tmux 統合ホストは label に badge を付けて視覚的に区別する。
+                if (host?.useTmux == true) "$base · tmux" else base
               }
               else -> t
             }
@@ -188,6 +190,14 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
           val bundle = app.sessionManager.getOrCreate(tabId) { SessionBundle(controller, channel) }
           controller.setConnectionState(ConnectionState.Connected)
           state = TabScreenState.Ready(bundle)
+          // tmux 統合: 接続成功直後に `tmux new -A -s <session>\r` を送出。
+          // -A: セッションがなければ作成、あれば attach（再接続で同じセッションに復帰）
+          // この分岐は「既存 bundle がなくて新規 SSH を張った場合」にしか来ないので
+          // 2 重送信にはならない（前段の sessionManager.get(tabId) != null で早期 return 済み）。
+          if (params.useTmux) {
+            val cmd = "tmux new -A -s ${params.tmuxSession}\r"
+            controller.sendToRemote(cmd.toByteArray(Charsets.US_ASCII))
+          }
         } catch (t: Throwable) {
           controller.setConnectionState(ConnectionState.Failed)
           controller.dispose()

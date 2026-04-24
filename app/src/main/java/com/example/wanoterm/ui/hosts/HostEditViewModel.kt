@@ -25,6 +25,8 @@ data class HostEditUiState(
     val keyBytes: ByteArray? = null,
     val keyFileName: String? = null,
     val keyPassphrase: String = "",
+    val useTmux: Boolean = false,
+    val tmuxSession: String = "wanoterm",
     val isBusy: Boolean = false,
 ) {
   fun isValid(): Boolean {
@@ -58,6 +60,8 @@ class HostEditViewModel(
                 port = h.port.toString(),
                 username = h.username,
                 auth = h.auth,
+                useTmux = h.useTmux,
+                tmuxSession = h.tmuxSession,
                 // 既存の機密は再入力を要求（表示しない）
             )
       }
@@ -89,6 +93,8 @@ class HostEditViewModel(
           username = s.username,
           auth = s.auth,
           secret = secret,
+          useTmux = s.useTmux,
+          tmuxSession = s.tmuxSession,
           existingId = s.id,
       )
       _state.value = s.copy(isBusy = false)

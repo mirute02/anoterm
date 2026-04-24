@@ -9,6 +9,9 @@ data class SshConnectParams(
     val port: Int,
     val username: String,
     val auth: AuthCredentials,
+    /** 接続成功後に `tmux new -A -s <tmuxSession>` を送って永続セッションに attach するか */
+    val useTmux: Boolean = false,
+    val tmuxSession: String = "wanoterm",
 )
 
 sealed interface AuthCredentials {
