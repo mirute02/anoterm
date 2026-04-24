@@ -89,6 +89,14 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               return false
             }
 
+            // ダブルタップで Tab (0x09) を送る。他ターミナルアプリ（Termius 等）の慣習に合わせ、
+            // シェル補完を素早く呼び出せるようにする UX。setOnClickListener 経由の
+            // IME フォーカス取得と併存する（1 回目のタップで IME、素早く 2 回目で Tab）。
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+              sendBytes(byteArrayOf(0x09))
+              return true
+            }
+
             override fun onScroll(
                 e1: MotionEvent?,
                 e2: MotionEvent,
