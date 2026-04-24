@@ -154,13 +154,22 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
 
   override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
     // 挙動メモ：
-    //   TYPE_CLASS_TEXT + TYPE_TEXT_FLAG_NO_SUGGESTIONS。
+    //   TYPE_CLASS_TEXT + TYPE_TEXT_FLAG_NO_SUGGESTIONS + TYPE_TEXT_FLAG_MULTI_LINE。
     //   - VISIBLE_PASSWORD は絶対に付けない（パスワードモードになり日本語 IME の composition が死ぬ）。
     //   - NO_SUGGESTIONS は Gboard 英語モードで予測 composition を抑え、キー入力毎に commitText を
     //     発火させる → 英語入力が即画面反映になる。言語切替 UI（フリック/日本語への切替）には影響しない。
     //   - 日本語 IME（Google 日本語入力 / Gboard 日本語 / ATOK）では NO_SUGGESTIONS は
     //     composition/変換を妨げないので、普通の変換フロー（ローマ字→かな→漢字確定）が動く。
-    outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+    //   - MULTI_LINE を立てると IME 側が「文末＝Enter」扱いを止め、Enter 後の自動大文字化が
+    //     働かなくなる。ターミナルではコマンドを実行するたびに Enter が入るので、これがないと
+    //     `cd ` の c が勝手に大文字化してストレス。
+    // VARIATION_URI を足すと Gboard の予測候補バーが消え、`cd` の直後にスペースで
+    // `CD` に確定される事故が起きない。日本語 IME の composing 自体は URI モードでも動く。
+    outAttrs.inputType =
+        InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_VARIATION_URI or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+            InputType.TYPE_TEXT_FLAG_MULTI_LINE
     outAttrs.imeOptions =
         EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI or

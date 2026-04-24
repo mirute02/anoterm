@@ -36,6 +36,8 @@ data class HostEditUiState(
     val preserveSecret: Boolean = false,
     /** 編集を開いた時点での元の auth 方式（preserveSecret の戻り先判定用） */
     val originalAuth: AuthMethod? = null,
+    /** 保存直前に検知した重複ホスト。UI 側で「上書き / キャンセル」ダイアログを出す。 */
+    val duplicateHost: HostEntity? = null,
 ) {
   fun isValid(): Boolean {
     if (label.isBlank() || address.isBlank() || username.isBlank()) return false
@@ -91,44 +93,91 @@ class HostEditViewModel(
     update { it.copy(keyBytes = bytes, keyFileName = fileName, preserveSecret = false) }
   }
 
+  /**
+   * 保存前処理。label をトリムし、他の既存ホストと (label, address, port, username) が重複していたら
+   * duplicateHost を立てて UI に確認ダイアログを促す。確認が済んでいる場合（forceOverwriteId 指定）や
+   * そもそも重複がなければ performSave に進む。
+   */
   fun save(onDone: () -> Unit) {
-    val s = _state.value
-    if (!s.isValid() || s.isBusy) return
+    val raw = _state.value
+    if (!raw.isValid() || raw.isBusy) return
+    val s =
+        raw.copy(
+            label = raw.label.trim(),
+            address = raw.address.trim(),
+            username = raw.username.trim(),
+            tmuxSession = raw.tmuxSession.trim(),
+        )
     _state.value = s.copy(isBusy = true)
     viewModelScope.launch {
-      if (s.preserveSecret && s.auth == s.originalAuth && s.id != null) {
-        // 認証情報を一切変えない編集（label / tmux 切替など）。既存 secret_id を温存する。
-        app.hostRepository.upsertMetadata(
-            id = s.id,
-            label = s.label,
-            address = s.address,
-            port = s.port.toInt(),
-            username = s.username,
-            useTmux = s.useTmux,
-            tmuxSession = s.tmuxSession,
-        )
-      } else {
-        val secret: SecretInput =
-            when (s.auth) {
-              AuthMethod.PASSWORD -> SecretInput.Password(s.password)
-              AuthMethod.PRIVATE_KEY ->
-                  SecretInput.PrivateKey(s.keyBytes!!, s.keyPassphrase.ifEmpty { null })
-            }
-        app.hostRepository.upsert(
-            label = s.label,
-            address = s.address,
-            port = s.port.toInt(),
-            username = s.username,
-            auth = s.auth,
-            secret = secret,
-            useTmux = s.useTmux,
-            tmuxSession = s.tmuxSession,
-            existingId = s.id,
-        )
+      val duplicate =
+          app.hostRepository.findDuplicate(
+              label = s.label,
+              address = s.address,
+              port = s.port.toIntOrNull() ?: 22,
+              username = s.username,
+              excludeId = s.id,
+          )
+      if (duplicate != null) {
+        // UI 側に判断を委ねる。isBusy は解除し、duplicateHost を立てる。
+        _state.value = s.copy(isBusy = false, duplicateHost = duplicate)
+        return@launch
       }
-      _state.value = s.copy(isBusy = false)
-      onDone()
+      performSave(s, overwriteId = s.id, onDone = onDone)
     }
+  }
+
+  /** 重複ダイアログで「上書き」を選ばれたとき、既存ホストの id を使って upsert する。 */
+  fun confirmOverwrite(onDone: () -> Unit) {
+    val s = _state.value
+    val target = s.duplicateHost ?: return
+    _state.value = s.copy(isBusy = true, duplicateHost = null)
+    viewModelScope.launch {
+      performSave(s, overwriteId = target.id, onDone = onDone)
+    }
+  }
+
+  fun dismissDuplicate() {
+    _state.value = _state.value.copy(duplicateHost = null)
+  }
+
+  private suspend fun performSave(
+      s: HostEditUiState,
+      overwriteId: Long?,
+      onDone: () -> Unit,
+  ) {
+    if (s.preserveSecret && s.auth == s.originalAuth && overwriteId != null) {
+      // 認証情報を一切変えない編集（label / tmux 切替など）。既存 secret_id を温存する。
+      app.hostRepository.upsertMetadata(
+          id = overwriteId,
+          label = s.label,
+          address = s.address,
+          port = s.port.toInt(),
+          username = s.username,
+          useTmux = s.useTmux,
+          tmuxSession = s.tmuxSession,
+      )
+    } else {
+      val secret: SecretInput =
+          when (s.auth) {
+            AuthMethod.PASSWORD -> SecretInput.Password(s.password)
+            AuthMethod.PRIVATE_KEY ->
+                SecretInput.PrivateKey(s.keyBytes!!, s.keyPassphrase.ifEmpty { null })
+          }
+      app.hostRepository.upsert(
+          label = s.label,
+          address = s.address,
+          port = s.port.toInt(),
+          username = s.username,
+          auth = s.auth,
+          secret = secret,
+          useTmux = s.useTmux,
+          tmuxSession = s.tmuxSession,
+          existingId = overwriteId,
+      )
+    }
+    _state.value = s.copy(isBusy = false)
+    onDone()
   }
 
   fun deleteSelf(onDone: () -> Unit) {

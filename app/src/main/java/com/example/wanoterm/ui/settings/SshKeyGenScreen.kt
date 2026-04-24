@@ -48,6 +48,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bouncycastle.jcajce.interfaces.EdDSAPublicKey
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter
+import org.bouncycastle.crypto.util.OpenSSHPrivateKeyUtil
+import org.bouncycastle.crypto.util.PrivateKeyFactory
+import org.bouncycastle.util.io.pem.PemObject
+import org.bouncycastle.util.io.pem.PemWriter
 
 enum class KeyAlgo(val display: String, val jceName: String) {
   ED25519("Ed25519 (推奨)", "Ed25519"),
@@ -130,7 +134,21 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
             scope.launch {
               runCatching {
                 withContext(Dispatchers.IO) {
-                  generateKey(algo, comment.ifBlank { "wanoterm" }, passphrase)
+                  val g = generateKey(algo, comment.ifBlank { "wanoterm" }, passphrase)
+                  // 生成直後に sshj で読めるかを検証。万一 wanoterm 側のシリアライズが
+                  // 壊れていたら、ここでエラーにして SecretStore に書き込ませない。
+                  val v =
+                      com.example.wanoterm.ssh.KeyValidator.validate(
+                          g.privatePem.toByteArray(Charsets.UTF_8),
+                          passphrase.ifBlank { null },
+                      )
+                  if (v.isFailure) {
+                    throw IllegalStateException(
+                        "生成した鍵が wanoterm で読めませんでした: "
+                            + (v.exceptionOrNull()?.message ?: "unknown"),
+                    )
+                  }
+                  g
                 }
               }
                   .onSuccess { g ->
@@ -237,10 +255,26 @@ private fun generateKey(algo: KeyAlgo, comment: String, passphrase: String): Gen
       }
   val kp: KeyPair = kpg.generateKeyPair()
 
-  // 秘密鍵は PEM 形式で serialize（sshj が loadKeys で読める）
-  val sw = StringWriter()
-  JcaPEMWriter(sw).use { it.writeObject(kp) }
-  val privatePem = sw.toString()
+  // 秘密鍵のシリアライズ。
+  // ・RSA は JcaPEMWriter（PKCS8）で OK。sshj の PKCS8KeyFile が OID rsaEncryption を認識する。
+  // ・Ed25519 は sshj 0.40 の PKCS8KeyFile が OID 1.3.101.112 を未サポートなので、
+  //   BouncyCastle の OpenSSHPrivateKeyUtil で OpenSSH v1 形式に出力し、
+  //   sshj の OpenSSHKeyV1KeyFile 経路で読ませる。
+  val privatePem: String =
+      when (algo) {
+        KeyAlgo.ED25519 -> {
+          val keyParams = PrivateKeyFactory.createKey(kp.private.encoded)
+          val openSshBytes = OpenSSHPrivateKeyUtil.encodePrivateKey(keyParams)
+          val sw = StringWriter()
+          PemWriter(sw).use { it.writeObject(PemObject("OPENSSH PRIVATE KEY", openSshBytes)) }
+          sw.toString()
+        }
+        KeyAlgo.RSA_4096 -> {
+          val sw = StringWriter()
+          JcaPEMWriter(sw).use { it.writeObject(kp) }
+          sw.toString()
+        }
+      }
 
   // 公開鍵を authorized_keys 形式 (`ssh-rsa AAAA... comment` または `ssh-ed25519 AAAA... comment`)
   val publicSsh = toOpenSshPublic(kp, algo, comment)

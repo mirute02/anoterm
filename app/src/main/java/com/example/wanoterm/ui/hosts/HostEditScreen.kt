@@ -69,6 +69,8 @@ fun HostEditScreen(
   val scope = rememberCoroutineScope()
   var showDeleteConfirm by remember { mutableStateOf(false) }
   var showSavedKeyPicker by remember { mutableStateOf(false) }
+  // 秘密鍵が wanoterm（sshj）で読めない形式だった時に出す警告メッセージ。
+  var keyInvalidMessage by remember { mutableStateOf<String?>(null) }
 
   val keyPicker =
       rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -81,7 +83,26 @@ fun HostEditScreen(
                   ?.use { c ->
                     if (c.moveToFirst()) c.getString(0) else null
                   } ?: "key"
-          if (bytes != null) vm.setKey(bytes, name)
+          if (bytes != null) {
+            // インポートした鍵も sshj で読める形式か即時検証（passphrase はこの時点で未入力なので
+            // 非暗号化鍵 or パスフレーズ無しでチェック。パスフレーズ付き暗号化鍵の場合は
+            // 後段の「保存」ボタン押下時に再検証する）。
+            val validation =
+                withContext(Dispatchers.IO) {
+                  com.example.wanoterm.ssh.KeyValidator.validate(bytes, null)
+                }
+            if (validation.isFailure &&
+                validation.exceptionOrNull()?.message?.contains("passphrase", ignoreCase = true) != true) {
+              keyInvalidMessage =
+                  "このファイルは wanoterm で読めない形式です。\n\n" +
+                      "対応形式: OpenSSH v1 (-----BEGIN OPENSSH PRIVATE KEY-----) または " +
+                      "PKCS8 RSA。\n\n" +
+                      "`ssh-keygen -t ed25519 -f newkey` などで作り直してから" +
+                      "インポートし直してください。"
+              return@launch
+            }
+            vm.setKey(bytes, name)
+          }
         }
       }
 
@@ -258,6 +279,19 @@ fun HostEditScreen(
           enabled = state.isValid() && !state.isBusy,
           modifier = Modifier.fillMaxWidth(),
       ) { Text(stringResource(R.string.host_save)) }
+
+      // 「保存」が disabled だと押せないのに理由がわからず戻ってしまう事故を防ぐ。
+      // 不足している入力を具体的に示す。
+      if (!state.isValid() && !state.isBusy) {
+        val hint = validationHint(state)
+        if (hint.isNotEmpty()) {
+          Text(
+              hint,
+              color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+              style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+          )
+        }
+      }
     }
 
     if (showDeleteConfirm) {
@@ -273,6 +307,35 @@ fun HostEditScreen(
       )
     }
 
+    // 同じ label / host / port / user のホストが既にあれば確認ダイアログを出す。
+    // 「上書き」を選ぶと既存レコードを更新（pass → key 切替もこれで 1 レコードに収束）。
+    state.duplicateHost?.let { dup ->
+      androidx.compose.material3.AlertDialog(
+          onDismissRequest = { vm.dismissDuplicate() },
+          title = { Text("同じホストが既にあります") },
+          text = {
+            Text(
+                "「${dup.label}」(${dup.username}@${dup.address}:${dup.port}) は登録済みです。"
+                    + "既存のホストを上書きしますか?\n\n"
+                    + "上書きすると入力中の認証情報（${if (dup.auth.name == "PASSWORD") "パスワード" else "秘密鍵"} → "
+                    + "${if (state.auth.name == "PASSWORD") "パスワード" else "秘密鍵"}）に置き換わります。",
+            )
+          },
+          confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = { vm.confirmOverwrite(onDone) },
+            ) {
+              Text("上書き")
+            }
+          },
+          dismissButton = {
+            androidx.compose.material3.TextButton(onClick = { vm.dismissDuplicate() }) {
+              Text("キャンセル")
+            }
+          },
+      )
+    }
+
     if (showSavedKeyPicker) {
       SavedKeyPickerSheet(
           onDismiss = { showSavedKeyPicker = false },
@@ -284,12 +347,38 @@ fun HostEditScreen(
                   }
               if (loaded != null) {
                 val (bytes, pass) = loaded
-                // 鍵本体をホスト用に複製し、passphrase もついでに埋める（あれば）。
-                // 以降、鍵一覧側を削除しても host はこの複製で生き続ける。
+                // 選んだ鍵が sshj で読める形式か検証。古い PKCS8 Ed25519 など未対応形式は
+                // ここで弾いてユーザに作り直しを促す。ホストに紐づける前に止める。
+                val validation =
+                    withContext(Dispatchers.IO) {
+                      com.example.wanoterm.ssh.KeyValidator.validate(bytes, pass)
+                    }
+                if (validation.isFailure) {
+                  keyInvalidMessage =
+                      "「${entity.label}」は wanoterm で読めない形式です。" +
+                          "古いバージョンで作成された Ed25519 鍵の可能性があります。\n\n" +
+                          "『SSH 鍵を作成』から新しい鍵を作り直し、サーバの authorized_keys に" +
+                          "再登録してから使ってください。"
+                  showSavedKeyPicker = false
+                  return@launch
+                }
                 vm.setKey(bytes, entity.label)
                 if (!pass.isNullOrEmpty()) vm.update { it.copy(keyPassphrase = pass) }
               }
               showSavedKeyPicker = false
+            }
+          },
+      )
+    }
+
+    keyInvalidMessage?.let { msg ->
+      androidx.compose.material3.AlertDialog(
+          onDismissRequest = { keyInvalidMessage = null },
+          title = { Text("この鍵は使えません") },
+          text = { Text(msg) },
+          confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { keyInvalidMessage = null }) {
+              Text("閉じる")
             }
           },
       )
@@ -330,5 +419,20 @@ private fun SavedKeyPickerSheet(
         }
       }
     }
+  }
+}
+
+/** 保存ボタンが disabled の理由を日本語で返す。ユーザが「押せない→戻る」で詰まるのを防ぐ。 */
+private fun validationHint(s: HostEditUiState): String {
+  if (s.label.isBlank()) return "ラベルを入力してください"
+  if (s.address.isBlank()) return "ホスト名 / IP を入力してください"
+  if (s.username.isBlank()) return "ユーザー名を入力してください"
+  val port = s.port.toIntOrNull()
+  if (port == null || port !in 1..65535) return "ポートは 1〜65535 の数値にしてください"
+  // 既存 secret を流用するなら credentials の再入力は不要
+  if (s.preserveSecret && s.auth == s.originalAuth) return ""
+  return when (s.auth) {
+    AuthMethod.PASSWORD -> "パスワードを入力してください（保存ボタンが有効になります）"
+    AuthMethod.PRIVATE_KEY -> "秘密鍵ファイルを選択してください（インポート / 保存済みから選ぶ）"
   }
 }

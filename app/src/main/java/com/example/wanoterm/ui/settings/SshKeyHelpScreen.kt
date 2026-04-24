@@ -1,28 +1,58 @@
 package com.example.wanoterm.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.wanoterm.WanotermApp
+import com.example.wanoterm.data.db.SshKeyEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SshKeyHelpScreen(onBack: () -> Unit) {
+  val app = remember { WanotermApp.get() }
+  val keys by app.database
+      .sshKeyDao()
+      .observeAll()
+      .collectAsStateWithLifecycle(initialValue = emptyList())
+  // 複数の鍵があれば先頭（最新）を初期選択。UI でチップ切替できる。
+  var selectedKeyId by remember { mutableStateOf<Long?>(null) }
+  val activeKey: SshKeyEntity? =
+      keys.firstOrNull { it.id == selectedKeyId } ?: keys.firstOrNull()
+
   Scaffold(
       topBar = {
         TopAppBar(
@@ -71,20 +101,84 @@ fun SshKeyHelpScreen(onBack: () -> Unit) {
         Text("PowerShell で:")
         Code("ssh-keygen -t ed25519 -C \"your_email@example.com\"")
         Text("または PuTTYgen で生成し、OpenSSH 形式で export してインポート。")
-
-        SubHeader("Android（wanoterm 単体で作れない古い端末等）")
-        Text("Termux アプリをインストールし、Termux 内で:")
-        Code("pkg install openssh\nssh-keygen -t ed25519")
-        Text("生成後、共有メニューか Files アプリで wanoterm の「鍵をインポート」へ。")
       }
 
       Section("公開鍵をサーバに登録する") {
-        SubHeader("一般的な Linux サーバ")
-        Text("wanoterm で表示した公開鍵をコピーし、サーバにログインして以下を実行:")
+        Callout(
+            "公開鍵を登録するには、まず「何らかの方法でサーバに入れる状態」が前提です。"
+                + "典型的には次のいずれか:\n"
+                + "• パスワード認証でひとまず SSH ログインできる（既存サーバ・共有レンタルサーバ等）\n"
+                + "• クラウドのコンソール（AWS EC2 Connect, GCP シリアル, さくら VPS コンパネ等）\n"
+                + "• 物理/仮想コンソールに直接アクセスできる（自宅サーバ・VM）",
+        )
+
+        SubHeader("wanoterm での最短手順")
+        Callout(
+            "⚠ 前提: このフローはホストが「パスワード認証で繋がる」状態でないと成立しません。"
+                + "秘密鍵認証のホスト (「key」バッジ) を選ぶと、そもそも接続できないので登録に進めません。"
+                + "\n\n既に秘密鍵認証にしてしまっている場合は、先にホスト編集で「パスワード」に戻してください。",
+        )
+        Bullet("1. ホスト画面の + から対象サーバを **パスワード認証で** 登録")
+        Bullet("   （まだホストが無い、または「key」バッジの場合は先にこの状態に）")
+        Bullet("2. 設定 → SSH 鍵一覧 を開く")
+        Bullet("3. 登録したい鍵の ☁↑（サーバに登録）をタップ")
+        Bullet("4. 「pass」バッジのホストを選ぶ → ターミナルが開く")
+        Bullet("5. パスワードを入力してログイン")
+        Bullet("6. 画面を長押し → ペースト → Enter （authorized_keys に追記される）")
+        Bullet("7. ホスト画面に戻り 🖉 → 認証方法を「秘密鍵」→ 保存済みから同じ鍵を選んで保存")
+        Bullet("8. 次回以降はパスワード無しで鍵認証で入れる")
+        Text(
+            "※ サーバ側で /etc/ssh/sshd_config の PubkeyAuthentication が yes か要確認。"
+                + "デフォルトで有効なディストリが多いのでまずは試してみる。",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (keys.isNotEmpty()) {
+          SubHeader("使う公開鍵を選ぶ")
+          if (keys.size == 1) {
+            Text(
+                "「${keys[0].label}」の公開鍵をコマンドに埋め込みました。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+              keys.forEach { k ->
+                FilterChip(
+                    selected = (activeKey?.id == k.id),
+                    onClick = { selectedKeyId = k.id },
+                    label = { Text(k.label) },
+                )
+              }
+            }
+          }
+        } else {
+          Callout(
+              "保存済みの鍵がまだありません。下の手順のコマンドでは "
+                  + "\"ssh-ed25519 AAAA... your_email@example.com\" をあなたの公開鍵に"
+                  + "置き換えてください。設定 → 「SSH 鍵を作成」から鍵を作れば、ここに"
+                  + "実際の公開鍵を差し込んだコマンドが表示されます。",
+          )
+        }
+
+        SubHeader("手動で登録する場合（参考）")
+        Text("上の最短手順を使わず直接打ち込む場合、サーバにログイン後これを貼り付け:")
+        val pubKey =
+            activeKey?.publicSsh?.trim() ?: "ssh-ed25519 AAAA... your_email@example.com"
         Code(
-            "mkdir -p ~/.ssh && chmod 700 ~/.ssh\n"
-                + "echo \"ssh-ed25519 AAAA... your_email@example.com\" >> ~/.ssh/authorized_keys\n"
+            "mkdir -p ~/.ssh && chmod 700 ~/.ssh && "
+                + "echo '${pubKey}' >> ~/.ssh/authorized_keys && "
                 + "chmod 600 ~/.ssh/authorized_keys",
+        )
+        Text(
+            "※ クオート内に ' (single quote) が含まれる公開鍵は通常ありません。"
+                + "万一エラーが出た場合は echo の部分を $ を含まない別の方法で追記してください。",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         SubHeader("AWS EC2 / GCP / Azure")
@@ -159,16 +253,55 @@ private fun Bullet(text: String) {
   Text("• $text", style = MaterialTheme.typography.bodyMedium)
 }
 
+/** セル単位の強調メッセージ。ユーザが読み飛ばしやすい前提条件を箱で囲う。 */
+@Composable
+private fun Callout(text: String) {
+  Surface(
+      shape = RoundedCornerShape(8.dp),
+      color = MaterialTheme.colorScheme.secondaryContainer,
+      modifier = Modifier.fillMaxWidth(),
+  ) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+    )
+  }
+}
+
 @Composable
 private fun Code(text: String) {
-  Text(
-      text,
-      style =
-          MaterialTheme.typography.bodyMedium.copy(
-              fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-          ),
-      color = MaterialTheme.colorScheme.primary,
-      modifier =
-          Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-  )
+  val ctx = LocalContext.current
+  Surface(
+      shape = RoundedCornerShape(6.dp),
+      color = MaterialTheme.colorScheme.surfaceVariant,
+      modifier = Modifier.fillMaxWidth(),
+  ) {
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+      Text(
+          text,
+          style =
+              MaterialTheme.typography.bodySmall.copy(
+                  fontFamily = FontFamily.Monospace,
+              ),
+          color = MaterialTheme.colorScheme.primary,
+          modifier =
+              Modifier.weight(1f).padding(start = 10.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+      )
+      IconButton(
+          onClick = {
+            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("shell snippet", text))
+            Toast.makeText(ctx, "コピーしました", Toast.LENGTH_SHORT).show()
+          },
+      ) {
+        Icon(
+            Icons.Filled.ContentCopy,
+            contentDescription = "コピー",
+            modifier = Modifier.padding(2.dp),
+        )
+      }
+    }
+  }
 }

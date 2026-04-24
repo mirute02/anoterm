@@ -26,21 +26,13 @@ import com.example.wanoterm.ui.terminal.TerminalScreen
 fun MainNavigation() {
   val app = remember { WanotermApp.get() }
   val lockRequired by app.prefs.biometricLock.collectAsStateWithLifecycle(initialValue = false)
-  // プロセスが一度 kill されて再起動したときでも、生きている SessionBundle があれば
-  // HostList ではなく直接そのターミナルに戻せるように、初期 backstack を組む。
-  // （フォアグラウンドサービスで process を守るのは別途実装必要だが、その前の回避策）
-  // プロセスが一度 kill されて再起動した場合でも最後に開いていたタブへ戻る:
-  //   1. activeTabs に生きてる bundle があればそれを優先（同プロセス復帰）
-  //   2. なければ SharedPreferences の lastTabId を参照（プロセス kill 復帰）
-  //   3. biometric ロック中は両方とも無視、ロック解除後に遷移
+  // 起動時は常にホスト選択（HostList）から始める。
+  // 以前は lastTabId や activeTabIds から Terminal を自動で積んでいたが、
+  // 削除済みホストや認証失敗 tab がいきなり表示される UX が混乱を招くため廃止。
+  // 生きている activeTabs は HostList 上で「接続中」バッジとして見えるので、
+  // ユーザがタップすれば 1 操作で復帰できる。
   val initial: NavKey = if (lockRequired) Lock else HostList
-  val resumeTabId: String? =
-      if (lockRequired) null
-      else app.sessionManager.activeTabIds().firstOrNull() ?: app.prefs.lastTabId.value
-  val backStack =
-      rememberNavBackStack(
-          *listOfNotNull(initial, resumeTabId?.let { Terminal(it) }).toTypedArray(),
-      )
+  val backStack = rememberNavBackStack(initial)
   val eventOwner = rememberNavigationEventDispatcherOwner(parent = null)
 
   CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides eventOwner) {
@@ -94,6 +86,11 @@ fun MainNavigation() {
               SshKeyListScreen(
                   onBack = { backStack.removeLastOrNull() },
                   onCreateNew = { backStack.add(SshKeyGen) },
+                  // 鍵一覧 → ホスト選択シートで選ばれたホストに繋ぐ。
+                  // クリップボードへのコマンドコピーは画面側で完了済み。
+                  onRegisterToHost = { _, hostId ->
+                    backStack.add(Terminal("host:$hostId"))
+                  },
               )
             }
           },

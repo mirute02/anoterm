@@ -19,7 +19,7 @@ class RoomConverters {
 
 @Database(
     entities = [HostEntity::class, KnownHostEntity::class, DebugReportEntity::class, SshKeyEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -79,9 +79,23 @@ abstract class AppDatabase : RoomDatabase() {
           }
         }
 
+    // v4 → v5: 既存ホスト/鍵の label・address・username・tmux_session 両端の空白を削除する。
+    // ずっと trim していなかったせいで `"intel "` のような末尾空白付きレコードが潜在しており、
+    // save 側で trim した新値と findDuplicate でマッチせず重複が再発していた。
+    internal val MIGRATION_4_5: Migration =
+        object : Migration(4, 5) {
+          override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "UPDATE hosts SET label = TRIM(label), address = TRIM(address), " +
+                    "username = TRIM(username), tmux_session = TRIM(tmux_session)",
+            )
+            db.execSQL("UPDATE ssh_keys SET label = TRIM(label)")
+          }
+        }
+
     fun create(context: Context): AppDatabase =
         Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
   }
 }

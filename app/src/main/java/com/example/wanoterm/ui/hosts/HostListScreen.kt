@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import com.example.wanoterm.data.db.AuthMethod
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
@@ -124,6 +127,7 @@ fun HostListScreen(
                     )
                   }
                   Text(h.label)
+                  AuthBadge(h.auth)
                 }
               },
               supportingContent = { Text("${h.username}@${h.address}:${h.port} · 長押しで新規接続") },
@@ -216,6 +220,38 @@ fun HostListScreen(
           },
       )
     }
+  }
+}
+
+/** 認証方式を表す小さなバッジ。label の右に置いて鍵 / パス どちらで繋ぐかを一目で示す。 */
+@Composable
+private fun AuthBadge(auth: AuthMethod) {
+  val (text, bg, fg) =
+      when (auth) {
+        AuthMethod.PRIVATE_KEY ->
+            Triple(
+                "key",
+                MaterialTheme.colorScheme.primaryContainer,
+                MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        AuthMethod.PASSWORD ->
+            Triple(
+                "pass",
+                MaterialTheme.colorScheme.surfaceVariant,
+                MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+      }
+  Surface(
+      color = bg,
+      shape = RoundedCornerShape(4.dp),
+      modifier = Modifier.padding(start = 6.dp),
+  ) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = fg,
+        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+    )
   }
 }
 

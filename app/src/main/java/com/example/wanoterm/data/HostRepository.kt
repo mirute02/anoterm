@@ -16,6 +16,25 @@ class HostRepository(
 ) {
   suspend fun findById(id: Long): HostEntity? = hostDao.findById(id)
 
+  /**
+   * 同じ label / address / port / username のホストが既に存在するかを確認。
+   * 自分自身（existingId）は除外するので、単なる編集・更新は conflict にならない。
+   */
+  suspend fun findDuplicate(
+      label: String,
+      address: String,
+      port: Int,
+      username: String,
+      excludeId: Long?,
+  ): HostEntity? =
+      hostDao.findDuplicate(
+          label = label,
+          address = address,
+          port = port,
+          username = username,
+          excludeId = excludeId ?: -1L,
+      )
+
   suspend fun upsert(
       label: String,
       address: String,
