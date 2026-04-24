@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- allowBackup=false で無効化しているが念のため secrets を除外 -->
+<full-backup-content>
+    <exclude domain="file" path="secrets/"/>
+    <exclude domain="database" path="wanoterm.db"/>
+    <exclude domain="sharedpref" path="wanoterm_prefs.xml"/>
+</full-backup-content>

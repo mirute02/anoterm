@@ -1,0 +1,82 @@
+<resources>
+    <string name="app_name">wanoterm</string>
+
+    <string name="nav_hosts">ホスト</string>
+    <string name="nav_terminal">ターミナル</string>
+    <string name="nav_settings">設定</string>
+
+    <string name="hosts_empty_title">ホストが登録されていません</string>
+    <string name="hosts_empty_desc">右下の + から最初の SSH ホストを追加してください。</string>
+    <string name="hosts_add">ホストを追加</string>
+    <string name="hosts_delete_confirm_title">ホストを削除しますか?</string>
+    <string name="hosts_delete_confirm_message">この操作は取り消せません。</string>
+
+    <string name="host_label">名前</string>
+    <string name="host_address">ホスト / IP</string>
+    <string name="host_port">ポート</string>
+    <string name="host_user">ユーザー名</string>
+    <string name="host_auth">認証方法</string>
+    <string name="host_auth_password">パスワード</string>
+    <string name="host_auth_key">秘密鍵</string>
+    <string name="host_password">パスワード</string>
+    <string name="host_key_import">鍵ファイルを読み込む</string>
+    <string name="host_key_passphrase">鍵パスフレーズ</string>
+    <string name="host_save">保存</string>
+    <string name="host_cancel">キャンセル</string>
+    <string name="host_connect">接続</string>
+
+    <string name="terminal_new_tab">新規タブ</string>
+    <string name="terminal_close_tab">タブを閉じる</string>
+    <string name="terminal_disconnect">切断</string>
+    <string name="terminal_paste">貼り付け</string>
+    <string name="terminal_copy">コピー</string>
+    <string name="terminal_select_all">全選択</string>
+    <string name="terminal_font_size">フォントサイズ</string>
+
+    <string name="kbd_esc">Esc</string>
+    <string name="kbd_tab">Tab</string>
+    <string name="kbd_ctrl">Ctrl</string>
+    <string name="kbd_up">↑</string>
+    <string name="kbd_down">↓</string>
+    <string name="kbd_left">←</string>
+    <string name="kbd_right">→</string>
+    <string name="kbd_pipe">|</string>
+    <string name="kbd_home">Home</string>
+    <string name="kbd_end">End</string>
+    <string name="kbd_pgup">PgUp</string>
+    <string name="kbd_pgdn">PgDn</string>
+
+    <string name="tofu_new_title">未知のホスト鍵</string>
+    <string name="tofu_new_message">%1$s から今まで見たことのないホスト鍵が提示されました。\n\n指紋 (%2$s):\n%3$s\n\n信頼して記録しますか?</string>
+    <string name="tofu_changed_title">ホスト鍵が変化しています</string>
+    <string name="tofu_changed_message">警告: %1$s のホスト鍵が以前と異なります。\n\n以前: %2$s\n現在: %3$s\n\n通信が改竄されている可能性があります。承認すると記録を上書きします。</string>
+    <string name="tofu_accept">信頼する</string>
+    <string name="tofu_reject">取消</string>
+
+    <string name="settings_appearance">外観</string>
+    <string name="settings_theme">ターミナルテーマ</string>
+    <string name="settings_font_size">フォントサイズ</string>
+    <string name="settings_language">言語</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_language_ja">日本語</string>
+    <string name="settings_line_ending">Enter 時に送る改行</string>
+    <string name="settings_line_ending_cr">CR (\\r)</string>
+    <string name="settings_line_ending_lf">LF (\\n)</string>
+    <string name="settings_line_ending_crlf">CR LF (\\r\\n)</string>
+    <string name="settings_security">セキュリティ</string>
+    <string name="settings_biometric_lock">生体認証でロック</string>
+    <string name="settings_known_hosts">信頼済みホスト</string>
+    <string name="settings_about">このアプリについて</string>
+
+    <string name="lock_title">wanoterm はロック中です</string>
+    <string name="lock_unlock">ロック解除</string>
+    <string name="lock_biometric_title">wanoterm のロックを解除</string>
+    <string name="lock_biometric_subtitle">保存されたホストを表示するために本人確認を行います。</string>
+
+    <string name="conn_connecting">接続中…</string>
+    <string name="conn_connected">接続済み</string>
+    <string name="conn_disconnected">切断済み</string>
+    <string name="conn_failed">接続に失敗しました: %1$s</string>
+
+    <string name="loopback_host_label">ローカルエコー (デバッグ)</string>
+</resources>

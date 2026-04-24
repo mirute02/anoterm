@@ -1,0 +1,92 @@
+<resources>
+    <string name="app_name">wanoterm</string>
+
+    <!-- Navigation -->
+    <string name="nav_hosts">Hosts</string>
+    <string name="nav_terminal">Terminal</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Host list -->
+    <string name="hosts_empty_title">No saved hosts</string>
+    <string name="hosts_empty_desc">Tap + to add your first SSH host.</string>
+    <string name="hosts_add">Add host</string>
+    <string name="hosts_delete_confirm_title">Delete host?</string>
+    <string name="hosts_delete_confirm_message">This cannot be undone.</string>
+
+    <!-- Host edit -->
+    <string name="host_label">Label</string>
+    <string name="host_address">Host / IP</string>
+    <string name="host_port">Port</string>
+    <string name="host_user">Username</string>
+    <string name="host_auth">Authentication</string>
+    <string name="host_auth_password">Password</string>
+    <string name="host_auth_key">Private key</string>
+    <string name="host_password">Password</string>
+    <string name="host_key_import">Import key file</string>
+    <string name="host_key_passphrase">Key passphrase</string>
+    <string name="host_save">Save</string>
+    <string name="host_cancel">Cancel</string>
+    <string name="host_connect">Connect</string>
+
+    <!-- Terminal -->
+    <string name="terminal_new_tab">New tab</string>
+    <string name="terminal_close_tab">Close tab</string>
+    <string name="terminal_disconnect">Disconnect</string>
+    <string name="terminal_paste">Paste</string>
+    <string name="terminal_copy">Copy</string>
+    <string name="terminal_select_all">Select all</string>
+    <string name="terminal_font_size">Font size</string>
+
+    <!-- Keyboard toolbar -->
+    <string name="kbd_esc">Esc</string>
+    <string name="kbd_tab">Tab</string>
+    <string name="kbd_ctrl">Ctrl</string>
+    <string name="kbd_up">Up</string>
+    <string name="kbd_down">Down</string>
+    <string name="kbd_left">Left</string>
+    <string name="kbd_right">Right</string>
+    <string name="kbd_pipe">|</string>
+    <string name="kbd_home">Home</string>
+    <string name="kbd_end">End</string>
+    <string name="kbd_pgup">PgUp</string>
+    <string name="kbd_pgdn">PgDn</string>
+
+    <!-- TOFU -->
+    <string name="tofu_new_title">Unknown host key</string>
+    <string name="tofu_new_message">The SSH server at %1$s presented a host key we have not seen before.\n\nFingerprint (%2$s):\n%3$s\n\nAccept and remember?</string>
+    <string name="tofu_changed_title">Host key CHANGED</string>
+    <string name="tofu_changed_message">WARNING: the host key for %1$s has changed.\n\nPrevious: %2$s\nCurrent: %3$s\n\nSomeone may be tampering with the connection. Accepting will overwrite the stored fingerprint.</string>
+    <string name="tofu_accept">Trust</string>
+    <string name="tofu_reject">Cancel</string>
+
+    <!-- Settings -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Terminal theme</string>
+    <string name="settings_font_size">Font size</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_language_ja">日本語</string>
+    <string name="settings_line_ending">Enter sends</string>
+    <string name="settings_line_ending_cr">CR (\\r)</string>
+    <string name="settings_line_ending_lf">LF (\\n)</string>
+    <string name="settings_line_ending_crlf">CR LF (\\r\\n)</string>
+    <string name="settings_security">Security</string>
+    <string name="settings_biometric_lock">Biometric app lock</string>
+    <string name="settings_known_hosts">Known hosts</string>
+    <string name="settings_about">About</string>
+
+    <!-- App lock -->
+    <string name="lock_title">wanoterm is locked</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_biometric_title">Unlock wanoterm</string>
+    <string name="lock_biometric_subtitle">Confirm it\'s you to see saved hosts.</string>
+
+    <!-- Connection states -->
+    <string name="conn_connecting">Connecting…</string>
+    <string name="conn_connected">Connected</string>
+    <string name="conn_disconnected">Disconnected</string>
+    <string name="conn_failed">Connection failed: %1$s</string>
+
+    <!-- Loopback (debug) -->
+    <string name="loopback_host_label">Local echo (debug)</string>
+</resources>

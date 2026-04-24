@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Wanoterm" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- 真っ黒だと Compose 側が 0 サイズで描画に失敗したときに目立つので、ターミナル背景と揃える -->
+        <item name="android:windowBackground">@color/bg_deep</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

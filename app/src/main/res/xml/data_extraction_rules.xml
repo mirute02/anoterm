@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="secrets/"/>
+        <exclude domain="database" path="wanoterm.db"/>
+        <exclude domain="sharedpref" path="wanoterm_prefs.xml"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="secrets/"/>
+        <exclude domain="database" path="wanoterm.db"/>
+        <exclude domain="sharedpref" path="wanoterm_prefs.xml"/>
+    </device-transfer>
+</data-extraction-rules>

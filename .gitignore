@@ -1,0 +1,41 @@
+# Gradle
+.gradle
+build/
+*.iml
+
+# IntelliJ / Android Studio
+.idea/
+
+# Kotlin
+.kotlin/
+
+# Android
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+
+# Local config
+local.properties
+
+# Signing
+*.jks
+*.keystore
+keystore.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# AI/tooling local caches
+.claude/
+.codex
+.aider*
+
+# macOS / ext4 misc
+*.swp
+*~
