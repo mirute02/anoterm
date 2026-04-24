@@ -510,9 +510,9 @@ wanoterm を「Android だけで完結する SSH クライアント」として�
 - [x] **BC provider の重複登録** — `Security.getProvider("BC")` が既に `org.bouncycastle.*` の BC なら no-op。Android 標準の `com.android.org.bouncycastle.*` とは別クラスなので初回だけ差替え
 - [x] **DL (CSI M) が primary buffer の scrollback を汚染** — `TerminalBuffer.scrollUp` に `pushToScrollback: Boolean = true` を追加、DL 呼び出しで false を渡す
 
-### 検証のみ残り（実機テスト待ち）
+### 検証完了
 
-- [ ] **Navigation3 backstack deserialize** — プロセス kill → 復帰で `Terminal(tabId)` が `@Serializable` 経由で復元される経路を実機で確認。`lastTabId` 経由の独自復元は確認済（前回 Local echo 自動復帰）だが Nav3 の rememberSaveable 経路は未実施（取引アプリ実行中で中断）
+- [x] **Navigation3 backstack deserialize** — `adb shell am force-stop` → `am start` で LaunchState=COLD 再起動し、Local echo タブが復元されることを確認。crash ログ 0 件。`prefs.lastTabId` と Nav3 backstack 両方が機能
 
 ---
 
