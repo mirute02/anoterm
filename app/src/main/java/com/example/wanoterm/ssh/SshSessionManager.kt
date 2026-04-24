@@ -37,11 +37,6 @@ class SessionBundle(
     controller.setOutput(
         object : com.example.wanoterm.terminal.emulator.TerminalOutput {
           override fun write(bytes: ByteArray) {
-            // 機密を含むため hex dump しない。サイズと channel の状態のみ。
-            Logger.d(
-                "Bundle",
-                "id=$debugId enqueue bytes=${bytes.size} channel=${channel.javaClass.simpleName}${channelStateSuffix()}",
-            )
             val ok = writeChannel.trySend(bytes).isSuccess
             if (!ok) Logger.w("Bundle", "write dropped (queue full)")
           }
@@ -51,16 +46,18 @@ class SessionBundle(
     controller.attachInput(channel.inputStream)
 
     // 書き込み専用ループ。Dispatchers.IO のため Socket 呼び出しが許される。
+    // 連続投入されたバイト群をまとめて 1 回で flush する（レイテンシ + socket 効率化）。
+    // 1 バイトごとに flush していたのを、キューにまだ溜まっている分を drain してから flush。
     writeScope.launch {
       for (bytes in writeChannel) {
         runCatching {
-          Logger.d(
-              "Bundle",
-              "id=$debugId write bytes=${bytes.size} alive=${channel.isAlive()}${channelStateSuffix()}",
-          )
           channel.outputStream.write(bytes)
+          // キューにまだ残っていれば連続で書く（flush を遅らせる）。
+          while (true) {
+            val more = writeChannel.tryReceive().getOrNull() ?: break
+            channel.outputStream.write(more)
+          }
           channel.outputStream.flush()
-          Logger.d("Bundle", "id=$debugId write complete bytes=${bytes.size}")
         }.onFailure {
           Logger.w(
               "Bundle",
@@ -84,7 +81,7 @@ class SessionBundle(
  * Application スコープで同時に生きている tab を保持。
  * 画面回転 / ロケール切替による Activity 再生成でもタブ状態が維持されるよう、ViewModel には置かない。
  */
-class SshSessionManager {
+class SshSessionManager(private val appContext: android.content.Context) {
   private val bundles = ConcurrentHashMap<String, SessionBundle>()
   private val _activeTabs = MutableStateFlow<Set<String>>(emptySet())
   val activeTabs: StateFlow<Set<String>> = _activeTabs.asStateFlow()
@@ -95,6 +92,8 @@ class SshSessionManager {
     val bundle = factory()
     bundles[tabId] = bundle
     _activeTabs.value = bundles.keys.toSet()
+    // 1 つでも session が出来たら foreground service を起動。既に起動済みでも安全。
+    SshForegroundService.start(appContext)
     return bundle
   }
 
@@ -110,6 +109,7 @@ class SshSessionManager {
   fun closeTab(tabId: String) {
     bundles.remove(tabId)?.dispose()
     _activeTabs.value = bundles.keys.toSet()
+    if (bundles.isEmpty()) SshForegroundService.stop(appContext)
   }
 
   fun activeTabIds(): Set<String> = bundles.keys.toSet()
@@ -118,5 +118,6 @@ class SshSessionManager {
     bundles.values.forEach { it.dispose() }
     bundles.clear()
     _activeTabs.value = emptySet()
+    SshForegroundService.stop(appContext)
   }
 }

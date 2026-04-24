@@ -1,9 +1,13 @@
 package com.example.wanoterm.terminal.view
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.util.LruCache
+import androidx.core.content.res.ResourcesCompat
+import com.example.wanoterm.R
 import com.example.wanoterm.terminal.emulator.AnsiColor
 import com.example.wanoterm.terminal.emulator.TerminalBuffer
 import com.example.wanoterm.terminal.emulator.TerminalEmulator
@@ -18,12 +22,20 @@ import com.example.wanoterm.theme.TerminalPalette
  * - 選択範囲は後段フェーズで追加。
  */
 class TerminalRenderer(
+    context: Context,
     var palette: TerminalPalette,
     var fontSizePx: Float,
 ) {
+  // プログラムを読みやすい等幅フォント（JetBrains Mono）をバンドルして優先使用。
+  // 存在しないグリフ（CJK 等）は Android のフォントフォールバックで system monospace が
+  // 使われるため、基本 ASCII/記号の視認性向上が目的。
+  private val programFont: Typeface =
+      ResourcesCompat.getFont(context, R.font.jetbrains_mono_regular) ?: Typeface.MONOSPACE
+  private val programFontItalic: Typeface = Typeface.create(programFont, Typeface.ITALIC)
+
   private val textPaint =
       Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = Typeface.MONOSPACE
+        typeface = programFont
         textSize = fontSizePx
       }
   private val bgPaint = Paint()
@@ -32,6 +44,19 @@ class TerminalRenderer(
   private val selectionPaint = Paint()
   private val composingBgPaint = Paint()
   private val reusedBounds = Rect()
+
+  // 毎グリフ `String(Character.toChars(cp))` が効く。描画は 1 フレームで数千回呼ばれるため、
+  // code point → String を LRU キャッシュして allocation と GC 圧を抑える。
+  // サイズは ASCII + CJK 基本域をカバーして十分な 4096。
+  private val glyphStringCache = object : LruCache<Int, String>(4096) {}
+
+  private fun glyphStringFor(cp: Int): String {
+    val cached = glyphStringCache.get(cp)
+    if (cached != null) return cached
+    val s = String(Character.toChars(cp))
+    glyphStringCache.put(cp, s)
+    return s
+  }
 
   val cellWidth: Float
     get() {
@@ -163,7 +188,7 @@ class TerminalRenderer(
         val cell = buffer.cellAt(emulator.cursorRow, emulator.cursorCol)
         if (cell.codePoint != 0) {
           textPaint.color = bgDefault
-          val s = String(Character.toChars(cell.codePoint))
+          val s = glyphStringFor(cell.codePoint)
           val tw = textPaint.measureText(s)
           canvas.drawText(s, x + (cw - tw) / 2f, y + baselineOffset, textPaint)
         }
@@ -182,11 +207,10 @@ class TerminalRenderer(
   ) {
     textPaint.color = style.fg
     textPaint.isFakeBoldText = style.bold
-    textPaint.typeface =
-        if (style.italic) Typeface.create(Typeface.MONOSPACE, Typeface.ITALIC) else Typeface.MONOSPACE
+    textPaint.typeface = if (style.italic) programFontItalic else programFont
     textPaint.isUnderlineText = style.underline
     textPaint.isStrikeThruText = style.strike
-    val s = String(Character.toChars(codePoint))
+    val s = glyphStringFor(codePoint)
     // セル矩形を超えるグリフ（emoji 等）が隣セルに漏れないよう clip してから描画。
     canvas.save()
     canvas.clipRect(x, y, x + cellRectWidth, y + cellRectHeight)

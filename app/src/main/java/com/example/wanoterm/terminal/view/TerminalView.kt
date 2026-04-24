@@ -35,7 +35,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   override val composingState: ComposingState = ComposingState()
 
   private var controller: TerminalSessionController? = null
-  private var renderer: TerminalRenderer = TerminalRenderer(TerminalPalette.TermiusDark, dipToPx(14f))
+  private var renderer: TerminalRenderer = TerminalRenderer(context, TerminalPalette.TermiusDark, dipToPx(14f))
   private var lineEnding: LineEnding = LineEnding.CR
   private var monitorCursor: Boolean = false
   private var pendingInvalidate: Boolean = false
@@ -176,16 +176,9 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
 
   override fun onDraw(canvas: Canvas) {
     val ctl = controller ?: return
-    val generation = ctl.emulator.buffer.generation
-    if (generation != lastDrawGeneration) {
-      lastDrawGeneration = generation
-      Logger.d(
-          "DRAW",
-          "onDraw generation=$generation cursor=${ctl.emulator.cursorRow},${ctl.emulator.cursorCol}",
-      )
-    }
-    // 残骸ピクセル対策で renderer にも実寸を渡す（セル数 * セルサイズでは
-    // 端数を塗り切れないため）。
+    // 以前ここで毎フレーム `generation` と cursor 座標を String template 化していたが
+    // `Logger.d` は release で消えるのにテンプレート結合は残るため allocation が出ていた。
+    // 今はパフォーマンス上の理由で削除。デバッグに必要になったら条件付きで復活させる。
     renderer.viewPixelWidth = width.toFloat()
     renderer.viewPixelHeight = height.toFloat()
     renderer.draw(canvas, ctl.emulator, composingState, cursorBlinkOn = true, scrollOffset = scrollOffset)

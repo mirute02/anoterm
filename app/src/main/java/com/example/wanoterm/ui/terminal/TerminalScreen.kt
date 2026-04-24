@@ -159,7 +159,10 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
         } catch (t: Throwable) {
           controller.setConnectionState(ConnectionState.Failed)
           controller.dispose()
-          state = TabScreenState.Error(t.message ?: "connection failed")
+          // 例外 message はサーバ名/ユーザ名/鍵パス等を含みうるため UI には出さない。
+          // カテゴリ別に固定文言に落とす（詳細はデバッグビルドの Logger.e で別途確認可能）。
+          com.example.wanoterm.util.Logger.e("TerminalScreen", "connect failed", t)
+          state = TabScreenState.Error(sanitizedConnectError(t))
         }
       }
       else -> state = TabScreenState.Error("unknown tab type")
@@ -391,4 +394,20 @@ private fun ErrorMessage(message: String) {
       verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
       horizontalAlignment = Alignment.CenterHorizontally,
   ) { Text(text = stringResource(R.string.conn_failed, message)) }
+}
+
+/**
+ * 例外 → UI 用の無害な説明文にマップ。認証失敗時に username/host を表示しないのが要点。
+ * 詳細デバッグは Logger で別途出力済み。
+ */
+private fun sanitizedConnectError(t: Throwable): String {
+  val m = t.message.orEmpty().lowercase()
+  return when {
+    "authentication" in m || "auth fail" in m || "permission denied" in m -> "認証に失敗しました"
+    "unknownhost" in m || "no route" in m || "connect" in m && "refused" in m -> "サーバに接続できません"
+    "timeout" in m || "timed out" in m -> "接続がタイムアウトしました"
+    "hostkey" in m || "host key" in m -> "ホスト鍵が一致しません（TOFU）"
+    "secret" in m -> "認証情報が見つかりません"
+    else -> "接続に失敗しました"
+  }
 }

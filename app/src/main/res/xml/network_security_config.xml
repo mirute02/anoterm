@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  wanoterm は SSH（TCP 生 socket）しか使わないが、将来 HTTP 呼び出しが混入した時の
+  防波堤として cleartext を禁止し、system CA のみを信頼する設定を明示する。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -59,11 +59,17 @@ class TerminalBuffer(initialRows: Int, initialCols: Int) {
    * `lineFromBottom == 0` が一番最近 scroll で消えた行（＝画面直上）、
    * 大きくなるほど古い。範囲外なら null。
    */
-  @Synchronized
+  /**
+   * 描画ホットパスなので @Synchronized を外す。スナップショット的に deque のサイズと要素を
+   * ローカル参照で判定する。変更側（scrollUp）は @Synchronized のままだが、読み中に
+   * deque を弄る可能性はある。その場合、リストの要素が途中で変わっても segv することは
+   * ないので、一瞬ちらつく程度で許容する。
+   */
   fun scrollbackCellAt(lineFromBottom: Int, col: Int): Cell? {
-    val idx = scrollback.size - 1 - lineFromBottom
-    if (idx < 0 || idx >= scrollback.size) return null
-    val row = scrollback[idx]
+    val sb = scrollback
+    val idx = sb.size - 1 - lineFromBottom
+    if (idx < 0 || idx >= sb.size) return null
+    val row = sb.elementAtOrNull(idx) ?: return null
     if (col < 0 || col >= row.size) return null
     return row[col]
   }
@@ -104,11 +110,20 @@ class TerminalBuffer(initialRows: Int, initialCols: Int) {
     bump()
   }
 
-  @Synchronized
+  /**
+   * 描画ホットパスで呼ばれるため @Synchronized は外し、grid 配列自体へのローカル参照を
+   * 使って bounds 判定する。これにより「resize で rows/cols/grid が 3 段階で変わる間に
+   * 読みに来たときのアウトオブレンジ」を防ぐ（grid.size と row.size 自体で判定する限り、
+   * 入れ替わっても矛盾しない）。mutation 側は @Synchronized のままなので cell オブジェクト
+   * 自体の fields 更新と並行になる可能性はあるが、それは描画の一瞬のちらつき程度で crash には
+   * ならない（クラスは Cell、fields は var の原子型のみ）。
+   */
   fun cellAt(row: Int, col: Int): Cell {
-    // 描画側からも呼ばれる。範囲外は空セルを返して落ちさせない。
-    if (row !in 0 until rows || col !in 0 until cols) return EMPTY_CELL
-    return grid[row][col]
+    val g = grid
+    if (row < 0 || row >= g.size) return EMPTY_CELL
+    val rowArr = g[row]
+    if (col < 0 || col >= rowArr.size) return EMPTY_CELL
+    return rowArr[col]
   }
 
   /** 1 code point を指定位置に書く。widthOf==2 なら右隣セルを continuation にする。 */

@@ -36,7 +36,7 @@ class WanotermApp : Application() {
     prefs = AppPrefs(applicationContext)
     database = AppDatabase.create(applicationContext)
     secretStore = SecretStore(applicationContext)
-    sessionManager = SshSessionManager()
+    sessionManager = SshSessionManager(applicationContext)
     hostRepository = HostRepository(database.hostDao(), secretStore)
 
     // Apply persisted locale before any Activity is created.
