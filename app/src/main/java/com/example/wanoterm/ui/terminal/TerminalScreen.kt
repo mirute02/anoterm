@@ -420,10 +420,9 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
             )
           }
           // 応答パレット：Claude Code / Codex の選択肢が検出された時だけ表示。
-          // キーボードツールバーの上に出して、親指で押しやすい高さ・幅を確保する。
-          androidx.compose.animation.AnimatedVisibility(
-              visible = paletteEnabled && selectionChoices >= 2,
-          ) {
+          // AnimatedVisibility のスライドが選択肢 flicker と相まって「繰り返しスライド」に
+          // 見えるため、単純な if で出し入れのみにする（アニメーション無し）。
+          if (paletteEnabled && selectionChoices >= 2) {
             ResponsePalette(
                 maxChoice = selectionChoices.coerceAtMost(3),
                 onSelect = { n ->

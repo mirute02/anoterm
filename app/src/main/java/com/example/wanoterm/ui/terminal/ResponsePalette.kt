@@ -17,9 +17,10 @@ import androidx.compose.ui.unit.dp
  * Claude Code / Codex の「1. ... / 2. ... / 3. ...」選択肢プロンプトに応答するための
  * 大ボタン行。検出時のみ表示される前提。
  *
- * maxChoice=2 → [承認 / 拒否] 2 ボタン、maxChoice=3 → [承認 / 拒否 / 継続] 3 ボタン。
- * 4 以上は現状 Claude / Codex のユースケースに無いので 3 で打ち止め。
+ * ボタンには数字だけ出す。「承認/拒否/継続」のような意味ラベルは Yes/No 以外の選択肢
+ * （ファイル編集/絞込 etc.）で混乱を招くので廃止。
  *
+ * maxChoice=2 → [1 / 2] 2 ボタン、maxChoice=3 → [1 / 2 / 3] 3 ボタン。
  * 送信は Enter 込み（上位の sendBytes が `lineEnding.bytes` を連結する）。
  */
 @Composable
@@ -28,13 +29,6 @@ fun ResponsePalette(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  val labels = listOf("✓ 承認", "✗ 拒否", "⟲ 継続")
-  val colors =
-      listOf(
-          ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-          ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-          ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-      )
   Row(
       modifier =
           modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -44,12 +38,13 @@ fun ResponsePalette(
       Button(
           onClick = { onSelect(n) },
           modifier = Modifier.weight(1f).heightIn(min = 52.dp),
-          colors = colors.getOrElse(n - 1) { ButtonDefaults.buttonColors() },
+          // 全ボタン同じ色。数字だけなので誤解を招かない。
+          colors =
+              ButtonDefaults.buttonColors(
+                  containerColor = MaterialTheme.colorScheme.primary,
+              ),
       ) {
-        Text(
-            labels.getOrNull(n - 1) ?: "$n",
-            style = MaterialTheme.typography.titleMedium,
-        )
+        Text("$n", style = MaterialTheme.typography.titleLarge)
       }
     }
   }
