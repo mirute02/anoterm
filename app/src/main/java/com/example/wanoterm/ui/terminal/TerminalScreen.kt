@@ -1,15 +1,26 @@
 package com.example.wanoterm.ui.terminal
 
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Dashboard
@@ -36,6 +47,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -74,6 +89,28 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   var showHelp by remember { mutableStateOf(false) }
   var showHistory by remember { mutableStateOf(false) }
   var showTmux by remember { mutableStateOf(false) }
+  // カスタムショートカットバーはデフォルトで非表示。下部のツールバー右端の apps アイコンで切替。
+  var showShortcutBar by remember { mutableStateOf(false) }
+
+  // 端末ラベル resolver。tabId → 表示名を DB から引いてキャッシュ。
+  // タイトルとタブバー両方で使い回す。
+  val tabLabels = remember { mutableStateMapOf<String, String>() }
+  LaunchedEffect(activeTabs) {
+    for (t in activeTabs) {
+      if (tabLabels.containsKey(t)) continue
+      tabLabels[t] =
+          when {
+            t.startsWith("loopback") -> "Local echo"
+            t.startsWith("host:") -> {
+              val hostId = t.removePrefix("host:").substringBefore(":").toLongOrNull()
+              val host = hostId?.let { app.database.hostDao().findById(it) }
+              host?.label ?: t.removePrefix("host:").substringBefore(":")
+            }
+            else -> t
+          }
+    }
+  }
+  fun labelFor(id: String): String = tabLabels[id] ?: id.substringBefore(":")
 
   LaunchedEffect(tabId) {
     val existing = app.sessionManager.get(tabId)
@@ -129,16 +166,12 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
     }
   }
 
-  // 並び順は登録順（tabId に付与したタイムスタンプで自然に古い順）。
   val sortedTabs by remember { derivedStateOf { activeTabs.toList().sorted() } }
-  val initialPage by remember {
-    derivedStateOf { sortedTabs.indexOf(tabId).coerceAtLeast(0) }
-  }
+  val initialPage by remember { derivedStateOf { sortedTabs.indexOf(tabId).coerceAtLeast(0) } }
 
   val pagerState = rememberPagerState(initialPage = initialPage) { sortedTabs.size }
   val coroutineScope = rememberCoroutineScope()
 
-  // 新しいタブが登録された or 現在のタブが変わったら、pager を該当位置へスクロール。
   LaunchedEffect(tabId, sortedTabs) {
     val idx = sortedTabs.indexOf(tabId)
     if (idx >= 0 && idx != pagerState.currentPage) {
@@ -147,26 +180,39 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   }
 
   val currentTabId by remember(pagerState, sortedTabs) {
-    derivedStateOf {
-      sortedTabs.getOrNull(pagerState.currentPage) ?: tabId
-    }
+    derivedStateOf { sortedTabs.getOrNull(pagerState.currentPage) ?: tabId }
   }
 
-  // pager でスライドして現在タブが変わったら、それに紐付く bundle に state を更新
   LaunchedEffect(pagerState) {
     snapshotFlow { pagerState.currentPage }.collect { page ->
       val newTabId = sortedTabs.getOrNull(page) ?: return@collect
       val bundle = app.sessionManager.get(newTabId)
-      if (bundle != null) {
-        state = TabScreenState.Ready(bundle)
-      }
+      if (bundle != null) state = TabScreenState.Ready(bundle)
     }
   }
+
+  // 現在のタブの接続状態を dot で表示するため、StateFlow を collect
+  val currentBundle = app.sessionManager.get(currentTabId)
+  val currentConnectionState by
+      (currentBundle?.controller?.connectionState ?: remember { kotlinx.coroutines.flow.MutableStateFlow(ConnectionState.Idle) })
+          .collectAsStateWithLifecycle(initialValue = ConnectionState.Idle)
+
+  val context = LocalContext.current
+  val composeView = LocalView.current
 
   Scaffold(
       topBar = {
         TopAppBar(
-            title = { Text(titleFor(currentTabId), style = MaterialTheme.typography.titleMedium) },
+            title = {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                ConnectionDot(currentConnectionState)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    labelFor(currentTabId),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+              }
+            },
             navigationIcon = {
               IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -198,6 +244,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
         TabBar(
             tabs = sortedTabs,
             activeTabId = currentTabId,
+            tabTitle = ::labelFor,
             onSelect = { id ->
               val idx = sortedTabs.indexOf(id)
               if (idx >= 0) coroutineScope.launch { pagerState.animateScrollToPage(idx) }
@@ -212,12 +259,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
         is TabScreenState.Error ->
             Box(modifier = Modifier.weight(1f).fillMaxSize()) { ErrorMessage(s.message) }
         is TabScreenState.Ready -> {
-          // TerminalView は tabId ごとに map で追跡する。3 タブ以上でページ切替時に
-          // recompose 順序によって単一変数だと stale 参照を掴むケースがあったため、
-          // ID 引きで確実に「いま見えているページのビュー」を取り出せる形にした。
           val terminalViews = remember { mutableStateMapOf<String, TerminalView>() }
-          // 閉じられたタブの entry を掃除する（参照を残したままにすると view 経由で
-          // コントローラを掴み続けてしまうので）。
           LaunchedEffect(sortedTabs) {
             terminalViews.keys.toList().forEach { k ->
               if (k !in sortedTabs) terminalViews.remove(k)
@@ -225,16 +267,15 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
           }
           val currentView: TerminalView? = terminalViews[currentTabId]
           var ctrlArmed by remember { mutableStateOf(false) }
-          // タブ追加・削除・切替のどの経路でも新 TerminalView に focus が乗るよう保証する。
-          // 同時に ctrl armed はタブ毎にリセット（あるタブで Ctrl を armed のまま別タブへ
-          // 切替えて打った文字が Ctrl+X 扱いされる事故を防ぐ）。
           LaunchedEffect(currentTabId, currentView) {
             ctrlArmed = false
             currentView?.ctrlArmed = false
             currentView?.focusAndRequestKeyboard()
           }
-          // 1 タブのみなら Pager を使わず単独描画（Pager の overhead 回避）。
-          // 2 タブ以上で HorizontalPager でスワイプ切替。
+          val sendBytes: (ByteArray) -> Unit = { bytes ->
+            currentView?.scrollToBottom()
+            app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
+          }
           if (sortedTabs.size <= 1) {
             TerminalHost(
                 controller = s.bundle.controller,
@@ -243,25 +284,6 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
                 lineEnding = lineEnding,
                 modifier = Modifier.weight(1f).fillMaxSize(),
                 viewBinding = { v -> terminalViews[currentTabId] = v },
-            )
-            CustomShortcutBar(
-                shortcuts = customShortcuts,
-                lineEnding = lineEnding,
-                onSend = { bytes ->
-                  currentView?.scrollToBottom()
-                  s.bundle.controller.sendToRemote(bytes)
-                },
-            )
-            KeyboardToolbar(
-                ctrlArmed = ctrlArmed,
-                onToggleCtrl = {
-                  ctrlArmed = !ctrlArmed
-                  currentView?.ctrlArmed = ctrlArmed
-                },
-                onSend = { bytes ->
-                  currentView?.scrollToBottom()
-                  s.bundle.controller.sendToRemote(bytes)
-                },
             )
           } else {
             HorizontalPager(
@@ -278,34 +300,40 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
                     fontSizeSp = fontSizeSp,
                     lineEnding = lineEnding,
                     modifier = Modifier.fillMaxSize(),
-                    // ページごとに自分の ID で map に登録。recompose 順序に依存しないので、
-                    // 3 タブ以上でもあとから currentTabId で引けば正しい view が手に入る。
                     viewBinding = { v -> terminalViews[pageTabId] = v },
                 )
               } else {
                 Box(modifier = Modifier.fillMaxSize()) { ConnectingIndicator() }
               }
             }
+          }
+
+          // ショートカットバーは開閉可能。閉じておくと端末の表示領域が増える。
+          AnimatedVisibility(
+              visible = showShortcutBar,
+              enter = expandVertically(),
+              exit = shrinkVertically(),
+          ) {
             CustomShortcutBar(
                 shortcuts = customShortcuts,
                 lineEnding = lineEnding,
-                onSend = { bytes ->
-                  currentView?.scrollToBottom()
-                  app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
-                },
-            )
-            KeyboardToolbar(
-                ctrlArmed = ctrlArmed,
-                onToggleCtrl = {
-                  ctrlArmed = !ctrlArmed
-                  currentView?.ctrlArmed = ctrlArmed
-                },
-                onSend = { bytes ->
-                  currentView?.scrollToBottom()
-                  app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
-                },
+                onSend = sendBytes,
             )
           }
+          KeyboardToolbar(
+              ctrlArmed = ctrlArmed,
+              shortcutBarVisible = showShortcutBar,
+              onToggleCtrl = {
+                ctrlArmed = !ctrlArmed
+                currentView?.ctrlArmed = ctrlArmed
+              },
+              onToggleShortcutBar = { showShortcutBar = !showShortcutBar },
+              onHideKeyboard = {
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
+              },
+              onSend = sendBytes,
+          )
         }
       }
     }
@@ -333,6 +361,18 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
 }
 
 @Composable
+private fun ConnectionDot(state: ConnectionState) {
+  val color =
+      when (state) {
+        ConnectionState.Connected -> Color(0xFF4CAF50) // green
+        ConnectionState.Connecting -> Color(0xFFFFC107) // amber
+        ConnectionState.Disconnected, ConnectionState.Failed -> Color(0xFFE53935) // red
+        ConnectionState.Idle -> Color(0xFF9E9E9E) // grey
+      }
+  Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
+}
+
+@Composable
 private fun ConnectingIndicator() {
   Column(
       modifier = Modifier.fillMaxSize(),
@@ -352,10 +392,3 @@ private fun ErrorMessage(message: String) {
       horizontalAlignment = Alignment.CenterHorizontally,
   ) { Text(text = stringResource(R.string.conn_failed, message)) }
 }
-
-private fun titleFor(tabId: String): String =
-    when {
-      tabId.startsWith("loopback") -> "Local echo"
-      tabId.startsWith("host:") -> tabId.removePrefix("host:").substringBefore(":")
-      else -> tabId
-    }

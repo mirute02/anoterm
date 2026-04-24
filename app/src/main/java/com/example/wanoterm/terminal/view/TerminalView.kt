@@ -100,7 +100,10 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               // 縦ドラッグ優勢のときだけ scrollback を動かす。横ドラッグ中は false を返して
               // 上位（HorizontalPager）にイベントを渡す余地を残す。
               if (kotlin.math.abs(distanceY) < kotlin.math.abs(distanceX)) return false
-              scrollAccumPx += distanceY
+              // ユーザ感覚に合わせる: 指を下に引く（distanceY 負）→ 過去を遡る、
+              // 指を上に押す（distanceY 正）→ 現在方向に戻す。
+              // GestureDetector の distanceY は「指が上に動いた分だけ正」なので符号を反転。
+              scrollAccumPx -= distanceY
               val lines = (scrollAccumPx / ch).toInt()
               if (lines != 0) {
                 scrollAccumPx -= lines * ch
@@ -274,27 +277,52 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
 
   override fun onSpecialKey(event: KeyEvent): Boolean {
     val ctl = controller ?: return false
-    // CSI シーケンスは必ず ESC (0x1B) プレフィックス付きで送出。これが欠けると
-    // shell/tmux/vim 等が何も解釈せず、生テキスト "[A" 等が画面に流れてしまう。
+    // 修飾キーの xterm 方式: mod = 1 + (shift) + 2*(alt) + 4*(ctrl)
+    val mod =
+        1 +
+            (if (event.isShiftPressed) 1 else 0) +
+            (if (event.isAltPressed) 2 else 0) +
+            (if (event.isCtrlPressed) 4 else 0)
     val bytes: ByteArray =
         when (event.keyCode) {
           KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> lineEnding.bytes
           KeyEvent.KEYCODE_DEL -> byteArrayOf(0x7F)
-          KeyEvent.KEYCODE_FORWARD_DEL -> "[3~".toByteArray(Charsets.US_ASCII)
-          KeyEvent.KEYCODE_DPAD_UP -> "[A".toByteArray(Charsets.US_ASCII)
-          KeyEvent.KEYCODE_DPAD_DOWN -> "[B".toByteArray(Charsets.US_ASCII)
-          KeyEvent.KEYCODE_DPAD_RIGHT -> "[C".toByteArray(Charsets.US_ASCII)
-          KeyEvent.KEYCODE_DPAD_LEFT -> "[D".toByteArray(Charsets.US_ASCII)
-          KeyEvent.KEYCODE_TAB -> byteArrayOf(0x09)
+          KeyEvent.KEYCODE_FORWARD_DEL -> csiTildeMod(3, mod)
+          KeyEvent.KEYCODE_DPAD_UP -> csiLetterMod('A', mod)
+          KeyEvent.KEYCODE_DPAD_DOWN -> csiLetterMod('B', mod)
+          KeyEvent.KEYCODE_DPAD_RIGHT -> csiLetterMod('C', mod)
+          KeyEvent.KEYCODE_DPAD_LEFT -> csiLetterMod('D', mod)
+          KeyEvent.KEYCODE_TAB ->
+              if (event.isShiftPressed) byteArrayOf(0x1B, 0x5B, 0x5A) // ESC [ Z = back-tab
+              else byteArrayOf(0x09)
           KeyEvent.KEYCODE_ESCAPE -> byteArrayOf(0x1B)
-          KeyEvent.KEYCODE_MOVE_HOME -> "[H".toByteArray(Charsets.US_ASCII)
-          KeyEvent.KEYCODE_MOVE_END -> "[F".toByteArray(Charsets.US_ASCII)
-          KeyEvent.KEYCODE_PAGE_UP -> "[5~".toByteArray(Charsets.US_ASCII)
-          KeyEvent.KEYCODE_PAGE_DOWN -> "[6~".toByteArray(Charsets.US_ASCII)
+          KeyEvent.KEYCODE_MOVE_HOME -> csiLetterMod('H', mod)
+          KeyEvent.KEYCODE_MOVE_END -> csiLetterMod('F', mod)
+          KeyEvent.KEYCODE_PAGE_UP -> csiTildeMod(5, mod)
+          KeyEvent.KEYCODE_PAGE_DOWN -> csiTildeMod(6, mod)
           else -> return false
         }
     ctl.sendToRemote(bytes)
     return true
+  }
+
+  /** CSI-with-letter 系（A/B/C/D/H/F 等）。modifier 無しなら "ESC [ X"、有りなら "ESC [ 1 ; M X"。 */
+  private fun csiLetterMod(final: Char, mod: Int): ByteArray {
+    val body = if (mod == 1) "[${final}" else "[1;${mod}${final}"
+    return makeEscBytes(body)
+  }
+
+  /** CSI-with-tilde 系（3~/5~/6~ 等）。modifier 無しなら "ESC [ N ~"、有りなら "ESC [ N ; M ~"。 */
+  private fun csiTildeMod(num: Int, mod: Int): ByteArray {
+    val body = if (mod == 1) "[${num}~" else "[${num};${mod}~"
+    return makeEscBytes(body)
+  }
+
+  private fun makeEscBytes(body: String): ByteArray {
+    val out = ByteArray(body.length + 1)
+    out[0] = 0x1B
+    for (i in body.indices) out[i + 1] = body[i].code.toByte()
+    return out
   }
 
   override fun requestTerminalRedraw() {

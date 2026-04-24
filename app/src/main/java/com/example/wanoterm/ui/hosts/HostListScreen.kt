@@ -1,6 +1,7 @@
 package com.example.wanoterm.ui.hosts
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +36,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wanoterm.BuildConfig
 import com.example.wanoterm.R
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HostListScreen(
     onAddHost: () -> Unit,
@@ -69,11 +70,14 @@ fun HostListScreen(
           ListItem(
               leadingContent = { Icon(Icons.Outlined.Computer, contentDescription = null) },
               headlineContent = { Text(stringResource(R.string.loopback_host_label)) },
-              supportingContent = { Text("echo back / IME 動作確認用") },
+              supportingContent = { Text("echo back / IME 動作確認用 (長押しで新規)") },
               modifier =
-                  Modifier.fillMaxWidth().clickable {
-                    onOpenTerminal("loopback:${System.currentTimeMillis()}")
-                  },
+                  Modifier.fillMaxWidth().combinedClickable(
+                      // タップ: 既存タブがあれば再利用（tabId 固定）、無ければ新規作成
+                      onClick = { onOpenTerminal("loopback") },
+                      // 長押し: 強制的に新規セッションを開く
+                      onLongClick = { onOpenTerminal("loopback:${System.currentTimeMillis()}") },
+                  ),
           )
           HorizontalDivider()
         }
@@ -84,9 +88,14 @@ fun HostListScreen(
         items(state.hosts, key = { it.id }) { h ->
           ListItem(
               headlineContent = { Text(h.label) },
-              supportingContent = { Text("${h.username}@${h.address}:${h.port}") },
+              supportingContent = { Text("${h.username}@${h.address}:${h.port} · 長押しで新規接続") },
               modifier =
-                  Modifier.fillMaxWidth().clickable { onOpenTerminal("host:${h.id}:${System.currentTimeMillis()}") },
+                  Modifier.fillMaxWidth().combinedClickable(
+                      // タップ: 既存タブがあれば再利用、新規なら作成
+                      onClick = { onOpenTerminal("host:${h.id}") },
+                      // 長押し: 新規 SSH 接続としてもう 1 タブ追加
+                      onLongClick = { onOpenTerminal("host:${h.id}:${System.currentTimeMillis()}") },
+                  ),
           )
         }
       }
