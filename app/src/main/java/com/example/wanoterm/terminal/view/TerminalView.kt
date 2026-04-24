@@ -108,6 +108,10 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               // 縦ドラッグ優勢のときだけ scrollback を動かす。横ドラッグ中は false を返して
               // 上位（HorizontalPager）にイベントを渡す余地を残す。
               if (kotlin.math.abs(distanceY) < kotlin.math.abs(distanceX)) return false
+              // 縦ドラッグと確定した瞬間に、親 (HorizontalPager) にイベント横取りを禁じる。
+              // これを呼ばないと、縦スクロール中でも親の ViewPager が水平スワイプを検出して
+              // タブが切り替わったりしてスクロール体験が安定しない。
+              parent?.requestDisallowInterceptTouchEvent(true)
               // ユーザ感覚に合わせる: 指を下に引く（distanceY 負）→ 過去を遡る、
               // 指を上に押す（distanceY 正）→ 現在方向に戻す。
               // GestureDetector の distanceY は「指が上に動いた分だけ正」なので符号を反転。
@@ -193,12 +197,16 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
 
   override fun onDraw(canvas: Canvas) {
     val ctl = controller ?: return
-    // 以前ここで毎フレーム `generation` と cursor 座標を String template 化していたが
-    // `Logger.d` は release で消えるのにテンプレート結合は残るため allocation が出ていた。
-    // 今はパフォーマンス上の理由で削除。デバッグに必要になったら条件付きで復活させる。
     renderer.viewPixelWidth = width.toFloat()
     renderer.viewPixelHeight = height.toFloat()
-    renderer.draw(canvas, ctl.emulator, composingState, cursorBlinkOn = true, scrollOffset = scrollOffset)
+    // emulator.feed と同じ monitor を取得してから読む。これにより feed 中に部分更新された
+    // cell grid を描画して「前フレームと重なる / 消えかけの文字が残る」視覚バグを防ぐ。
+    // feed 側は @Synchronized、draw 側は explicit synchronized で同じ `emulator` を共有。
+    synchronized(ctl.emulator) {
+      renderer.draw(
+          canvas, ctl.emulator, composingState, cursorBlinkOn = true, scrollOffset = scrollOffset,
+      )
+    }
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {

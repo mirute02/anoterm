@@ -98,6 +98,15 @@ class TerminalEmulator(
     cursorCol = cursorCol.coerceIn(0, buffer.cols - 1)
   }
 
+  /**
+   * 受信バイト列を VT パーサに流す。
+   *
+   * 描画 (`TerminalRenderer.draw`) と race すると、セル grid が部分更新された状態で
+   * 読まれて「前フレームと新フレームが重なって見える」視覚バグになる。
+   * そのため feed 全体を `this` の monitor で直列化し、描画側も同じ monitor を
+   * 取得してから読むようにする（呼び出し側で synchronized(emulator) を使う）。
+   */
+  @Synchronized
   fun feed(bytes: ByteArray, length: Int = bytes.size) {
     var i = 0
     while (i < length) {

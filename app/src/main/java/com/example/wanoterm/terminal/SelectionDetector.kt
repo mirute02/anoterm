@@ -25,10 +25,12 @@ object SelectionDetector {
     for (r in start until rows) {
       val line = rowToText(buffer, r).trimEnd()
       if (line.isEmpty()) continue
-      // 1 行に複数パターンが出ていても、冒頭近くのものだけ拾う（URL 等の誤検出防止）。
-      val m = pattern.find(line) ?: continue
-      val n = m.groupValues[1].toIntOrNull() ?: continue
-      if (n in 1..9) numbers.add(n)
+      // 選択肢が「1 行 1 個」のケース（縦並び）と「1 行に複数」のケース（横並び）の
+      // 両方に対応するため findAll で全マッチを拾う。
+      pattern.findAll(line).forEach { m ->
+        val n = m.groupValues[1].toIntOrNull() ?: return@forEach
+        if (n in 1..9) numbers.add(n)
+      }
     }
     if (numbers.size < 2) return 0
     return numbers.max()
