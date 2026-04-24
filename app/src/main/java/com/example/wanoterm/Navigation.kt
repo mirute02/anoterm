@@ -26,9 +26,14 @@ fun MainNavigation() {
   // プロセスが一度 kill されて再起動したときでも、生きている SessionBundle があれば
   // HostList ではなく直接そのターミナルに戻せるように、初期 backstack を組む。
   // （フォアグラウンドサービスで process を守るのは別途実装必要だが、その前の回避策）
+  // プロセスが一度 kill されて再起動した場合でも最後に開いていたタブへ戻る:
+  //   1. activeTabs に生きてる bundle があればそれを優先（同プロセス復帰）
+  //   2. なければ SharedPreferences の lastTabId を参照（プロセス kill 復帰）
+  //   3. biometric ロック中は両方とも無視、ロック解除後に遷移
   val initial: NavKey = if (lockRequired) Lock else HostList
   val resumeTabId: String? =
-      if (lockRequired) null else app.sessionManager.activeTabIds().firstOrNull()
+      if (lockRequired) null
+      else app.sessionManager.activeTabIds().firstOrNull() ?: app.prefs.lastTabId.value
   val backStack =
       rememberNavBackStack(
           *listOfNotNull(initial, resumeTabId?.let { Terminal(it) }).toTypedArray(),

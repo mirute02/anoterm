@@ -112,6 +112,9 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   }
   fun labelFor(id: String): String = tabLabels[id] ?: id.substringBefore(":")
 
+  // 開いたタブ id を永続化。プロセス kill 後の再起動時に Navigation が参照する。
+  LaunchedEffect(tabId) { app.prefs.setLastTabId(tabId) }
+
   LaunchedEffect(tabId) {
     val existing = app.sessionManager.get(tabId)
     if (existing != null) {

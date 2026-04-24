@@ -50,6 +50,12 @@ class AppPrefs(context: Context) {
   private val _customShortcuts = MutableStateFlow(readCustomShortcuts())
   val customShortcuts: StateFlow<List<CustomShortcut>> = _customShortcuts.asStateFlow()
 
+  // プロセス kill 後に戻った時に自動で再接続するための最終タブ id。
+  // SessionManager は Application スコープだが、プロセスが殺されると消えるので
+  // SharedPreferences に永続化。
+  private val _lastTabId = MutableStateFlow(readLastTabId())
+  val lastTabId: StateFlow<String?> = _lastTabId.asStateFlow()
+
   /** Lock 画面に遷移するかどうかを算出するためのフロー（Navigation から購読） */
   val biometricLock: Flow<Boolean>
     get() = _biometricLockEnabled.asStateFlow()
@@ -89,6 +95,12 @@ class AppPrefs(context: Context) {
     val json = Json.encodeToString(kotlinx.serialization.builtins.ListSerializer(CustomShortcut.serializer()), list)
     sp.edit().putString(KEY_CUSTOM_SHORTCUTS, json).apply()
     _customShortcuts.value = list
+  }
+
+  fun setLastTabId(tabId: String?) {
+    if (tabId == null) sp.edit().remove(KEY_LAST_TAB_ID).apply()
+    else sp.edit().putString(KEY_LAST_TAB_ID, tabId).apply()
+    _lastTabId.value = tabId
   }
 
   fun localeList(): LocaleListCompat =
@@ -133,6 +145,8 @@ class AppPrefs(context: Context) {
 
   private fun readAmbiguousWide(): Boolean = sp.getBoolean(KEY_AMBIGUOUS_WIDE, false)
 
+  private fun readLastTabId(): String? = sp.getString(KEY_LAST_TAB_ID, null)
+
   private fun readCustomShortcuts(): List<CustomShortcut> {
     val raw = sp.getString(KEY_CUSTOM_SHORTCUTS, null) ?: return DEFAULT_SHORTCUTS
     return try {
@@ -151,6 +165,7 @@ class AppPrefs(context: Context) {
     private const val KEY_BIO_LOCK = "biometric_lock"
     private const val KEY_AMBIGUOUS_WIDE = "ambiguous_wide"
     private const val KEY_CUSTOM_SHORTCUTS = "custom_shortcuts"
+    private const val KEY_LAST_TAB_ID = "last_tab_id"
     const val DEFAULT_FONT_SIZE_SP = 14f
 
     // companion object に置くことでインスタンスプロパティの初期化順に依存しない。
