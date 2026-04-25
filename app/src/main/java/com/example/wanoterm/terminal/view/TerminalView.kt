@@ -741,8 +741,31 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
       Logger.w("SEL", "ClipboardManager not available")
       return
     }
-    cm.setPrimaryClip(ClipData.newPlainText("wanoterm selection", text))
-    Toast.makeText(context, "コピーしました (${text.length}文字)", Toast.LENGTH_SHORT).show()
+    val clip = ClipData.newPlainText("wanoterm selection", text)
+    // EditorInfo に NO_PERSONALIZED_LEARNING + URI variation を立てているため、
+    // Gboard がこのアプリ発のクリップボードを「機密」扱いしてクリップボード履歴に
+    // 残さない (ペースト自体はできるが履歴 UI に出ない)。
+    // ClipDescription.extras で IS_SENSITIVE=false を明示し履歴に残す許可を渡す。
+    // 定数 `EXTRA_IS_SENSITIVE` は API 33+ なので minSdk 24 互換のため文字列リテラルで。
+    clip.description.extras = android.os.PersistableBundle().apply {
+      putBoolean("android.content.extra.IS_SENSITIVE", false)
+    }
+    cm.setPrimaryClip(clip)
+    // 読み戻しで本当にクリップボードに書き込めたか検証。失敗時は Toast で知らせる。
+    val readback = try {
+      cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
+    } catch (t: Throwable) {
+      Logger.w("SEL", "readback failed", t)
+      null
+    }
+    Logger.d(
+        "SEL",
+        "setPrimaryClip readbackLen=${readback?.length ?: -1} match=${readback == text}",
+    )
+    val shown =
+        if (readback == text) "コピーしました (${text.length}文字)"
+        else "コピー失敗 (読戻不一致)"
+    Toast.makeText(context, shown, Toast.LENGTH_SHORT).show()
   }
 
   private fun extractSelectionText(): String? {
