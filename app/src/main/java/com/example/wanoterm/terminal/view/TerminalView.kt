@@ -74,6 +74,9 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   // 選択中のドラッグが動かしているのは start か end か。touch down 時にどちらの端点に
   // 近いかで決まり、リリースまで固定。これで両端を自在に調節できる。
   private var draggingStart: Boolean = false
+  // 選択中に「選択範囲・ハンドルから離れた位置」が tap されたかを表す。ACTION_UP までに
+  // ドラッグが起きなければ ACTION_UP で選択解除する。Termius と同じ「外側タップで解除」UX。
+  private var pendingClearOnUp: Boolean = false
 
   /**
    * キーボードツールバーの Ctrl が押されたら次の文字を Ctrl+X に変換する one-shot 修飾子。
@@ -169,7 +172,10 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
                 distanceY: Float,
             ): Boolean {
               // 選択中のドラッグは範囲拡張に流用。scrollback は動かさない。
+              // ドラッグが起きた時点で「外側タップ→解除」予約はキャンセル (= ユーザは
+              // 拡張を意図している)。
               if (selectionActive) {
+                pendingClearOnUp = false
                 cellAtPixel(e2.x, e2.y)?.let { extendSelection(it) }
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
@@ -334,8 +340,17 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     // (画面下 1/4) に限定したので、ここでは focus を要求しない。
     // 選択中は ACTION_DOWN 時点で近い端点を選んでおき、それ以降のドラッグで動かす。
     if (event.action == MotionEvent.ACTION_DOWN && selectionActive) {
-      dismissSelectionActionModeOnly()
+      val nearSel = isTouchNearSelection(event.x, event.y)
+      // 選択近傍: CAB を一時非表示、端点を掴んで以後のドラッグで動かす。従来挙動。
+      // 選択遠方: CAB はそのまま、ドラッグが来なかったら ACTION_UP で「外側タップ」と
+      //   みなして選択解除。ドラッグになれば onScroll 側で pendingClearOnUp を取り消す。
       pickDragEndpoint(event.x, event.y)
+      if (nearSel) {
+        dismissSelectionActionModeOnly()
+        pendingClearOnUp = false
+      } else {
+        pendingClearOnUp = true
+      }
       parent?.requestDisallowInterceptTouchEvent(true)
     }
     scaleDetector.onTouchEvent(event)
@@ -344,11 +359,16 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     // 選択ドラッグ終了時は ActionMode (floating CAB) を起動して選択範囲近くに
     // 「コピー」メニューを出す。ユーザが明示的に Copy をタップするまで選択は残る。
     // ACTION_CANCEL は pager 譲渡等の異常系、選択だけ解除。
-    if (event.action == MotionEvent.ACTION_UP && selectionActive
-        && selectionActionMode == null) {
-      showSelectionActionMode()
+    if (event.action == MotionEvent.ACTION_UP && selectionActive) {
+      if (pendingClearOnUp) {
+        clearSelection()
+        pendingClearOnUp = false
+      } else if (selectionActionMode == null) {
+        showSelectionActionMode()
+      }
     } else if (event.action == MotionEvent.ACTION_CANCEL && selectionActive) {
       clearSelection()
+      pendingClearOnUp = false
     }
     return scaleDetector.isInProgress || scrolled || superHandled
   }
@@ -697,6 +717,40 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     draggingStart = distStart < distEnd
   }
 
+  /**
+   * 選択中のタップ位置が「選択範囲の rect 内」または「両端ハンドルの hit radius 内」
+   * かを判定する。範囲外 = 「全く違う場所」と判断され、ACTION_UP で選択解除。
+   */
+  private fun isTouchNearSelection(x: Float, y: Float): Boolean {
+    val s = selStart ?: return false
+    val e = selEnd ?: return false
+    // 1) 選択範囲の cell rect に当たっているか
+    val tap = cellAtPixel(x, y)
+    if (tap != null) {
+      val swap = s.row > e.row || (s.row == e.row && s.col > e.col)
+      val r1 = if (swap) e.row else s.row
+      val c1 = if (swap) e.col else s.col
+      val r2 = if (swap) s.row else e.row
+      val c2 = if (swap) s.col else e.col
+      val inRow = tap.row in r1..r2
+      val inRange =
+          when {
+            !inRow -> false
+            r1 == r2 -> tap.col in c1..c2
+            tap.row == r1 -> tap.col >= c1
+            tap.row == r2 -> tap.col <= c2
+            else -> true
+          }
+      if (inRange) return true
+    }
+    // 2) ハンドル (両端) の hit radius 内か
+    val hitRadius = selectionHandleTouchRadiusPx()
+    val hitRadiusSq = hitRadius * hitRadius
+    val handleDistStart = endpointHandleDistanceSq(x, y, s, isStart = true)
+    val handleDistEnd = endpointHandleDistanceSq(x, y, e, isStart = false)
+    return handleDistStart <= hitRadiusSq || handleDistEnd <= hitRadiusSq
+  }
+
   private fun endpointHandleDistanceSq(x: Float, y: Float, pos: CellPos, isStart: Boolean): Float {
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight
@@ -722,6 +776,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     if (selStart == null && selEnd == null) return
     selStart = null
     selEnd = null
+    pendingClearOnUp = false
     // ActionMode が立っていたら一緒に閉じる。finish() は onDestroyActionMode を呼ぶが
     // その中で clearSelection() を呼び直さないように selectionActionMode を先に null 化。
     val am = selectionActionMode
