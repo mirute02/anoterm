@@ -1,4 +1,4 @@
-# Third-party licenses used in wanoterm
+# Third-party licenses used in anoterm
 
 This document enumerates third-party components bundled in the released APK.
 All are compatible with Play Store distribution (closed-source permitted).

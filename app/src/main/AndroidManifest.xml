@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
-        android:name=".WanotermApp"
+        android:name=".AnotermApp"
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -24,7 +24,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:windowSoftInputMode="adjustNothing"
-        android:theme="@style/Theme.Wanoterm">
+        android:theme="@style/Theme.Anoterm">
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -8,7 +8,7 @@
     public static int i(...);
 }
 # Kotlin の Logger.d / Logger.i も同様に副作用なしとみなして消させる。
--assumenosideeffects class com.example.wanoterm.util.Logger {
+-assumenosideeffects class app.anoterm.util.Logger {
     public void d(...);
     public void i(...);
 }
@@ -37,15 +37,15 @@
 
 # Room generated DAO impls
 -keep class androidx.room.** { *; }
--keep class com.example.wanoterm.data.db.** { *; }
+-keep class app.anoterm.data.db.** { *; }
 -keepclassmembers class * extends androidx.room.RoomDatabase { <init>(); }
 
 # Kotlinx serialization
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
--keepclassmembers class com.example.wanoterm.** {
+-keepclassmembers class app.anoterm.** {
   *** Companion;
 }
--keepclasseswithmembers class com.example.wanoterm.** {
+-keepclasseswithmembers class app.anoterm.** {
   kotlinx.serialization.KSerializer serializer(...);
 }

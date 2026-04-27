@@ -6,10 +6,10 @@ plugins {
 }
 
 android {
-  namespace = "com.example.wanoterm"
+  namespace = "app.anoterm"
   compileSdk = 36
   defaultConfig {
-    applicationId = "com.example.wanoterm"
+    applicationId = "app.anoterm"
     minSdk = 24
     targetSdk = 36
     versionCode = 1

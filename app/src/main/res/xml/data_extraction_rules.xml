@@ -2,12 +2,12 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="secrets/"/>
-        <exclude domain="database" path="wanoterm.db"/>
-        <exclude domain="sharedpref" path="wanoterm_prefs.xml"/>
+        <exclude domain="database" path="anoterm.db"/>
+        <exclude domain="sharedpref" path="anoterm_prefs.xml"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="secrets/"/>
-        <exclude domain="database" path="wanoterm.db"/>
-        <exclude domain="sharedpref" path="wanoterm_prefs.xml"/>
+        <exclude domain="database" path="anoterm.db"/>
+        <exclude domain="sharedpref" path="anoterm_prefs.xml"/>
     </device-transfer>
 </data-extraction-rules>
