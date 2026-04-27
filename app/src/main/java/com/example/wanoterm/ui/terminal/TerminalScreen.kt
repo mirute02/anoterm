@@ -107,6 +107,8 @@ fun TerminalScreen(
   val customShortcuts by app.prefs.customShortcuts.collectAsStateWithLifecycle()
   val isPro by app.prefs.isPro.collectAsStateWithLifecycle()
   val developerMode by app.prefs.developerMode.collectAsStateWithLifecycle()
+  val terminalClipboardHistoryEnabled by
+      app.prefs.terminalClipboardHistoryEnabled.collectAsStateWithLifecycle()
 
   var state: TabScreenState by remember { mutableStateOf(TabScreenState.Loading) }
   var showHelp by remember { mutableStateOf(false) }
@@ -408,6 +410,7 @@ fun TerminalScreen(
                 palette = theme.toPalette(),
                 fontSizeSp = fontSizeSp,
                 lineEnding = lineEnding,
+                relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 viewBinding = { v -> terminalViews[currentTabId] = v },
             )
@@ -425,6 +428,7 @@ fun TerminalScreen(
                     palette = theme.toPalette(),
                     fontSizeSp = fontSizeSp,
                     lineEnding = lineEnding,
+                    relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
                     modifier = Modifier.fillMaxSize(),
                     viewBinding = { v -> terminalViews[pageTabId] = v },
                 )

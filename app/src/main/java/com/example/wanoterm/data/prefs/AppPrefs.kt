@@ -66,6 +66,13 @@ class AppPrefs(context: Context) {
   private val _developerMode = MutableStateFlow(readDeveloperMode())
   val developerMode: StateFlow<Boolean> = _developerMode.asStateFlow()
 
+  // ターミナルでコピーしたテキストを Gboard 等のクリップボード履歴に残しやすくする。
+  // true のとき TerminalView で IME_FLAG_NO_PERSONALIZED_LEARNING だけを外す。
+  // デフォルトは false。SSH セッションでは入力やコピーに秘密情報が混ざる可能性があるため。
+  private val _terminalClipboardHistoryEnabled =
+      MutableStateFlow(readTerminalClipboardHistoryEnabled())
+  val terminalClipboardHistoryEnabled: StateFlow<Boolean> =
+      _terminalClipboardHistoryEnabled.asStateFlow()
 
   /** Lock 画面に遷移するかどうかを算出するためのフロー（Navigation から購読） */
   val biometricLock: Flow<Boolean>
@@ -124,6 +131,14 @@ class AppPrefs(context: Context) {
     _developerMode.value = enabled
   }
 
+  fun setTerminalClipboardHistoryEnabled(enabled: Boolean) {
+    sp.edit()
+        .putBoolean(KEY_TERMINAL_CLIPBOARD_HISTORY_ENABLED, enabled)
+        .remove(KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY)
+        .apply()
+    _terminalClipboardHistoryEnabled.value = enabled
+  }
+
   fun localeList(): LocaleListCompat =
       when (_locale.value) {
         AppLocale.SYSTEM -> LocaleListCompat.getEmptyLocaleList()
@@ -172,6 +187,12 @@ class AppPrefs(context: Context) {
 
   private fun readDeveloperMode(): Boolean = sp.getBoolean(KEY_DEV_MODE, false)
 
+  private fun readTerminalClipboardHistoryEnabled(): Boolean =
+      if (sp.contains(KEY_TERMINAL_CLIPBOARD_HISTORY_ENABLED)) {
+        sp.getBoolean(KEY_TERMINAL_CLIPBOARD_HISTORY_ENABLED, false)
+      } else {
+        sp.getBoolean(KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY, false)
+      }
 
   private fun readCustomShortcuts(): List<CustomShortcut> {
     val raw = sp.getString(KEY_CUSTOM_SHORTCUTS, null) ?: return DEFAULT_SHORTCUTS
@@ -194,6 +215,8 @@ class AppPrefs(context: Context) {
     private const val KEY_LAST_TAB_ID = "last_tab_id"
     private const val KEY_IS_PRO = "is_pro"
     private const val KEY_DEV_MODE = "developer_mode"
+    private const val KEY_TERMINAL_CLIPBOARD_HISTORY_ENABLED = "terminal_clipboard_history_enabled"
+    private const val KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY = "gboard_clipboard_history_probe"
 
     // Free tier の上限。Pro で解除。
     const val FREE_TIER_HOST_LIMIT = 3

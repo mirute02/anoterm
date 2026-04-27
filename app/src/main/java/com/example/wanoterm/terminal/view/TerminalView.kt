@@ -1,11 +1,15 @@
 package com.example.wanoterm.terminal.view
 
+import android.app.Activity
 import android.content.ClipData
+import android.content.ContextWrapper
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Rect
+import android.os.Build
+import android.provider.Settings
 import android.text.InputType
 import android.util.AttributeSet
 import android.view.ActionMode
@@ -22,10 +26,13 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import com.example.wanoterm.BuildConfig
 import com.example.wanoterm.data.prefs.LineEnding
 import com.example.wanoterm.terminal.TerminalSessionController
 import com.example.wanoterm.theme.TerminalPalette
 import com.example.wanoterm.util.Logger
+import java.security.MessageDigest
+import java.security.SecureRandom
 
 /**
  * wanoterm の端末描画ビュー。Compose の AndroidView でホストされる。
@@ -47,6 +54,9 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   private var monitorCursor: Boolean = false
   private var pendingInvalidate: Boolean = false
   private var lastDrawGeneration: Long = -1L
+  private var lastInputType: Int = 0
+  private var lastImeOptions: Int = 0
+  private var relaxedImePrivacyForClipboard: Boolean = false
 
   /**
    * スクロールバック位置。0 = 最新（底）。正の値は上方向に何行戻ったか。
@@ -231,6 +241,15 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     this.lineEnding = le
   }
 
+  fun setRelaxedImePrivacyForClipboard(enabled: Boolean) {
+    if (relaxedImePrivacyForClipboard == enabled) return
+    relaxedImePrivacyForClipboard = enabled
+    if (isFocused && windowToken != null) {
+      val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+      imm?.restartInput(this)
+    }
+  }
+
   // --- IME バインディング ---
 
   override fun onCheckIsTextEditor(): Boolean = true
@@ -253,11 +272,16 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
             InputType.TYPE_TEXT_VARIATION_URI or
             InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
             InputType.TYPE_TEXT_FLAG_MULTI_LINE
-    outAttrs.imeOptions =
+    var imeOptions =
         EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI or
-            EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or
             EditorInfo.IME_ACTION_NONE
+    if (!relaxedImePrivacyForClipboard) {
+      imeOptions = imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+    }
+    outAttrs.imeOptions = imeOptions
+    lastInputType = outAttrs.inputType
+    lastImeOptions = outAttrs.imeOptions
     outAttrs.initialSelStart = composingState.cursor
     outAttrs.initialSelEnd = composingState.cursor
     Logger.d("IME", "onCreateInputConnection selection=${composingState.cursor}")
@@ -310,7 +334,9 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     // (画面下 1/4) に限定したので、ここでは focus を要求しない。
     // 選択中は ACTION_DOWN 時点で近い端点を選んでおき、それ以降のドラッグで動かす。
     if (event.action == MotionEvent.ACTION_DOWN && selectionActive) {
+      dismissSelectionActionModeOnly()
       pickDragEndpoint(event.x, event.y)
+      parent?.requestDisallowInterceptTouchEvent(true)
     }
     scaleDetector.onTouchEvent(event)
     val scrolled = scrollGestureDetector.onTouchEvent(event)
@@ -644,6 +670,24 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight
     if (cw <= 0f || ch <= 0f) return
+    val hitRadius = selectionHandleTouchRadiusPx()
+    val hitRadiusSq = hitRadius * hitRadius
+    val handleDistStart = endpointHandleDistanceSq(x, y, s, isStart = true)
+    val handleDistEnd = endpointHandleDistanceSq(x, y, e, isStart = false)
+    if (handleDistStart <= hitRadiusSq || handleDistEnd <= hitRadiusSq) {
+      draggingStart =
+          when {
+            handleDistStart <= hitRadiusSq && handleDistEnd <= hitRadiusSq ->
+                handleDistStart <= handleDistEnd
+            handleDistStart <= hitRadiusSq -> true
+            else -> false
+          }
+      Logger.d(
+          "SEL",
+          "pickDragEndpoint handle draggingStart=$draggingStart startHit=${handleDistStart <= hitRadiusSq} endHit=${handleDistEnd <= hitRadiusSq}",
+      )
+      return
+    }
     val dxs = (x - (s.col + 0.5f) * cw)
     val dys = (y - (s.row + 0.5f) * ch)
     val dxe = (x - (e.col + 0.5f) * cw)
@@ -651,6 +695,27 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val distStart = dxs * dxs + dys * dys
     val distEnd = dxe * dxe + dye * dye
     draggingStart = distStart < distEnd
+  }
+
+  private fun endpointHandleDistanceSq(x: Float, y: Float, pos: CellPos, isStart: Boolean): Float {
+    val cw = renderer.cellWidth
+    val ch = renderer.cellHeight
+    val anchorX = (if (isStart) pos.col * cw else (pos.col + 1) * cw).coerceIn(0f, width.toFloat())
+    val anchorY = ((pos.row + 1) * ch).coerceIn(0f, height.toFloat())
+    val dx = x - anchorX
+    val dy = y - anchorY
+    return dx * dx + dy * dy
+  }
+
+  private fun selectionHandleTouchRadiusPx(): Float {
+    val densityRadius = resources.displayMetrics.density * SELECTION_HANDLE_TOUCH_RADIUS_DP
+    return maxOf(densityRadius, renderer.cellHeight * 1.25f, renderer.cellWidth * 2f)
+  }
+
+  private fun dismissSelectionActionModeOnly() {
+    val am = selectionActionMode ?: return
+    selectionActionMode = null
+    am.finish()
   }
 
   private fun clearSelection() {
@@ -690,12 +755,11 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
           }
 
       override fun onDestroyActionMode(mode: ActionMode) {
-        // Copy 選択以外（外側タップ・戻るキー・mode.finish() 等）の経路で閉じたら
-        // 選択もクリア。selectionActionMode を先に null にしておかないと
-        // clearSelection() → finish() で再帰してしまう。
+        // 外側タップや端点ドラッグ開始で CAB だけ閉じることがある。ここで選択まで
+        // 消すと開始点を掴み直せないので、選択解除は TerminalView の単タップ処理に任せる。
         if (selectionActionMode === mode) {
           selectionActionMode = null
-          clearSelection()
+          invalidate()
         }
       }
 
@@ -729,7 +793,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val text = extractSelectionText()
     Logger.d(
         "SEL",
-        "copySelectionAndClear s=$s e=$e textLen=${text?.length ?: -1} preview=${text?.take(32) ?: "null"}",
+        "copySelectionAndClear s=$s e=$e textLen=${text?.length ?: -1}",
     )
     clearSelection()
     if (text.isNullOrEmpty()) {
@@ -742,22 +806,29 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
       return
     }
     val clip = ClipData.newPlainText("wanoterm selection", text)
-    // EditorInfo に NO_PERSONALIZED_LEARNING + URI variation を立てているため、
-    // Gboard がこのアプリ発のクリップボードを「機密」扱いしてクリップボード履歴に
-    // 残さない (ペースト自体はできるが履歴 UI に出ない)。
-    // ClipDescription.extras で IS_SENSITIVE=false を明示し履歴に残す許可を渡す。
-    // 定数 `EXTRA_IS_SENSITIVE` は API 33+ なので minSdk 24 互換のため文字列リテラルで。
+    // ClipDescription.extras で IS_SENSITIVE=false を明示する。ただし Gboard は
+    // IME_FLAG_NO_PERSONALIZED_LEARNING が付いた入力欄のコピーを履歴に残さないため、
+    // 履歴を優先する設定では onCreateInputConnection 側でその flag だけ外す。
+    // 定数 `EXTRA_IS_SENSITIVE` は API 33+ なので minSdk 24 互換のため文字列リテラル。
     clip.description.extras = android.os.PersistableBundle().apply {
-      putBoolean("android.content.extra.IS_SENSITIVE", false)
+      putBoolean(EXTRA_IS_SENSITIVE, false)
     }
+    logClipboardCopyRequest(text, clip)
     cm.setPrimaryClip(clip)
     // 読み戻しで本当にクリップボードに書き込めたか検証。失敗時は Toast で知らせる。
-    val readback = try {
-      cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
+    val primaryClip = try {
+      cm.primaryClip
     } catch (t: Throwable) {
       Logger.w("SEL", "readback failed", t)
       null
     }
+    val readback = try {
+      primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
+    } catch (t: Throwable) {
+      Logger.w("SEL", "readback text failed", t)
+      null
+    }
+    logClipboardPrimaryClip(readback, primaryClip)
     Logger.d(
         "SEL",
         "setPrimaryClip readbackLen=${readback?.length ?: -1} match=${readback == text}",
@@ -855,9 +926,104 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val dm = resources.displayMetrics
     return dp * dm.density * resources.configuration.fontScale
   }
+
+  private fun logClipboardCopyRequest(text: String, clip: ClipData) {
+    if (!BuildConfig.DEBUG) return
+    val extras = clip.description.extras
+    Logger.d(
+        "CLIP_DBG",
+        buildString {
+          append("copyRequest ")
+          append("len=${text.length}, ")
+          append("fingerprint=${safeClipboardFingerprint(text)}, ")
+          append("mime=${clip.description.mimeTypesCsv()}, ")
+          append("extrasKeys=${extras?.keySet()?.joinToString() ?: "none"}, ")
+          append("isSensitive=${extras?.getBoolean(EXTRA_IS_SENSITIVE)}, ")
+          append("inputType=0x${lastInputType.toString(16)}, ")
+          append("imeOptions=0x${lastImeOptions.toString(16)}, ")
+          append("relaxedImePrivacyForClipboard=$relaxedImePrivacyForClipboard, ")
+          append("defaultIme=${defaultInputMethodId()}, ")
+          append("flagSecure=${windowFlagSecure()}, ")
+          append("importantForAutofill=${importantForAutofillCompat()}, ")
+          append("contentSensitivity=${contentSensitivityCompat()}, ")
+          append("focused=$isFocused")
+        },
+    )
+  }
+
+  private fun logClipboardPrimaryClip(readback: String?, clip: ClipData?) {
+    if (!BuildConfig.DEBUG) return
+    val description = clip?.description
+    val extras = description?.extras
+    Logger.d(
+        "CLIP_DBG",
+        buildString {
+          append("primaryClip ")
+          append("readbackLen=${readback?.length ?: -1}, ")
+          append("readbackFingerprint=${readback?.let(::safeClipboardFingerprint) ?: "null"}, ")
+          append("label=${description?.label ?: "null"}, ")
+          append("mime=${description?.mimeTypesCsv() ?: "none"}, ")
+          append("extrasKeys=${extras?.keySet()?.joinToString() ?: "none"}, ")
+          append("isSensitive=${extras?.getBoolean(EXTRA_IS_SENSITIVE)}")
+        },
+    )
+  }
+
+  private fun android.content.ClipDescription.mimeTypesCsv(): String {
+    if (mimeTypeCount == 0) return "none"
+    return (0 until mimeTypeCount).joinToString { getMimeType(it) }
+  }
+
+  private fun safeClipboardFingerprint(text: String): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    digest.update(CLIPBOARD_LOG_SALT)
+    digest.update(text.toByteArray(Charsets.UTF_8))
+    val bytes = digest.digest()
+    val out = StringBuilder(16)
+    for (i in 0 until 8) {
+      val value = bytes[i].toInt() and 0xff
+      if (value < 16) out.append('0')
+      out.append(value.toString(16))
+    }
+    return out.toString()
+  }
+
+  private fun defaultInputMethodId(): String =
+      try {
+        Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+            ?: "unknown"
+      } catch (_: Throwable) {
+        "unknown"
+      }
+
+  private fun windowFlagSecure(): String {
+    val activity = context.findActivity() ?: return "unknown"
+    val flags = activity.window.attributes.flags
+    return ((flags and android.view.WindowManager.LayoutParams.FLAG_SECURE) != 0).toString()
+  }
+
+  private fun importantForAutofillCompat(): String =
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) importantForAutofill.toString()
+      else "unsupported"
+
+  private fun contentSensitivityCompat(): String =
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) contentSensitivity.toString()
+      else "unsupported"
+
+  private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+      if (current is Activity) return current
+      current = current.baseContext
+    }
+    return null
+  }
 }
 
 /** 可視画面上のセル位置。選択範囲の端点に使う。 */
 data class CellPos(val row: Int, val col: Int)
 
 private const val MENU_COPY = 1
+private const val SELECTION_HANDLE_TOUCH_RADIUS_DP = 28f
+private const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
+private val CLIPBOARD_LOG_SALT: ByteArray = ByteArray(16).also { SecureRandom().nextBytes(it) }

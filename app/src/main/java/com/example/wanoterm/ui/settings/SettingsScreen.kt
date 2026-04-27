@@ -55,6 +55,8 @@ fun SettingsScreen(
   val locale by prefs.locale.collectAsStateWithLifecycle()
   val bioLock by prefs.biometricLockEnabled.collectAsStateWithLifecycle()
   val ambiguous by prefs.ambiguousWide.collectAsStateWithLifecycle()
+  val terminalClipboardHistoryEnabled by
+      prefs.terminalClipboardHistoryEnabled.collectAsStateWithLifecycle()
 
   Scaffold(
       topBar = {
@@ -149,6 +151,18 @@ fun SettingsScreen(
         Text(stringResource(R.string.settings_biometric_lock))
         Switch(checked = bioLock, onCheckedChange = { prefs.setBiometricLockEnabled(it) })
       }
+      ListItem(
+          headlineContent = { Text("ターミナルコピーを履歴に残す") },
+          supportingContent = {
+            Text("Gboard履歴に出やすくなります。ONではIMEの個人学習抑止を外します。")
+          },
+          trailingContent = {
+            Switch(
+                checked = terminalClipboardHistoryEnabled,
+                onCheckedChange = { prefs.setTerminalClipboardHistoryEnabled(it) },
+            )
+          },
+      )
       ListItem(
           headlineContent = { Text(stringResource(R.string.settings_known_hosts)) },
           modifier = Modifier.clickable { onOpenKnownHosts() },

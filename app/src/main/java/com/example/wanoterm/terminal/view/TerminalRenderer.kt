@@ -42,8 +42,15 @@ class TerminalRenderer(
   private val underlinePaint = Paint()
   private val cursorPaint = Paint().apply { style = Paint.Style.FILL }
   private val selectionPaint = Paint()
+  private val selectionHandlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+  private val selectionHandleStrokePaint =
+      Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = context.resources.displayMetrics.density * 1.5f
+      }
   private val composingBgPaint = Paint()
   private val reusedBounds = Rect()
+  private val density = context.resources.displayMetrics.density
 
   // 毎グリフ `String(Character.toChars(cp))` が効く。描画は 1 フレームで数千回呼ばれるため、
   // code point → String を LRU キャッシュして allocation と GC 圧を抑える。
@@ -229,6 +236,10 @@ class TerminalRenderer(
         }
       }
     }
+
+    if (selEnabled && selectionStart != null && selectionEnd != null) {
+      drawSelectionHandles(canvas, selectionStart, selectionEnd, cw, ch, clearW, clearH)
+    }
   }
 
   /**
@@ -286,6 +297,36 @@ class TerminalRenderer(
     textPaint.isUnderlineText = true
     canvas.drawText(text, startX, startY + baselineOffset, textPaint)
     textPaint.isUnderlineText = false
+  }
+
+  private fun drawSelectionHandles(
+      canvas: Canvas,
+      start: CellPos,
+      end: CellPos,
+      cw: Float,
+      ch: Float,
+      maxWidth: Float,
+      maxHeight: Float,
+  ) {
+    val radius = maxOf(5f * density, minOf(ch * 0.32f, 9f * density))
+    selectionHandlePaint.color = palette.cursor.toAndroidColorInt()
+    selectionHandleStrokePaint.color = palette.background.toAndroidColorInt()
+
+    fun drawHandle(pos: CellPos, isStart: Boolean) {
+      val rawX = if (isStart) pos.col * cw else (pos.col + 1) * cw
+      val rawY = (pos.row + 1) * ch
+      val maxX = maxOf(radius, maxWidth - radius)
+      val maxY = maxOf(radius, maxHeight - radius)
+      val x = rawX.coerceIn(radius, maxX)
+      val y = rawY.coerceIn(radius, maxY)
+      val stemTop = (pos.row * ch).coerceIn(0f, maxHeight)
+      canvas.drawRect(x - density, stemTop, x + density, y, selectionHandlePaint)
+      canvas.drawCircle(x, y, radius, selectionHandlePaint)
+      canvas.drawCircle(x, y, radius, selectionHandleStrokePaint)
+    }
+
+    drawHandle(start, isStart = true)
+    if (start != end) drawHandle(end, isStart = false)
   }
 
   /**

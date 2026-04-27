@@ -23,6 +23,7 @@ fun TerminalHost(
     palette: TerminalPalette,
     fontSizeSp: Float,
     lineEnding: LineEnding,
+    relaxedImePrivacyForClipboard: Boolean = false,
     modifier: Modifier = Modifier,
     viewBinding: (TerminalView) -> Unit = {},
 ) {
@@ -35,6 +36,7 @@ fun TerminalHost(
           it.setPalette(palette)
           it.setFontSizeSp(fontSizeSp)
           it.setLineEnding(lineEnding)
+          it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
           viewRef.view = it
           viewBinding(it)
         }
@@ -44,6 +46,7 @@ fun TerminalHost(
         it.setPalette(palette)
         it.setFontSizeSp(fontSizeSp)
         it.setLineEnding(lineEnding)
+        it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
         viewRef.view = it
         viewBinding(it)
       },
