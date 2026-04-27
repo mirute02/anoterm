@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import com.example.wanoterm.data.db.AuthMethod
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
@@ -35,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -117,7 +119,10 @@ fun HostListScreen(
               activeTabs.any { it == hostPrefix || it.startsWith("$hostPrefix:") }
           ListItem(
               headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                   if (connected) {
                     Icon(
                         imageVector = Icons.Outlined.Computer,
@@ -126,12 +131,23 @@ fun HostListScreen(
                         modifier = Modifier.size(16.dp).padding(end = 4.dp),
                     )
                   }
-                  Text(h.label)
+                  Text(
+                      h.label,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                      modifier = Modifier.weight(1f, fill = false),
+                  )
                   AuthBadge(h.auth)
                   if (h.useTmux) TmuxBadge(h.tmuxSession)
                 }
               },
-              supportingContent = { Text("${h.username}@${h.address}:${h.port} · 長押しで新規接続") },
+              supportingContent = {
+                Text(
+                    "${h.username}@${h.address}:${h.port} · 長押しで新規接続",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+              },
               trailingContent = {
                 Row {
                   if (connected) {
@@ -268,7 +284,9 @@ private fun TmuxBadge(session: String) {
         "tmux:$session",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSecondaryContainer,
-        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.widthIn(max = 120.dp).padding(horizontal = 6.dp, vertical = 1.dp),
     )
   }
 }
@@ -291,4 +309,3 @@ private fun EmptyHostsInline() {
     )
   }
 }
-

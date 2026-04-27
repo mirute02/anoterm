@@ -17,7 +17,7 @@ class HostRepository(
   suspend fun findById(id: Long): HostEntity? = hostDao.findById(id)
 
   /**
-   * 同じ label / address / port / username のホストが既に存在するかを確認。
+   * 同じ label / address / port / username / tmux attach 先のホストが既に存在するかを確認。
    * 自分自身（existingId）は除外するので、単なる編集・更新は conflict にならない。
    */
   suspend fun findDuplicate(
@@ -25,6 +25,8 @@ class HostRepository(
       address: String,
       port: Int,
       username: String,
+      useTmux: Boolean,
+      tmuxSession: String,
       excludeId: Long?,
   ): HostEntity? =
       hostDao.findDuplicate(
@@ -32,6 +34,8 @@ class HostRepository(
           address = address,
           port = port,
           username = username,
+          useTmux = useTmux,
+          tmuxSession = tmuxSession.ifBlank { "wanoterm" },
           excludeId = excludeId ?: -1L,
       )
 
@@ -93,6 +97,44 @@ class HostRepository(
             tmuxSession = tmuxSession.ifBlank { "wanoterm" },
         )
     return hostDao.upsert(updated)
+  }
+
+  /**
+   * 既存ホストの認証情報を複製して、別の表示行として保存する。
+   * tmux attach 先違いのホストを並べる用途で、secret_id は共有しない。
+   */
+  suspend fun duplicateWithMetadata(
+      sourceId: Long,
+      label: String,
+      address: String,
+      port: Int,
+      username: String,
+      useTmux: Boolean,
+      tmuxSession: String,
+  ): Long {
+    val existing = hostDao.findById(sourceId) ?: return -1L
+    val secretId =
+        when (existing.auth) {
+          AuthMethod.PASSWORD -> secrets.loadPassword(existing.secretId)?.let { secrets.putPassword(it) }
+          AuthMethod.PRIVATE_KEY ->
+              secrets.loadPrivateKey(existing.secretId)?.let { (keyBytes, passphrase) ->
+                secrets.putPrivateKey(keyBytes, passphrase)
+              }
+        } ?: return -1L
+    val entity =
+        existing.copy(
+            id = 0L,
+            label = label,
+            address = address,
+            port = port,
+            username = username,
+            secretId = secretId,
+            useTmux = useTmux,
+            tmuxSession = tmuxSession.ifBlank { "wanoterm" },
+            createdAt = System.currentTimeMillis(),
+            lastUsedAt = null,
+        )
+    return hostDao.upsert(entity)
   }
 
   suspend fun delete(host: HostEntity) {

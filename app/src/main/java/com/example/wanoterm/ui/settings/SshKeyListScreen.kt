@@ -65,6 +65,7 @@ import kotlinx.coroutines.launch
 fun SshKeyListScreen(
     onBack: () -> Unit,
     onCreateNew: () -> Unit,
+    onCreateHost: () -> Unit = {},
     onOpenHelp: () -> Unit = {},
     onRegisterToHost: (publicKey: String, hostId: Long) -> Unit = { _, _ -> },
 ) {
@@ -192,11 +193,8 @@ fun SshKeyListScreen(
           hosts = hosts,
           onDismiss = { registerTarget = null },
           onCreateHost = {
-            // 今は閉じるだけ。ホスト追加導線は HostList から。UX としてはここから直接
-            // HostEdit に飛ばすのが理想だが、Navigation を汚さないため今は誘導メッセージのみ。
-            Toast.makeText(ctx, "先にホストを追加してください（ホスト画面から）", Toast.LENGTH_SHORT)
-                .show()
             registerTarget = null
+            onCreateHost()
           },
           onPick = { host ->
             val cmd = buildAuthorizedKeysCommand(key.publicSsh.trim())

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">wanoterm</string>
+    <string name="app_name">WanoTerm</string>
 
     <string name="nav_hosts">ホスト</string>
     <string name="nav_terminal">ターミナル</string>
@@ -69,9 +69,9 @@
     <string name="settings_known_hosts">信頼済みホスト</string>
     <string name="settings_about">このアプリについて</string>
 
-    <string name="lock_title">wanoterm はロック中です</string>
+    <string name="lock_title">WanoTerm はロック中です</string>
     <string name="lock_unlock">ロック解除</string>
-    <string name="lock_biometric_title">wanoterm のロックを解除</string>
+    <string name="lock_biometric_title">WanoTerm のロックを解除</string>
     <string name="lock_biometric_subtitle">保存されたホストを表示するために本人確認を行います。</string>
 
     <string name="conn_connecting">接続中…</string>

@@ -70,7 +70,7 @@ fun HostEditScreen(
   val scope = rememberCoroutineScope()
   var showDeleteConfirm by remember { mutableStateOf(false) }
   var showSavedKeyPicker by remember { mutableStateOf(false) }
-  // 秘密鍵が wanoterm（sshj）で読めない形式だった時に出す警告メッセージ。
+  // 秘密鍵が WanoTerm（sshj）で読めない形式だった時に出す警告メッセージ。
   var keyInvalidMessage by remember { mutableStateOf<String?>(null) }
 
   val keyPicker =
@@ -95,7 +95,7 @@ fun HostEditScreen(
             if (validation.isFailure &&
                 validation.exceptionOrNull()?.message?.contains("passphrase", ignoreCase = true) != true) {
               keyInvalidMessage =
-                  "このファイルは wanoterm で読めない形式です。\n\n" +
+                  "このファイルは WanoTerm で読めない形式です。\n\n" +
                       "対応形式: OpenSSH v1 (-----BEGIN OPENSSH PRIVATE KEY-----) または " +
                       "PKCS8 RSA。\n\n" +
                       "`ssh-keygen -t ed25519 -f newkey` などで作り直してから" +
@@ -118,7 +118,7 @@ fun HostEditScreen(
             },
             actions = {
               if (hostId != null) {
-                TextButton(onClick = { showDeleteConfirm = true }) { Text("Delete") }
+                TextButton(onClick = { showDeleteConfirm = true }) { Text("削除") }
               }
             },
         )
@@ -305,7 +305,7 @@ fun HostEditScreen(
       ConfirmDialog(
           title = stringResource(R.string.hosts_delete_confirm_title),
           message = stringResource(R.string.hosts_delete_confirm_message),
-          confirmLabel = "Delete",
+          confirmLabel = "削除",
           onConfirm = {
             showDeleteConfirm = false
             vm.deleteSelf(onDone)
@@ -362,7 +362,7 @@ fun HostEditScreen(
                     }
                 if (validation.isFailure) {
                   keyInvalidMessage =
-                      "「${entity.label}」は wanoterm で読めない形式です。" +
+                      "「${entity.label}」は WanoTerm で読めない形式です。" +
                           "古いバージョンで作成された Ed25519 鍵の可能性があります。\n\n" +
                           "『SSH 鍵を作成』から新しい鍵を作り直し、サーバの authorized_keys に" +
                           "再登録してから使ってください。"

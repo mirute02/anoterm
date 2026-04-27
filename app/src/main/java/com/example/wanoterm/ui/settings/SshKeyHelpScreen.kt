@@ -81,7 +81,7 @@ fun SshKeyHelpScreen(onBack: () -> Unit) {
         )
       }
 
-      Section("wanoterm で鍵を作る（推奨）") {
+      Section("WanoTerm で鍵を作る（推奨）") {
         Text("設定 → 「SSH 鍵を作成」から以下の手順で作れます。")
         Bullet("1. 鍵種類を選ぶ（Ed25519 推奨。RSA 4096 は互換性優先の場合）")
         Bullet("2. コメント（メールアドレス等）を入力")
@@ -90,12 +90,12 @@ fun SshKeyHelpScreen(onBack: () -> Unit) {
         Bullet("5. その公開鍵をサーバの ~/.ssh/authorized_keys に追記する（詳細は下）")
       }
 
-      Section("他のツールで作って wanoterm に読み込む") {
+      Section("他のツールで作って WanoTerm に読み込む") {
         Text("既に手元に秘密鍵がある、もしくは別ツールで作りたい場合。")
 
         SubHeader("macOS / Linux")
         Code("ssh-keygen -t ed25519 -C \"your_email@example.com\"")
-        Text("~/.ssh/id_ed25519 が秘密鍵。これを wanoterm の「鍵をインポート」で読み込みます。")
+        Text("~/.ssh/id_ed25519 が秘密鍵。これを WanoTerm の「鍵をインポート」で読み込みます。")
 
         SubHeader("Windows")
         Text("PowerShell で:")
@@ -112,7 +112,7 @@ fun SshKeyHelpScreen(onBack: () -> Unit) {
                 + "• 物理/仮想コンソールに直接アクセスできる（自宅サーバ・VM）",
         )
 
-        SubHeader("wanoterm での最短手順")
+        SubHeader("WanoTerm での最短手順")
         Callout(
             "⚠ 前提: このフローはホストが「パスワード認証で繋がる」状態でないと成立しません。"
                 + "秘密鍵認証のホスト (「key」バッジ) を選ぶと、そもそも接続できないので登録に進めません。"
@@ -191,7 +191,7 @@ fun SshKeyHelpScreen(onBack: () -> Unit) {
         SubHeader("ssh-copy-id（上級者向け）")
         Text(
             "PC から `ssh-copy-id user@host` で自動登録できるが、Android から直接使うのは"
-                + "手順が多いので wanoterm 画面で公開鍵コピー → SSH 接続 → echo で追記が現実的。",
+                + "手順が多いので WanoTerm 画面で公開鍵コピー → SSH 接続 → echo で追記が現実的。",
         )
       }
 
@@ -200,7 +200,7 @@ fun SshKeyHelpScreen(onBack: () -> Unit) {
             "passphrase は秘密鍵ファイル自体を暗号化するパスワード。"
                 + "端末を盗まれても passphrase を知らない人は鍵を使えないため、"
                 + "モバイル端末では設定を推奨。"
-                + "wanoterm では Android の biometric lock と組み合わせることで、"
+                + "WanoTerm では Android の biometric lock と組み合わせることで、"
                 + "毎回 passphrase を打つ必要はない運用も可能。",
         )
       }
@@ -221,7 +221,7 @@ fun SshKeyHelpScreen(onBack: () -> Unit) {
         Bullet("**RSA 4096**: 古いサーバでも確実に通る。鍵が長い。")
         Bullet("**ECDSA**: あまり使わない。特定の会社ポリシーで必要な場合のみ。")
         Bullet("**DSA**: 非推奨・使わない")
-        Bullet("**OpenSSH 形式 / PEM 形式**: wanoterm は両方読める。生成時は OpenSSH 形式がデフォルト。")
+        Bullet("**OpenSSH 形式 / PEM 形式**: WanoTerm は両方読める。生成時は OpenSSH 形式がデフォルト。")
       }
 
       HorizontalDivider()

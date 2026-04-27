@@ -66,7 +66,12 @@ fun MainNavigation() {
               )
             }
             entry<Terminal> { key ->
-              TerminalScreen(tabId = key.tabId, onBack = { backStack.removeLastOrNull() })
+              TerminalScreen(
+                  tabId = key.tabId,
+                  onBack = { backStack.removeLastOrNull() },
+                  onEditHost = { id -> backStack.add(HostEdit(id)) },
+                  onOpenKnownHosts = { backStack.add(KnownHosts) },
+              )
             }
             entry<Settings> {
               SettingsScreen(
@@ -84,6 +89,7 @@ fun MainNavigation() {
               SshKeyListScreen(
                   onBack = { backStack.removeLastOrNull() },
                   onCreateNew = { backStack.add(SshKeyGen) },
+                  onCreateHost = { backStack.add(HostEdit()) },
                   onOpenHelp = { backStack.add(SshKeyHelp) },
                   // 鍵一覧 → ホスト選択シートで選ばれたホストに繋ぐ。
                   // クリップボードへのコマンドコピーは画面側で完了済み。

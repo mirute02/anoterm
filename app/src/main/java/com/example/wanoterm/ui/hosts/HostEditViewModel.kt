@@ -36,6 +36,9 @@ data class HostEditUiState(
     val preserveSecret: Boolean = false,
     /** 編集を開いた時点での元の auth 方式（preserveSecret の戻り先判定用） */
     val originalAuth: AuthMethod? = null,
+    /** 編集を開いた時点での tmux attach 設定。attach 先を変えた保存は新規行にする。 */
+    val originalUseTmux: Boolean? = null,
+    val originalTmuxSession: String? = null,
     /** 保存直前に検知した重複ホスト。UI 側で「上書き / キャンセル」ダイアログを出す。 */
     val duplicateHost: HostEntity? = null,
 ) {
@@ -79,6 +82,8 @@ class HostEditViewModel(
                 // password onValueChange が preserveSecret=false に倒す。
                 preserveSecret = true,
                 originalAuth = h.auth,
+                originalUseTmux = h.useTmux,
+                originalTmuxSession = h.tmuxSession,
             )
       }
     }
@@ -94,9 +99,8 @@ class HostEditViewModel(
   }
 
   /**
-   * 保存前処理。label をトリムし、他の既存ホストと (label, address, port, username) が重複していたら
-   * duplicateHost を立てて UI に確認ダイアログを促す。確認が済んでいる場合（forceOverwriteId 指定）や
-   * そもそも重複がなければ performSave に進む。
+   * 保存前処理。label をトリムし、他の既存ホストと接続先 + tmux attach 先が重複していたら
+   * duplicateHost を立てて UI に確認ダイアログを促す。重複がなければ performSave に進む。
    */
   fun save(onDone: () -> Unit) {
     val raw = _state.value
@@ -116,14 +120,20 @@ class HostEditViewModel(
               address = s.address,
               port = s.port.toIntOrNull() ?: 22,
               username = s.username,
-              excludeId = s.id,
+              useTmux = s.useTmux,
+              tmuxSession = normalizedTmuxSession(s.tmuxSession),
+              excludeId = if (s.shouldInsertAsNewTmuxTarget()) null else s.id,
           )
       if (duplicate != null) {
         // UI 側に判断を委ねる。isBusy は解除し、duplicateHost を立てる。
         _state.value = s.copy(isBusy = false, duplicateHost = duplicate)
         return@launch
       }
-      performSave(s, overwriteId = s.id, onDone = onDone)
+      performSave(
+          s,
+          overwriteId = if (s.shouldInsertAsNewTmuxTarget()) null else s.id,
+          onDone = onDone,
+      )
     }
   }
 
@@ -150,6 +160,17 @@ class HostEditViewModel(
       // 認証情報を一切変えない編集（label / tmux 切替など）。既存 secret_id を温存する。
       app.hostRepository.upsertMetadata(
           id = overwriteId,
+          label = s.label,
+          address = s.address,
+          port = s.port.toInt(),
+          username = s.username,
+          useTmux = s.useTmux,
+          tmuxSession = s.tmuxSession,
+      )
+    } else if (s.preserveSecret && s.auth == s.originalAuth && overwriteId == null && s.id != null) {
+      // tmux attach 先だけを別行として追加する場合。secret_id は共有せず複製する。
+      app.hostRepository.duplicateWithMetadata(
+          sourceId = s.id,
           label = s.label,
           address = s.address,
           port = s.port.toInt(),
@@ -194,5 +215,16 @@ class HostEditViewModel(
         viewModelFactory { initializer { HostEditViewModel(WanotermApp.get(), hostId) } }
   }
 }
+
+private fun normalizedTmuxSession(value: String): String = value.trim().ifBlank { "wanoterm" }
+
+private fun HostEditUiState.tmuxAttachTarget(): String? =
+    if (useTmux) normalizedTmuxSession(tmuxSession) else null
+
+private fun HostEditUiState.originalTmuxAttachTarget(): String? =
+    if (originalUseTmux == true) normalizedTmuxSession(originalTmuxSession.orEmpty()) else null
+
+private fun HostEditUiState.shouldInsertAsNewTmuxTarget(): Boolean =
+    id != null && useTmux && originalUseTmux != null && tmuxAttachTarget() != originalTmuxAttachTarget()
 
 @Suppress("unused") private fun HostEntity.neverUsed() = Unit

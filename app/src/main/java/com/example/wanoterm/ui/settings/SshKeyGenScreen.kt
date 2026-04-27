@@ -137,8 +137,8 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
             scope.launch {
               runCatching {
                 withContext(Dispatchers.IO) {
-                  val g = generateKey(algo, comment.ifBlank { "wanoterm" }, passphrase)
-                  // 生成直後に sshj で読めるかを検証。万一 wanoterm 側のシリアライズが
+                  val g = generateKey(algo, comment.ifBlank { "WanoTerm" }, passphrase)
+                  // 生成直後に sshj で読めるかを検証。万一 WanoTerm 側のシリアライズが
                   // 壊れていたら、ここでエラーにして SecretStore に書き込ませない。
                   val v =
                       com.example.wanoterm.ssh.KeyValidator.validate(
@@ -147,7 +147,7 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
                       )
                   if (v.isFailure) {
                     throw IllegalStateException(
-                        "生成した鍵が wanoterm で読めませんでした: "
+                        "生成した鍵が WanoTerm で読めませんでした: "
                             + (v.exceptionOrNull()?.message ?: "unknown"),
                     )
                   }
@@ -226,7 +226,7 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
               onClick = {
                 val i = Intent(Intent.ACTION_SEND).apply {
                   type = "text/plain"
-                  putExtra(Intent.EXTRA_SUBJECT, "SSH 公開鍵 (wanoterm)")
+                  putExtra(Intent.EXTRA_SUBJECT, "SSH 公開鍵 (WanoTerm)")
                   putExtra(Intent.EXTRA_TEXT, g.publicSsh)
                 }
                 ctx.startActivity(Intent.createChooser(i, "公開鍵を送る"))

@@ -89,7 +89,7 @@ class LoopbackChannel : TerminalChannel {
     runCatching {
       queue.offer(
           ("[2J[H" +
-                  "[36mwanoterm loopback channel[0m — SSH なしで IME/VT を確認できます。\r\n" +
+                  "[36mWanoTerm loopback channel[0m — SSH なしで IME/VT を確認できます。\r\n" +
                   "打った文字がそのままエコーされます。\r\n" +
                   "[32m$ [0m")
               .toByteArray(Charsets.UTF_8),

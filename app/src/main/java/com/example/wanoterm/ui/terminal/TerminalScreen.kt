@@ -62,6 +62,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.wanoterm.R
@@ -82,12 +84,21 @@ sealed interface TabScreenState {
 
   data class Ready(val bundle: SessionBundle) : TabScreenState
 
-  data class Error(val message: String) : TabScreenState
+  data class Error(
+      val message: String,
+      val canRetry: Boolean = false,
+      val hostId: Long? = null,
+  ) : TabScreenState
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun TerminalScreen(tabId: String, onBack: () -> Unit) {
+fun TerminalScreen(
+    tabId: String,
+    onBack: () -> Unit,
+    onEditHost: (Long) -> Unit = {},
+    onOpenKnownHosts: () -> Unit = {},
+) {
   val app = remember { WanotermApp.get() }
   val theme by app.prefs.theme.collectAsStateWithLifecycle()
   val fontSizeSp by app.prefs.fontSizeSp.collectAsStateWithLifecycle()
@@ -103,6 +114,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   var showTmux by remember { mutableStateOf(false) }
   var showDebug by remember { mutableStateOf(false) }
   var showDisconnectConfirm by remember { mutableStateOf(false) }
+  var retryNonce by remember { mutableStateOf(0) }
   // カスタムショートカットバーはデフォルトで非表示。下部のツールバー右端の apps アイコンで切替。
   var showShortcutBar by remember { mutableStateOf(false) }
 
@@ -113,24 +125,25 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   // 同時に開始する。
   val tabLabels = remember { mutableStateMapOf<String, String>() }
   val remoteTitles = remember { mutableStateMapOf<String, String?>() }
-  LaunchedEffect(activeTabs) {
+  LaunchedEffect(activeTabs, tabId) {
     // 閉じたタブのキャッシュを掃除。放置するとラベル/タイトルの map が session 寿命を超えて
     // 肥大化し、同じ tabId が再利用されたときに古い名前を見せてしまう事故もありうる。
-    val alive = activeTabs.toSet()
+    val alive = activeTabs.toSet() + tabId
     (tabLabels.keys - alive).forEach { tabLabels.remove(it) }
     (remoteTitles.keys - alive).forEach { remoteTitles.remove(it) }
 
-    for (t in activeTabs) {
+    for (t in alive) {
       if (!tabLabels.containsKey(t)) {
         tabLabels[t] =
             when {
               t.startsWith("loopback") -> "Local echo"
               t.startsWith("host:") -> {
-                val hostId = t.removePrefix("host:").substringBefore(":").toLongOrNull()
+                val hostId = hostIdFromTabId(t)
                 val host = hostId?.let { app.database.hostDao().findById(it) }
                 val base = host?.label ?: t.removePrefix("host:").substringBefore(":")
                 // tmux 統合ホストは label に badge を付けて視覚的に区別する。
-                if (host?.useTmux == true) "$base · tmux" else base
+                if (host?.useTmux == true) "$base · tmux:${host.tmuxSession.ifBlank { "wanoterm" }}"
+                else base
               }
               else -> t
             }
@@ -150,7 +163,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
   // 開いたタブ id を永続化。プロセス kill 後の再起動時に Navigation が参照する。
   LaunchedEffect(tabId) { app.prefs.setLastTabId(tabId) }
 
-  LaunchedEffect(tabId) {
+  LaunchedEffect(tabId, retryNonce) {
     val existing = app.sessionManager.get(tabId)
     if (existing != null) {
       state = TabScreenState.Ready(existing)
@@ -172,7 +185,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
       }
       tabId.startsWith("host:") -> {
         state = TabScreenState.Connecting
-        val hostId = tabId.removePrefix("host:").substringBefore(":").toLongOrNull()
+        val hostId = hostIdFromTabId(tabId)
         if (hostId == null) {
           state = TabScreenState.Error("invalid tabId")
           return@LaunchedEffect
@@ -184,7 +197,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
         }
         val params = app.hostRepository.toConnectParams(host)
         if (params == null) {
-          state = TabScreenState.Error("secret missing")
+          state = TabScreenState.Error("secret missing", hostId = hostId)
           return@LaunchedEffect
         }
         val controller = TerminalSessionController(initialRows = 24, initialCols = 80)
@@ -214,7 +227,7 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
           // 例外 message はサーバ名/ユーザ名/鍵パス等を含みうるため UI には出さない。
           // カテゴリ別に固定文言に落とす（詳細はデバッグビルドの Logger.e で別途確認可能）。
           com.example.wanoterm.util.Logger.e("TerminalScreen", "connect failed", t)
-          state = TabScreenState.Error(sanitizedConnectError(t))
+          state = TabScreenState.Error(sanitizedConnectError(t), canRetry = true, hostId = hostId)
         }
       }
       else -> state = TabScreenState.Error("unknown tab type")
@@ -266,6 +279,8 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
                 Text(
                     labelFor(currentTabId),
                     style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
               }
             },
@@ -341,7 +356,16 @@ fun TerminalScreen(tabId: String, onBack: () -> Unit) {
         is TabScreenState.Loading, is TabScreenState.Connecting ->
             Box(modifier = Modifier.weight(1f).fillMaxSize()) { ConnectingIndicator() }
         is TabScreenState.Error ->
-            Box(modifier = Modifier.weight(1f).fillMaxSize()) { ErrorMessage(s.message) }
+            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+              ErrorMessage(
+                  message = s.message,
+                  canRetry = s.canRetry,
+                  hostId = s.hostId,
+                  onRetry = { retryNonce++ },
+                  onEditHost = onEditHost,
+                  onOpenKnownHosts = onOpenKnownHosts,
+              )
+            }
         is TabScreenState.Ready -> {
           val terminalViews = remember { mutableStateMapOf<String, TerminalView>() }
           LaunchedEffect(sortedTabs) {
@@ -542,13 +566,39 @@ private fun ConnectingIndicator() {
 }
 
 @Composable
-private fun ErrorMessage(message: String) {
+private fun ErrorMessage(
+    message: String,
+    canRetry: Boolean,
+    hostId: Long?,
+    onRetry: () -> Unit,
+    onEditHost: (Long) -> Unit,
+    onOpenKnownHosts: () -> Unit,
+) {
   Column(
       modifier = Modifier.fillMaxSize().padding(24.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
       horizontalAlignment = Alignment.CenterHorizontally,
-  ) { Text(text = stringResource(R.string.conn_failed, message)) }
+  ) {
+    Text(
+        text = stringResource(R.string.conn_failed, message),
+        textAlign = TextAlign.Center,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      if (canRetry) {
+        TextButton(onClick = onRetry) { Text("再試行") }
+      }
+      if (hostId != null) {
+        TextButton(onClick = { onEditHost(hostId) }) { Text("ホスト編集") }
+      }
+      if ("ホスト鍵" in message || "TOFU" in message) {
+        TextButton(onClick = onOpenKnownHosts) { Text("信頼済みホスト") }
+      }
+    }
+  }
 }
+
+private fun hostIdFromTabId(tabId: String): Long? =
+    tabId.removePrefix("host:").substringBefore(":").toLongOrNull()
 
 /**
  * 例外 → UI 用の無害な説明文にマップ。認証失敗時に username/host を表示しないのが要点。

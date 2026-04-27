@@ -17,20 +17,24 @@ interface HostDao {
   suspend fun findById(id: Long): HostEntity?
 
   /**
-   * label / address / port / username が全一致する他レコード（excludeId は除外）を探す。
+   * label / address / port / username / tmux attach 先が全一致する他レコード（excludeId は除外）を探す。
    * HostEdit 保存前の重複検知に使う。複数ヒットしたら最も古い 1 件だけ返す。
    * 呼び出し側で trim 済みの値が渡ってきた場合でも、DB 既存データ側に末尾空白が潜んでいる
    * 可能性があるので SQL 側でも TRIM() してマッチさせる（defense-in-depth）。
    */
   @Query(
       "SELECT * FROM hosts WHERE TRIM(label) = :label AND TRIM(address) = :address AND port = :port "
-          + "AND TRIM(username) = :username AND id != :excludeId LIMIT 1",
+          + "AND TRIM(username) = :username AND use_tmux = :useTmux "
+          + "AND (:useTmux = 0 OR COALESCE(NULLIF(TRIM(tmux_session), ''), 'wanoterm') = :tmuxSession) "
+          + "AND id != :excludeId LIMIT 1",
   )
   suspend fun findDuplicate(
       label: String,
       address: String,
       port: Int,
       username: String,
+      useTmux: Boolean,
+      tmuxSession: String,
       excludeId: Long = -1L,
   ): HostEntity?
 

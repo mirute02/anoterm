@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">wanoterm</string>
+    <string name="app_name">WanoTerm</string>
 
     <!-- Navigation -->
     <string name="nav_hosts">Hosts</string>
@@ -77,9 +77,9 @@
     <string name="settings_about">About</string>
 
     <!-- App lock -->
-    <string name="lock_title">wanoterm is locked</string>
+    <string name="lock_title">WanoTerm is locked</string>
     <string name="lock_unlock">Unlock</string>
-    <string name="lock_biometric_title">Unlock wanoterm</string>
+    <string name="lock_biometric_title">Unlock WanoTerm</string>
     <string name="lock_biometric_subtitle">Confirm it\'s you to see saved hosts.</string>
 
     <!-- Connection states -->
