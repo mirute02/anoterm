@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">WanoTerm</string>
+    <string name="app_name">AnoTerm</string>
 
     <string name="nav_hosts">ホスト</string>
     <string name="nav_terminal">ターミナル</string>

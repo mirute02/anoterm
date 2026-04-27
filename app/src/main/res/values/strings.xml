@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">WanoTerm</string>
+    <string name="app_name">AnoTerm</string>
 
     <!-- Navigation -->
     <string name="nav_hosts">Hosts</string>
