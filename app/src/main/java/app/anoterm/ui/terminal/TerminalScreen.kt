@@ -29,7 +29,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
@@ -117,7 +117,7 @@ fun TerminalScreen(
   var showHelp by remember { mutableStateOf(false) }
   var showHistory by remember { mutableStateOf(false) }
   var showTmux by remember { mutableStateOf(false) }
-  var showDebug by remember { mutableStateOf(false) }
+  var showMemo by remember { mutableStateOf(false) }
   var showDisconnectConfirm by remember { mutableStateOf(false) }
   var retryNonce by remember { mutableStateOf(0) }
   // カスタムショートカットバーはデフォルトで非表示。下部のツールバー右端の apps アイコンで切替。
@@ -245,8 +245,41 @@ fun TerminalScreen(
   val pagerState = rememberPagerState(initialPage = initialPage) { sortedTabs.size }
   val coroutineScope = rememberCoroutineScope()
 
+  // 「表示中の tabId」を真の状態として保持し、pagerState.currentPage はそれに追従させる。
+  // pagerState は Int 番号でしか page を持てないため、左側のタブを閉じると同じ番号の page が
+  // 別の tab を指す事故が起きる。tabId ベースで同期を取ることでこのズレを防ぐ。
+  val displayedTabId = remember { mutableStateOf<String?>(null) }
+
+  // 1. 初回マウント / Navigation で別エントリに来た時: tabId に displayedTabId を寄せる。
+  //    sortedTabs にまだ tabId が現れていなければ load を待つ。
   LaunchedEffect(tabId, sortedTabs) {
-    val idx = sortedTabs.indexOf(tabId)
+    if (tabId in sortedTabs && displayedTabId.value != tabId) {
+      displayedTabId.value = tabId
+    }
+  }
+
+  // 2. pager の currentPage または sortedTabs が変化したとき、現在 page にある tab を
+  //    displayedTabId に反映し、その bundle を state に流し込む。
+  //    - ユーザーが pager を swipe したとき
+  //    - 表示中タブが close されて pager が次の tab を映すとき
+  //    の両方で発火する。
+  LaunchedEffect(pagerState, sortedTabs) {
+    snapshotFlow { sortedTabs.getOrNull(pagerState.currentPage) }
+        .collect { tab ->
+          if (tab == null) return@collect
+          if (tab != displayedTabId.value) displayedTabId.value = tab
+          val bundle = app.sessionManager.get(tab)
+          if (bundle != null) state = TabScreenState.Ready(bundle)
+        }
+  }
+
+  // 3. displayedTabId に pager を追従させる。
+  //    - ユーザーが Navigation 経由で別 tab に来た直後 (Effect 1 が displayedTabId を更新)
+  //    - 左側の tab を close して displayedTabId の new index がズレた時
+  //    のいずれでも、scrollToPage で同じ tab を映し続ける。
+  LaunchedEffect(displayedTabId.value, sortedTabs) {
+    val target = displayedTabId.value ?: return@LaunchedEffect
+    val idx = sortedTabs.indexOf(target)
     if (idx >= 0 && idx != pagerState.currentPage) {
       pagerState.scrollToPage(idx)
     }
@@ -254,14 +287,6 @@ fun TerminalScreen(
 
   val currentTabId by remember(pagerState, sortedTabs) {
     derivedStateOf { sortedTabs.getOrNull(pagerState.currentPage) ?: tabId }
-  }
-
-  LaunchedEffect(pagerState) {
-    snapshotFlow { pagerState.currentPage }.collect { page ->
-      val newTabId = sortedTabs.getOrNull(page) ?: return@collect
-      val bundle = app.sessionManager.get(newTabId)
-      if (bundle != null) state = TabScreenState.Ready(bundle)
-    }
   }
 
   // 現在のタブの接続状態を dot で表示するため、StateFlow を collect
@@ -305,8 +330,8 @@ fun TerminalScreen(
                   Icon(Icons.Filled.Dashboard, contentDescription = "tmux")
                 }
               }
-              IconButton(onClick = { showDebug = true }) {
-                Icon(Icons.Filled.BugReport, contentDescription = "デバッグ報告")
+              IconButton(onClick = { showMemo = true }) {
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = "メモ")
               }
               IconButton(onClick = { showHelp = true }) {
                 Icon(Icons.Filled.HelpOutline, contentDescription = "ヘルプ")
@@ -511,10 +536,10 @@ fun TerminalScreen(
           onDismiss = { showTmux = false },
       )
     }
-    if (showDebug) {
-      DebugReportSheet(
+    if (showMemo) {
+      MemoSheet(
           contextLabel = labelFor(currentTabId),
-          onDismiss = { showDebug = false },
+          onDismiss = { showMemo = false },
       )
     }
     if (showDisconnectConfirm) {

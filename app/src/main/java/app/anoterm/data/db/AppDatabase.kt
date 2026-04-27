@@ -18,7 +18,7 @@ class RoomConverters {
 }
 
 @Database(
-    entities = [HostEntity::class, KnownHostEntity::class, DebugReportEntity::class, SshKeyEntity::class],
+    entities = [HostEntity::class, KnownHostEntity::class, MemoEntity::class, SshKeyEntity::class],
     version = 5,
     exportSchema = false,
 )
@@ -28,14 +28,14 @@ abstract class AppDatabase : RoomDatabase() {
 
   abstract fun knownHostDao(): KnownHostDao
 
-  abstract fun debugReportDao(): DebugReportDao
+  abstract fun memoDao(): MemoDao
 
   abstract fun sshKeyDao(): SshKeyDao
 
   companion object {
     private const val DB_NAME = "anoterm.db"
 
-    // v1 → v2: DebugReportEntity を追加するだけ。hosts / known_hosts には一切触れない。
+    // v1 → v2: MemoEntity (旧 DebugReportEntity) を追加するだけ。hosts / known_hosts には一切触れない。
     // ここを fallbackToDestructiveMigration に戻すと既存ユーザのホスト情報が全消失するので
     // 必ず Migration を書くこと（Play Store 更新時の事故 #1）。
     internal val MIGRATION_1_2: Migration =
