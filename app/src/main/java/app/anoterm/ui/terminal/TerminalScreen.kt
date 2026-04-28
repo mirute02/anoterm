@@ -218,12 +218,31 @@ fun TerminalScreen(
           val bundle = app.sessionManager.getOrCreate(tabId) { SessionBundle(controller, channel) }
           controller.setConnectionState(ConnectionState.Connected)
           state = TabScreenState.Ready(bundle)
-          // tmux 統合: 接続成功直後に `tmux new -A -s <session>\r` を送出。
-          // -A: セッションがなければ作成、あれば attach（再接続で同じセッションに復帰）
+          // 接続成功直後の自動投入コマンド。複数の機能を 1 行にまとめて送る。
+          // - claudeCodeFullscreen ON: `export CLAUDE_CODE_NO_FLICKER=1` を先に流す。
+          //   Claude Code の non-fullscreen モードで生じる「同じ応答が scrollback に
+          //   3〜4 重複する」現象を防ぐ。env が未参照のシェル/コマンドには無害。
+          // - claudeCodeFullscreen ON + useTmux ON: 既存 tmux session の env にも
+          //   `tmux set-environment -t <session>` で書き込む。これがないと PC 等で
+          //   既に立てていた tmux session に AnoTerm から attach した場合、
+          //   tmux の session env に変数が無いため新しい claude プロセスが env を継承できない。
+          //   `|| true` で session 不在時の失敗を握りつぶす (この場合は次の `tmux new -A`
+          //   が新規作成し、login shell の env を継承するので問題なし)。
+          // - useTmux ON: 続けて `tmux new -A -s <session>` で attach (-A = なければ作成)。
           // この分岐は「既存 bundle がなくて新規 SSH を張った場合」にしか来ないので
           // 2 重送信にはならない（前段の sessionManager.get(tabId) != null で早期 return 済み）。
-          if (params.useTmux) {
-            val cmd = "tmux new -A -s ${params.tmuxSession}\r"
+          val claudeCodeFullscreen = app.prefs.claudeCodeFullscreen.value
+          val parts = buildList {
+            if (claudeCodeFullscreen) add("export CLAUDE_CODE_NO_FLICKER=1")
+            if (claudeCodeFullscreen && params.useTmux) {
+              add(
+                  "tmux set-environment -t ${params.tmuxSession} CLAUDE_CODE_NO_FLICKER 1 2>/dev/null || true",
+              )
+            }
+            if (params.useTmux) add("tmux new -A -s ${params.tmuxSession}")
+          }
+          if (parts.isNotEmpty()) {
+            val cmd = parts.joinToString("; ") + "\r"
             controller.sendToRemote(cmd.toByteArray(Charsets.US_ASCII))
           }
         } catch (t: Throwable) {

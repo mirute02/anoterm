@@ -58,6 +58,7 @@ fun SettingsScreen(
   val ambiguous by prefs.ambiguousWide.collectAsStateWithLifecycle()
   val terminalClipboardHistoryEnabled by
       prefs.terminalClipboardHistoryEnabled.collectAsStateWithLifecycle()
+  val claudeCodeFullscreen by prefs.claudeCodeFullscreen.collectAsStateWithLifecycle()
 
   Scaffold(
       topBar = {
@@ -161,6 +162,21 @@ fun SettingsScreen(
             Switch(
                 checked = terminalClipboardHistoryEnabled,
                 onCheckedChange = { prefs.setTerminalClipboardHistoryEnabled(it) },
+            )
+          },
+      )
+      ListItem(
+          headlineContent = { Text("Claude Code 互換モード") },
+          supportingContent = {
+            Text(
+                "接続時に CLAUDE_CODE_NO_FLICKER=1 を送って Claude Code を fullscreen で起動。"
+                    + "scrollback に同じ応答が複数回積まれるのを防ぎます。",
+            )
+          },
+          trailingContent = {
+            Switch(
+                checked = claudeCodeFullscreen,
+                onCheckedChange = { prefs.setClaudeCodeFullscreen(it) },
             )
           },
       )

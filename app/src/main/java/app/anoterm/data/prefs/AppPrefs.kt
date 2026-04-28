@@ -74,6 +74,14 @@ class AppPrefs(context: Context) {
   val terminalClipboardHistoryEnabled: StateFlow<Boolean> =
       _terminalClipboardHistoryEnabled.asStateFlow()
 
+  // Claude Code 等の TUI が non-fullscreen モードで吐く redraw が tmux/scrollback に
+  // 蓄積されて「同じ応答が 3〜4 回ループする」現象を防ぐ。true のときは接続後に
+  // `export CLAUDE_CODE_NO_FLICKER=1` を送って Claude Code を fullscreen モードで起動させる。
+  // デフォルトは true (= 防御を ON で始める)。Aider 等の他 TUI には別途設定が要るので
+  // ここはあくまで Claude Code 専用の予防策。
+  private val _claudeCodeFullscreen = MutableStateFlow(readClaudeCodeFullscreen())
+  val claudeCodeFullscreen: StateFlow<Boolean> = _claudeCodeFullscreen.asStateFlow()
+
   /** Lock 画面に遷移するかどうかを算出するためのフロー（Navigation から購読） */
   val biometricLock: Flow<Boolean>
     get() = _biometricLockEnabled.asStateFlow()
@@ -139,6 +147,11 @@ class AppPrefs(context: Context) {
     _terminalClipboardHistoryEnabled.value = enabled
   }
 
+  fun setClaudeCodeFullscreen(enabled: Boolean) {
+    sp.edit().putBoolean(KEY_CLAUDE_CODE_FULLSCREEN, enabled).apply()
+    _claudeCodeFullscreen.value = enabled
+  }
+
   fun localeList(): LocaleListCompat =
       when (_locale.value) {
         AppLocale.SYSTEM -> LocaleListCompat.getEmptyLocaleList()
@@ -197,6 +210,9 @@ class AppPrefs(context: Context) {
         sp.getBoolean(KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY, true)
       }
 
+  private fun readClaudeCodeFullscreen(): Boolean =
+      sp.getBoolean(KEY_CLAUDE_CODE_FULLSCREEN, true)
+
   private fun readCustomShortcuts(): List<CustomShortcut> {
     val raw = sp.getString(KEY_CUSTOM_SHORTCUTS, null) ?: return DEFAULT_SHORTCUTS
     return try {
@@ -220,6 +236,7 @@ class AppPrefs(context: Context) {
     private const val KEY_DEV_MODE = "developer_mode"
     private const val KEY_TERMINAL_CLIPBOARD_HISTORY_ENABLED = "terminal_clipboard_history_enabled"
     private const val KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY = "gboard_clipboard_history_probe"
+    private const val KEY_CLAUDE_CODE_FULLSCREEN = "claude_code_fullscreen"
 
     // Free tier の上限。Pro で解除。
     const val FREE_TIER_HOST_LIMIT = 3
