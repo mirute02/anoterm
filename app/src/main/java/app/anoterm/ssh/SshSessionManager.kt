@@ -7,7 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel as KChannel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +30,11 @@ class SessionBundle(
   // NetworkOnMainThreadException を投げるため、専用スレッドに逃がして直列化する。
   // UNLIMITED の channel でバックプレッシャを避けつつ、1 コルーチンで順序を保証する。
   private val writeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-  private val writeChannel = KChannel<ByteArray>(capacity = 256, onBufferOverflow = BufferOverflow.SUSPEND)
+  // 以前は capacity=256 / SUSPEND だったが、投入は `trySend`（下記 init）なので SUSPEND は
+  // 効かず、満杯になると単に drop していた。大きな貼り付けや高速なキーリピートで 256 チャンクを
+  // 超えると送信バイトが欠落し、リモートから見ると入力が化ける/コマンドが壊れる。
+  // 入力データは人間由来で有限なので UNLIMITED にして欠落を無くす。
+  private val writeChannel = KChannel<ByteArray>(capacity = KChannel.UNLIMITED)
 
   init {
     controller.setOutput(
@@ -72,8 +75,19 @@ class SessionBundle(
   fun dispose() {
     writeChannel.close()
     writeScope.cancel()
-    runCatching { channel.close() }
+    // channel.close() は shell / session / ssh の切断で network I/O（DISCONNECT 送信）を伴う。
+    // closeTab はメインスレッドから呼ばれるため、ここで直接 close すると
+    // NetworkOnMainThreadException になり DISCONNECT が送られず、sshj の Reader / KeepAlive
+    // スレッドや socket が生き残って接続がリークする（タブを閉じたのに裏で通信が続く）。
+    // 専用の IO スコープに逃がして確実に送信・切断させる（fire-and-forget）。
+    teardownScope.launch { runCatching { channel.close() } }
     controller.dispose()
+  }
+
+  companion object {
+    // 全 SessionBundle 共有の切断用 IO スコープ。dispose 内で自身の writeScope は既に
+    // cancel 済みのため、独立した長寿命スコープで close を回す。
+    private val teardownScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   }
 }
 
@@ -109,7 +123,9 @@ class SshSessionManager(private val appContext: android.content.Context) {
   fun closeTab(tabId: String) {
     bundles.remove(tabId)?.dispose()
     _activeTabs.value = bundles.keys.toSet()
+    // 空になったら FGS 停止、残っていれば通知本文（セッション数）を更新するため再 start。
     if (bundles.isEmpty()) SshForegroundService.stop(appContext)
+    else SshForegroundService.start(appContext)
   }
 
   fun activeTabIds(): Set<String> = bundles.keys.toSet()

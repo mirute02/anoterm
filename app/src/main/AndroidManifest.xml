@@ -9,8 +9,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- アプリ切替でプロセスが殺されるのを防ぎ SSH セッションを生かす -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 14+ では Foreground Service の用途宣言が必須（ここでは dataSync を利用） -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- SSH セッションの常時維持は Google のガイドでも specialUse の想定ユースケース。
+         dataSync は targetSdk 35+ で 6 時間タイムアウト→強制クラッシュがあるため specialUse を使う。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name=".AnotermApp"
@@ -40,7 +41,11 @@
         <service
             android:name=".ssh.SshForegroundService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps interactive SSH terminal sessions alive while the app is backgrounded" />
+        </service>
     </application>
 
 </manifest>

@@ -58,6 +58,17 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
+  override fun onStart() {
+    super.onStart()
+    // 接続中にバックグラウンドへ移ってから接続が完了した等の理由で FGS の起動が
+    // 拒否（ForegroundServiceStartNotAllowedException）されていた場合の再試行。
+    // ここは確実に前面なので startForegroundService は成功する。生存セッションが
+    // あるときだけ起動し、通知本文（セッション数）も最新化される。
+    if (AnotermApp.get().sessionManager.activeTabIds().isNotEmpty()) {
+      app.anoterm.ssh.SshForegroundService.start(this)
+    }
+  }
+
   private fun maybeRequestNotificationPermission() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     val granted =

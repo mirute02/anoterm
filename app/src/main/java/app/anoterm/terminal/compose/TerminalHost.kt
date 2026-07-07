@@ -6,6 +6,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import app.anoterm.data.prefs.LineEnding
 import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.terminal.view.TerminalView
@@ -54,21 +57,35 @@ fun TerminalHost(
       onRelease = { viewRef.view = null },
   )
 
-  LaunchedEffect(controller) {
-    controller.redrawSignal.collect { viewRef.view?.postInvalidateOnAnimation() }
+  val lifecycleOwner = LocalLifecycleOwner.current
+
+  // redraw / bell の購読はいずれも repeatOnLifecycle(STARTED) でラップし、アプリが
+  // バックグラウンド（STOPPED）に入ったら停止する。これによりバックグラウンドのタブが
+  // サーバ出力のたびに invalidate したり、BEL で振動したりする無駄を防ぐ。
+  // 前面復帰時は collect が張り直され、下記のとおり一度 invalidate して最新状態を描く。
+  LaunchedEffect(controller, lifecycleOwner) {
+    lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      // 復帰直後は redrawSignal(replay 無し)が来るまで古い画面のままなので、まず 1 回描く。
+      viewRef.view?.postInvalidateOnAnimation()
+      controller.redrawSignal.collect { viewRef.view?.postInvalidateOnAnimation() }
+    }
   }
 
   // BEL（0x07）受信で軽いハプティック。連続バイブは邪魔なので 500ms 以内は間引く。
-  LaunchedEffect(controller) {
-    var last = 0L
-    controller.bell.collect {
-      val now = System.currentTimeMillis()
-      if (now - last < 500) return@collect
-      last = now
-      viewRef.view?.performHapticFeedback(
-          android.view.HapticFeedbackConstants.KEYBOARD_TAP,
-          android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
-      )
+  // 振動経路はここ 1 本に集約（以前は TerminalScreen 側にもスロットル無しの collect があり
+  // 表示中タブの BEL で二重振動していた）。
+  LaunchedEffect(controller, lifecycleOwner) {
+    lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      var last = 0L
+      controller.bell.collect {
+        val now = System.currentTimeMillis()
+        if (now - last < 500) return@collect
+        last = now
+        viewRef.view?.performHapticFeedback(
+            android.view.HapticFeedbackConstants.KEYBOARD_TAP,
+            android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+        )
+      }
     }
   }
 

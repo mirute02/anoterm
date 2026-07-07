@@ -57,7 +57,11 @@ class TerminalSessionController(
         onBell = { _bell.tryEmit(Unit) }
       }
 
-  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+  // 受信ループは input.read() でブロックし続けるため Dispatchers.IO を使う。
+  // 以前は Dispatchers.Default だったが、Default のワーカー数は CPU コア数（最低 2）しかなく、
+  // タブ 1 つにつき 1 ワーカーを read で常時占有する。多タブで Default プールが枯渇し、
+  // Compose 等 Default に載る他コルーチンが動けなくなってフリーズ/ANR 級の不安定動作を招いていた。
+  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
   private val _redrawSignal = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
   val redrawSignal = _redrawSignal.asSharedFlow()
@@ -66,6 +70,10 @@ class TerminalSessionController(
   val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
   private var readJob: Job? = null
+
+  // 直近に適用した PTY サイズ。同一サイズの resize では SIGWINCH を飛ばさないためのガード。
+  private var lastResizeRows: Int = -1
+  private var lastResizeCols: Int = -1
 
   fun setConnectionState(s: ConnectionState) {
     _connectionState.value = s
@@ -125,6 +133,13 @@ class TerminalSessionController(
   }
 
   fun resize(rows: Int, cols: Int) {
+    // サイズが前回と同じなら何もしない。AndroidView.update は再コンポーズのたびに
+    // setFontSizeSp → reflowToViewport → resize を呼ぶため、IME アニメ中などに
+    // 同一サイズの resize が連発する。無条件に onChannelResize すると PTY へ SIGWINCH が
+    // 飛び続け、リモートの tmux / TUI が全画面再描画して無駄トラフィック・ちらつきを生む。
+    if (rows == lastResizeRows && cols == lastResizeCols) return
+    lastResizeRows = rows
+    lastResizeCols = cols
     emulator.resize(rows, cols)
     onChannelResize(cols, rows)
     _redrawSignal.tryEmit(Unit)

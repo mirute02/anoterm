@@ -1,7 +1,6 @@
 package app.anoterm.ui.terminal
 
 import android.content.Context
-import android.view.HapticFeedbackConstants
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -246,6 +245,10 @@ fun TerminalScreen(
             controller.sendToRemote(cmd.toByteArray(Charsets.US_ASCII))
           }
         } catch (t: Throwable) {
+          // 画面遷移でこの LaunchedEffect が cancel された場合の CancellationException は
+          // 「接続失敗」ではないので UI に出さず再スローする（コルーチンの正常なキャンセル）。
+          // SshChannel.connect 側が ssh を閉じてリークも防いでいる。
+          if (t is kotlinx.coroutines.CancellationException) throw t
           controller.setConnectionState(ConnectionState.Failed)
           controller.dispose()
           // 例外 message はサーバ名/ユーザ名/鍵パス等を含みうるため UI には出さない。
@@ -429,14 +432,9 @@ fun TerminalScreen(
             currentView?.ctrlArmed = false
             currentView?.focusAndRequestKeyboard()
           }
-          // リモートが BEL (0x07) を送ってきたら短い触覚フィードバック。
-          // 音は鳴らさない方針（夜間 SSH 作業で迷惑なので）。視覚フラッシュも今はなし。
-          val hapticView = LocalView.current
-          LaunchedEffect(s.bundle.controller) {
-            s.bundle.controller.bell.collect {
-              hapticView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            }
-          }
+          // BEL(0x07)の触覚フィードバックは TerminalHost 側の 1 経路に集約した
+          // （スロットル + lifecycle 対応済み）。ここで二重に collect すると表示中タブで
+          // 二重振動し、かつバックグラウンドでも振動していた。
           val sendBytes: (ByteArray) -> Unit = { bytes ->
             currentView?.scrollToBottom()
             app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
