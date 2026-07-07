@@ -530,6 +530,15 @@ class TerminalEmulator(
     }
   }
 
+  /**
+   * scrollback（履歴は primary バッファのみが持つ）の上限行数を変更する。
+   * emulator monitor を取るので、feed / draw と直列化され安全。メモリバジェット管理から呼ぶ。
+   */
+  @Synchronized
+  fun setScrollbackLimit(limit: Int) {
+    primaryBuffer.setMaxScrollback(limit)
+  }
+
   private fun deleteChars(count: Int) {
     val n = count.coerceAtMost(cols - cursorCol)
     for (c in cursorCol until cols - n) {

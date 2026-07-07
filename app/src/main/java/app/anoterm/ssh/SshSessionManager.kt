@@ -1,10 +1,13 @@
 package app.anoterm.ssh
 
+import android.app.ActivityManager
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import app.anoterm.terminal.ConnectionState
 import app.anoterm.terminal.TerminalSessionController
+import app.anoterm.terminal.emulator.TerminalBuffer
 import app.anoterm.util.Logger
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
@@ -147,6 +150,7 @@ class SshSessionManager(private val appContext: Context) {
 
   init {
     registerNetworkCallback()
+    startScrollbackBudgetSweep()
   }
 
   /** MainActivity の onStart/onStop から前面/背面を通知する。背面では自動再接続を止める。 */
@@ -202,6 +206,55 @@ class SshSessionManager(private val appContext: Context) {
 
   fun activeTabIds(): Set<String> = bundles.keys.toSet()
 
+  /**
+   * メモリ逼迫時（onTrimMemory）に scrollback を最小まで削って LMK 前に自衛する。
+   * AnotermApp.onTrimMemory から呼ばれる。
+   */
+  fun onTrimMemory(level: Int) {
+    if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) return
+    Logger.w("SessionMgr", "trim memory level=$level — shrinking scrollback")
+    bundles.values.forEach {
+      runCatching { it.controller.emulator.setScrollbackLimit(TerminalBuffer.MIN_MAX_SCROLLBACK) }
+    }
+  }
+
+  /**
+   * アプリ全体の scrollback 総量をヒープ由来のバジェット内に収める定期スイープ。
+   * タブごとに独立バッファ（各最大 2000 行）を持つため、多タブ×横長画面では合計が
+   * ヒープ上限に迫り OOM/LMK を招く。バジェットをタブ数で等分し、各タブの横幅から
+   * 上限行数を算出して動的に締める。少数タブでは実質 2000 行のまま（体験は不変）。
+   */
+  private fun startScrollbackBudgetSweep() {
+    val budget = scrollbackBudgetBytes()
+    Logger.i("SessionMgr", "scrollback budget = ${budget / (1024 * 1024)}MB")
+    appScope.launch {
+      while (isActive) {
+        delay(5_000)
+        runCatching { applyScrollbackBudget(budget) }
+      }
+    }
+  }
+
+  private fun applyScrollbackBudget(budgetBytes: Long) {
+    val list = bundles.values.toList()
+    if (list.isEmpty()) return
+    val perTabBytes = budgetBytes / list.size
+    for (b in list) {
+      val emu = b.controller.emulator
+      val cols = emu.buffer.cols.coerceAtLeast(1)
+      val perTabLines = (perTabBytes / (cols.toLong() * BYTES_PER_SCROLLBACK_CELL)).toInt()
+      emu.setScrollbackLimit(perTabLines) // 内部で [MIN, ABSOLUTE_MAX] にクランプ
+    }
+  }
+
+  private fun scrollbackBudgetBytes(): Long {
+    val am = appContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+    val heapMb = am?.memoryClass ?: 128
+    // ヒープの約 1/6 を scrollback 予算に割く。端末のヒープ規模に適応しつつ 8〜48MB にクランプ。
+    return (heapMb.toLong() * 1024 * 1024 / 6)
+        .coerceIn(8L * 1024 * 1024, 48L * 1024 * 1024)
+  }
+
   fun closeAll() {
     bundles.values.forEach { it.dispose() }
     bundles.clear()
@@ -253,5 +306,11 @@ class SshSessionManager(private val appContext: Context) {
             }
           }
         }
+  }
+
+  companion object {
+    // scrollback 1 セルあたりの概算バイト数（Cell オブジェクト + 配列スロット + ヘッダ）。
+    // メモリバジェットから 1 タブあたりの上限行数を逆算するのに使う。厳密値ではなく安全側の見積り。
+    private const val BYTES_PER_SCROLLBACK_CELL = 40L
   }
 }

@@ -114,6 +114,35 @@ class TerminalEmulatorTest {
   }
 
   @Test
+  fun scrollbackLimitTrimsHistory() {
+    // メモリバジェット管理（F-13）が使う setScrollbackLimit の挙動を固定する。
+    val (e, _) = emu(rows = 5, cols = 20)
+    // 画面(5 行)を大きく超えて出力し、履歴を貯める。
+    repeat(500) { feed(e, "row$it\r\n") }
+    assertTrue("history should accumulate", e.buffer.scrollbackSize > 300)
+
+    // 上限を 250 に締めると即座に古い行が捨てられる。
+    e.setScrollbackLimit(250)
+    assertEquals(250, e.buffer.scrollbackSize)
+
+    // 以降の出力でも上限を超えない。
+    repeat(100) { feed(e, "more$it\r\n") }
+    assertTrue("stays within limit", e.buffer.scrollbackSize <= 250)
+  }
+
+  @Test
+  fun scrollbackLimitClampsBelowMinimum() {
+    // 極端に小さい値でも MIN_MAX_SCROLLBACK 未満には潰さない（実用上の下限を保証）。
+    val (e, _) = emu(rows = 5, cols = 20)
+    repeat(500) { feed(e, "row$it\r\n") }
+    e.setScrollbackLimit(1)
+    assertEquals(
+        app.anoterm.terminal.emulator.TerminalBuffer.MIN_MAX_SCROLLBACK,
+        e.buffer.scrollbackSize,
+    )
+  }
+
+  @Test
   fun dsrReportsCursorPosition() {
     val (e, out) = emu()
     feed(e, "ab[6n")

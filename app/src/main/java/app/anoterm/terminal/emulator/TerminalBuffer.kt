@@ -57,7 +57,19 @@ class TerminalBuffer(
    * 新しい行ほど `last()` 側に来る。古い行は上限を超えたら捨てる。
    */
   private val scrollback: ArrayDeque<Array<Cell>> = ArrayDeque()
-  private val maxScrollback = 2000
+  private var maxScrollback = DEFAULT_MAX_SCROLLBACK
+
+  /**
+   * scrollback の上限行数を変更し、超過分を古い方から捨てる。
+   * アプリ全体のメモリバジェット管理（多タブ×横長での OOM/LMK 回避）から呼ばれる。
+   * scrollback を lockless に読む描画パスと衝突しないよう、emulator monitor 下で呼ぶこと
+   * （呼び出し元 [TerminalEmulator.setScrollbackLimit] が @Synchronized で保証する）。
+   */
+  @Synchronized
+  fun setMaxScrollback(limit: Int) {
+    maxScrollback = limit.coerceIn(MIN_MAX_SCROLLBACK, ABSOLUTE_MAX_SCROLLBACK)
+    while (scrollback.size > maxScrollback) scrollback.removeFirst()
+  }
 
   /** scrollback に保持している行数。TerminalView のスクロール上限計算に使う。 */
   val scrollbackSize: Int
@@ -281,6 +293,11 @@ class TerminalBuffer(
 
   companion object {
     private val EMPTY_CELL = Cell()
+
+    // scrollback 上限のデフォルトと動的調整のクランプ範囲。
+    const val DEFAULT_MAX_SCROLLBACK = 2000
+    const val MIN_MAX_SCROLLBACK = 200
+    const val ABSOLUTE_MAX_SCROLLBACK = 5000
   }
 
   /** デバッグ用。1 行の文字列表現。 */

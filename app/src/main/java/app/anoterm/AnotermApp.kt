@@ -68,6 +68,12 @@ class AnotermApp : Application() {
     super.onTerminate()
   }
 
+  override fun onTrimMemory(level: Int) {
+    super.onTrimMemory(level)
+    // メモリ逼迫を SessionManager に伝え、scrollback を削って LMK 前に自衛する。
+    if (::sessionManager.isInitialized) sessionManager.onTrimMemory(level)
+  }
+
   /**
    * 未捕捉例外を filesDir/crash/ に書き出してから既定ハンドラ（プロセス終了）へ委譲する。
    * テレメトリを持たないため、これがフィールドのクラッシュを事後に読める唯一の手段。
