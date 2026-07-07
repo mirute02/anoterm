@@ -211,7 +211,14 @@ class SshSessionManager(private val appContext: Context) {
    * AnotermApp.onTrimMemory から呼ばれる。
    */
   fun onTrimMemory(level: Int) {
-    if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) return
+    // UI_HIDDEN(20) や BACKGROUND(40) は「背面に回った/LRU に載った」通知であってメモリ逼迫では
+    // ない。ここで scrollback を削ると通常のアプリ切替のたびに履歴が失われる（TRIM_MEMORY_RUNNING_
+    // CRITICAL は 15 で UI_HIDDEN=20 より小さいため、単純な `>=` だと背面化で誤発火する）。
+    // 真の逼迫だけを対象にする: 前面での CRITICAL、または背面 LRU 末尾の MODERATE/COMPLETE。
+    val underPressure =
+        level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+            level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE
+    if (!underPressure) return
     Logger.w("SessionMgr", "trim memory level=$level — shrinking scrollback")
     bundles.values.forEach {
       runCatching { it.controller.emulator.setScrollbackLimit(TerminalBuffer.MIN_MAX_SCROLLBACK) }
