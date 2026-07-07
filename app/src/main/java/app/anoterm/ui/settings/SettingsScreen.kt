@@ -59,6 +59,7 @@ fun SettingsScreen(
   val terminalClipboardHistoryEnabled by
       prefs.terminalClipboardHistoryEnabled.collectAsStateWithLifecycle()
   val claudeCodeFullscreen by prefs.claudeCodeFullscreen.collectAsStateWithLifecycle()
+  val keepAlive by prefs.keepAliveSeconds.collectAsStateWithLifecycle()
 
   Scaffold(
       topBar = {
@@ -194,6 +195,32 @@ fun SettingsScreen(
           headlineContent = { Text("SSH 鍵") },
           supportingContent = { Text("一覧・作成・使い方（サーバ登録の手順付き）") },
           modifier = Modifier.clickable { onOpenSshKeyList() },
+      )
+
+      HorizontalDivider()
+      Text("接続・電池", style = MaterialTheme.typography.titleMedium)
+      Text("キープアライブ間隔", style = MaterialTheme.typography.bodyMedium)
+      Text(
+          "短いほど切断検知と自動再接続が速く、長いほど省電力（無線ウェイクアップが減る）。0 で無効。",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      androidx.compose.foundation.layout.FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        listOf(0, 30, 60, 120, 300).forEach { s ->
+          FilterChip(
+              selected = keepAlive == s,
+              onClick = { prefs.setKeepAliveSeconds(s) },
+              label = { Text(if (s == 0) "OFF" else "${s}s") },
+          )
+        }
+      }
+      Text(
+          "切断されたセッションは、アプリを前面に戻すと自動で再接続を試みます（tmux ホストは再アタッチ）。",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
 
       HorizontalDivider()

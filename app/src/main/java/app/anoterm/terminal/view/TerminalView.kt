@@ -375,7 +375,10 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
 
   /** 縦スクロール位置を相対で変更。正 = 過去方向、負 = 現在方向。 */
   fun scrollBy(lines: Int) {
-    val maxOffset = controller?.emulator?.buffer?.scrollbackSize ?: 0
+    // scrollbackSize は feed スレッドの scrollUp/resize と並行に変化する。emulator monitor を
+    // 取ってから読む（描画パスと同じロック）。稀な古い値による一瞬のスクロール上限ずれを防ぐ。
+    val emu = controller?.emulator
+    val maxOffset = if (emu != null) synchronized(emu) { emu.buffer.scrollbackSize } else 0
     val newOffset = (scrollOffset + lines).coerceIn(0, maxOffset)
     if (newOffset != scrollOffset) {
       scrollOffset = newOffset
@@ -897,13 +900,17 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   private fun extractSelectionText(): String? {
     val s = selStart ?: return null
     val e = selEnd ?: return null
-    val buffer = controller?.emulator?.buffer ?: return null
+    val emu = controller?.emulator ?: return null
     // 正規化: (r1,c1) が左上、(r2,c2) が右下になるように。
     val swap = s.row > e.row || (s.row == e.row && s.col > e.col)
     val r1 = if (swap) e.row else s.row
     val c1 = if (swap) e.col else s.col
     val r2 = if (swap) s.row else e.row
     val c2 = if (swap) s.col else e.col
+    // feed スレッドの put などと並行にセル内容が書き換わるのを避け、描画パスと同じ
+    // emulator monitor 下でまとめて読む（コピー文字列の一瞬の乱れを防ぐ）。
+    return synchronized(emu) {
+    val buffer = emu.buffer
     val sb = StringBuilder()
     for (r in r1..r2) {
       val startCol = if (r == r1) c1 else 0
@@ -921,7 +928,8 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
       while (sb.length > lineStart && sb[sb.length - 1] == ' ') sb.setLength(sb.length - 1)
       if (r < r2) sb.append('\n')
     }
-    return sb.toString()
+    sb.toString()
+    }
   }
 
   /**

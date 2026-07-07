@@ -3,9 +3,11 @@
 Opus / Sonnet への実装引き継ぎ用。調査対象コミット: `3ebbab1` (main)。
 targetSdk = 36 / minSdk = 24 / sshj 0.40.0。
 
-> **実装ステータス (2026-07-07 更新)**: 第 1 弾として P0 の全項目 + 安全な P1 のクイックウィン
-> + S-01 を実装済み (§11 に詳細)。debug ビルド・ユニットテストは通過。**未実装は F-04 / F-12 /
-> F-13 / F-14 / F-15 と S/U 系列** — いずれも大きめの機能追加か設計判断を伴うため次弾に回した (§11)。
+> **実装ステータス (2026-07-07 更新)**: 第 1 弾 (P0 全部 + 安全な P1 + S-01) に加え、第 2 弾で
+> **F-04 / F-12 / F-14 / F-15 / S-02 / S-03 / U-01 を実装済み** (§11 に詳細)。自動再接続 + tmux 再アタッチ
+> (体験としての安定性の本丸) が入った。debug ビルド・ユニットテストは通過。**残るは F-13
+> (scrollback メモリ) と U-02〜U-10 / S-04〜S-07** — 大きめの機能か運用整備。実機での動作確認は未実施
+> (ADB 未接続のため。§4 の手順で要検証)。
 
 ## 0. ユーザーが観測している症状と原因のマッピング
 
@@ -405,3 +407,51 @@ debug ビルド (`assembleDebug`) + `testDebugUnitTest` 通過を確認済み。
 
 §4 の実測手順で before/after を比較すること。特に F-01 の効果確認には Android 15+ 実機で
 6 時間超の放置テストが必要 (`dumpsys activity exit-info` に FGS timeout クラッシュが出なくなるはず)。
+
+---
+
+## 12. 実装ログ (2026-07-07 第 2 弾)
+
+debug ビルド + `testDebugUnitTest` 通過。実機確認は ADB 未接続のため未実施。
+
+### 実装済み
+
+| ID | 変更ファイル | 内容 |
+|---|---|---|
+| F-12 / U-01 | `ssh/SshSessionManager.kt`, `terminal/TerminalSessionController.kt`, `ui/terminal/TerminalScreen.kt`, `MainActivity.kt` | **自動再接続 + tmux 再アタッチ**。`SshSessionManager` に接続ポリシー層を新設: 切断(Disconnected/Failed)を検知したら「前面 かつ ネットワーク有り」を条件に 2s→4s→…→30s の指数バックオフで再接続。成功時は controller(emulator/scrollback/View 束縛)を保持したまま channel だけ差し替え(`SessionBundle.swapChannel`)、`ReconnectSpec.startup` で tmux attach を流し直す。前面/背面は `MainActivity.onStart/onStop`→`setAppForeground`、網状態は `ConnectivityManager.registerDefaultNetworkCallback` で監視。背面では再試行しない(Doze 電池浪費回避)。既存の `ConnectionDot` が再接続中(amber)/復帰(green)を表示。 |
+| F-04 | `data/prefs/AppPrefs.kt`, `ssh/SshChannel.kt`, `ui/settings/SettingsScreen.kt`, `ui/terminal/TerminalScreen.kt` | keepalive 間隔を設定化 (`keepAliveSeconds`, 既定 60s, 0=無効)。以前の 30s ハードコードを撤廃。Settings に「接続・電池」セクションで OFF/30/60/120/300s の選択 UI。初回接続・再接続の両方に適用。 |
+| F-14 | `terminal/emulator/TerminalBuffer.kt`, `terminal/emulator/TerminalEmulator.kt` | `TerminalBuffer.copyCell`(境界チェック付き)を追加し、`deleteChars`/`insertChars` の `cellAt(...).copyFrom(cellAt(...))` を置換。EMPTY_CELL センチネル破壊の潜在バグを解消。 |
+| F-15 | `terminal/view/TerminalView.kt` | `scrollBy` と `extractSelectionText` の buffer 直読を `synchronized(emulator)` で保護(描画パスと同じロック)。UI 直読の data race を解消。 |
+| S-02 | `AnotermApp.kt` (`installCrashLogger`) | 未捕捉例外を `filesDir/crash/` に保存してから既定ハンドラへ委譲。最新 20 件に丸め。テレメトリ無し環境の事後クラッシュ解析手段。 |
+| S-03 | `AnotermApp.kt` (`enableStrictMode`) | debug ビルドで StrictMode(detectNetwork + detectLeakedClosableObjects 等 / penaltyLog)。メインスレッド I/O や close 漏れを開発中に自動検出。 |
+
+### 実装上の設計判断メモ (Opus/Sonnet が続きを触るとき用)
+
+- **channel だけ差し替える方式**を採った。controller/emulator/scrollback/TerminalView 束縛を保持
+  できるので、再接続してもスクロールバックや画面状態が消えない。`SessionBundle.channel` を var 化し、
+  write ループと resize ハンドラは常にプロパティを読むので差し替えに自動追従する。
+- **秘密鍵バイトは 1 接続でゼロクリアされる** (`SshChannel.connect` の finally)。そのため
+  `ReconnectSpec.connect` は毎回 DB から host を読み直して params を作り直す。使い回し不可。
+- **resize no-op ガード (F-10) と再接続の相互作用**に注意。channel 差し替え後は
+  `controller.reassertChannelSize()` でガードをリセットして現在サイズを新 PTY に送り直す。
+  これを忘れると新しい PTY にサイズが伝わらず表示が崩れる。
+- **古い readJob の finally による誤 Disconnected を世代番号で防止**
+  (`TerminalSessionController.readGeneration`)。再接続で attachInput を張り替えると、旧 readJob の
+  finally が「新接続の Connected」を Disconnected で打ち消す race があったため、finally は
+  「自分が最新世代のときだけ」状態を触る。
+- **再接続の停止条件**: `SessionBundle.isDisposed` (closeTab/closeAll で true)。dispose が
+  reconnectJob を cancel する。ユーザ明示切断では再接続しない。
+- **未対応の設計判断 (次弾)**: (a) 再接続を諦める上限時間 (現状は前面な限り 30s 間隔で永遠に試行)。
+  (b) `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` の opt-in (Doze 中も接続維持したいユーザ向け。現状は
+  背面で切断を受け入れ前面復帰で再接続する方針)。(c) 全セッション Dead が一定時間続いたら FGS 自動停止
+  (F-07 の残り)。(d) 通知に個別セッションの接続状態を出す。
+
+### 残タスク
+
+- **F-13** scrollback メモリバジェット / Cell プリミティブ化 (多タブ×横長の LMK 対策)。
+- **S-04** release スモークテスト / CI、**S-05** SecretStore の Keystore 障害耐性、**S-06** ホスト鍵変更 UI、
+  **S-07** セッション層のユニットテスト (今回 `TerminalChannel` は interface なので fake で再接続ロジックを
+  テスト可能。書くと良い)。
+- **U-02** 通知の状態表示強化、**U-03** 前回セッション復帰導線、**U-04** ポートフォワード、**U-05** SFTP、
+  **U-06** scrollback 検索、**U-07** URL タップ、**U-08** セッションログ、**U-09** バックグラウンド動作設定ページ、
+  **U-10** セルフ診断画面。

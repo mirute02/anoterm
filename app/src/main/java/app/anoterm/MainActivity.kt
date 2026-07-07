@@ -60,6 +60,8 @@ class MainActivity : AppCompatActivity() {
 
   override fun onStart() {
     super.onStart()
+    // 前面になったことを SessionManager に通知。切断中の host タブがあればここで自動再接続が動く。
+    AnotermApp.get().sessionManager.setAppForeground(true)
     // 接続中にバックグラウンドへ移ってから接続が完了した等の理由で FGS の起動が
     // 拒否（ForegroundServiceStartNotAllowedException）されていた場合の再試行。
     // ここは確実に前面なので startForegroundService は成功する。生存セッションが
@@ -67,6 +69,12 @@ class MainActivity : AppCompatActivity() {
     if (AnotermApp.get().sessionManager.activeTabIds().isNotEmpty()) {
       app.anoterm.ssh.SshForegroundService.start(this)
     }
+  }
+
+  override fun onStop() {
+    // 背面では自動再接続を止める（Doze 下の連続失敗による電池浪費を避ける）。
+    AnotermApp.get().sessionManager.setAppForeground(false)
+    super.onStop()
   }
 
   private fun maybeRequestNotificationPermission() {

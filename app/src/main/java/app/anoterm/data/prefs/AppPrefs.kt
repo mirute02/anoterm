@@ -82,6 +82,11 @@ class AppPrefs(context: Context) {
   private val _claudeCodeFullscreen = MutableStateFlow(readClaudeCodeFullscreen())
   val claudeCodeFullscreen: StateFlow<Boolean> = _claudeCodeFullscreen.asStateFlow()
 
+  // SSH keepalive 間隔（秒）。短いほど切断検知・自動再接続が速いが、モバイル無線の
+  // ウェイクアップが増えて電池を食う。0 = 無効。既定 60 は電池と反応の折衷。
+  private val _keepAliveSeconds = MutableStateFlow(readKeepAliveSeconds())
+  val keepAliveSeconds: StateFlow<Int> = _keepAliveSeconds.asStateFlow()
+
   /** Lock 画面に遷移するかどうかを算出するためのフロー（Navigation から購読） */
   val biometricLock: Flow<Boolean>
     get() = _biometricLockEnabled.asStateFlow()
@@ -152,6 +157,12 @@ class AppPrefs(context: Context) {
     _claudeCodeFullscreen.value = enabled
   }
 
+  fun setKeepAliveSeconds(seconds: Int) {
+    val v = seconds.coerceIn(0, 600)
+    sp.edit().putInt(KEY_KEEPALIVE_SECONDS, v).apply()
+    _keepAliveSeconds.value = v
+  }
+
   fun localeList(): LocaleListCompat =
       when (_locale.value) {
         AppLocale.SYSTEM -> LocaleListCompat.getEmptyLocaleList()
@@ -213,6 +224,8 @@ class AppPrefs(context: Context) {
   private fun readClaudeCodeFullscreen(): Boolean =
       sp.getBoolean(KEY_CLAUDE_CODE_FULLSCREEN, true)
 
+  private fun readKeepAliveSeconds(): Int = sp.getInt(KEY_KEEPALIVE_SECONDS, DEFAULT_KEEPALIVE_SECONDS)
+
   private fun readCustomShortcuts(): List<CustomShortcut> {
     val raw = sp.getString(KEY_CUSTOM_SHORTCUTS, null) ?: return DEFAULT_SHORTCUTS
     return try {
@@ -237,11 +250,13 @@ class AppPrefs(context: Context) {
     private const val KEY_TERMINAL_CLIPBOARD_HISTORY_ENABLED = "terminal_clipboard_history_enabled"
     private const val KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY = "gboard_clipboard_history_probe"
     private const val KEY_CLAUDE_CODE_FULLSCREEN = "claude_code_fullscreen"
+    private const val KEY_KEEPALIVE_SECONDS = "keepalive_seconds"
 
     // Free tier の上限。Pro で解除。
     const val FREE_TIER_HOST_LIMIT = 3
     const val FREE_TIER_TAB_LIMIT = 2
     const val DEFAULT_FONT_SIZE_SP = 14f
+    const val DEFAULT_KEEPALIVE_SECONDS = 60
 
     // companion object に置くことでインスタンスプロパティの初期化順に依存しない。
     // インスタンス側の `_customShortcuts = MutableStateFlow(readCustomShortcuts())` から

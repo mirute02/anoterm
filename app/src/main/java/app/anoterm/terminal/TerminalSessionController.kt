@@ -79,6 +79,23 @@ class TerminalSessionController(
     _connectionState.value = s
   }
 
+  /** 現在の端末サイズ。再接続時に新しい PTY を同じサイズで開くために使う。 */
+  val currentCols: Int get() = emulator.buffer.cols
+  val currentRows: Int get() = emulator.buffer.rows
+
+  /**
+   * 再接続で channel を差し替えた直後に呼ぶ。resize の no-op ガード（同一サイズなら SIGWINCH を
+   * 送らない）が古いサイズを覚えたままだと、新しい PTY に現在サイズが伝わらない。ガードを
+   * リセットして今のサイズを新 channel に必ず送り直す。
+   */
+  fun reassertChannelSize() {
+    val r = emulator.buffer.rows
+    val c = emulator.buffer.cols
+    lastResizeRows = -1
+    lastResizeCols = -1
+    resize(r, c)
+  }
+
   fun setOutput(out: TerminalOutput) {
     sendOutput = out
   }
@@ -96,9 +113,16 @@ class TerminalSessionController(
     sendOutput.write(bytes)
   }
 
+  // 再接続で attachInput が張り替えられるたびに増える世代番号。古い readJob の finally が
+  // 新しい接続の Connected を Disconnected で打ち消す race を防ぐため、finally は
+  // 「自分が最新世代のときだけ」状態を Disconnected にする。
+  @Volatile
+  private var readGeneration: Int = 0
+
   /** ホストからのバイト列を読み続けるループを開始。 */
   fun attachInput(input: InputStream) {
     readJob?.cancel()
+    val myGen = ++readGeneration
     readJob =
         scope.launch {
           val buf = ByteArray(4096)
@@ -125,9 +149,12 @@ class TerminalSessionController(
               _redrawSignal.tryEmit(Unit)
             }
           } finally {
-            _connectionState.value = ConnectionState.Disconnected
-            Logger.d("CTL", "id=$debugId attachInput finished")
-            _redrawSignal.tryEmit(Unit)
+            // 自分より新しい attachInput（= 再接続）が来ていたら状態は触らない。
+            if (myGen == readGeneration) {
+              _connectionState.value = ConnectionState.Disconnected
+              _redrawSignal.tryEmit(Unit)
+            }
+            Logger.d("CTL", "id=$debugId attachInput finished gen=$myGen")
           }
         }
   }

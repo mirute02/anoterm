@@ -137,6 +137,20 @@ class TerminalBuffer(
     return rowArr[col]
   }
 
+  /**
+   * src セルの内容を dest セルへコピー。両端が範囲内のときのみ実行する。
+   * deleteChars / insertChars が以前は `cellAt(...).copyFrom(cellAt(...))` を使っていたが、
+   * cellAt は範囲外で共有シングルトン EMPTY_CELL を返すため、境界外アクセス時に
+   * センチネルを破壊して全セルの空描画が壊れる潜在バグがあった。境界内の grid 直接
+   * アクセスに限定してそれを防ぐ。
+   */
+  @Synchronized
+  fun copyCell(destRow: Int, destCol: Int, srcRow: Int, srcCol: Int) {
+    if (destRow !in 0 until rows || destCol !in 0 until cols) return
+    if (srcRow !in 0 until rows || srcCol !in 0 until cols) return
+    grid[destRow][destCol].copyFrom(grid[srcRow][srcCol])
+  }
+
   /** 1 code point を指定位置に書く。widthOf==2 なら右隣セルを continuation にする。 */
   @Synchronized
   fun put(row: Int, col: Int, codePoint: Int, style: CellStyle) {

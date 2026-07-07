@@ -70,6 +70,7 @@ import app.anoterm.R
 import app.anoterm.AnotermApp
 import app.anoterm.data.prefs.AppPrefs
 import app.anoterm.ssh.LoopbackChannel
+import app.anoterm.ssh.ReconnectSpec
 import app.anoterm.ssh.SessionBundle
 import app.anoterm.ssh.SshChannel
 import app.anoterm.terminal.ConnectionState
@@ -206,6 +207,29 @@ fun TerminalScreen(
         }
         val controller = TerminalSessionController(initialRows = 24, initialCols = 80)
         controller.setConnectionState(ConnectionState.Connecting)
+        val keepAlive = app.prefs.keepAliveSeconds.value
+        // tmux 系フィールドは auth と違い消えないので capture して再接続の startup で使う。
+        val useTmux = params.useTmux
+        val tmuxSession = params.tmuxSession
+        // 再接続手順: 切断時に channel を張り直す。秘密鍵バイトは 1 接続でゼロクリアされるため、
+        // 毎回 DB から host を読み直して params を作り直す（toConnectParams が secret を復号）。
+        val reconnectSpec =
+            ReconnectSpec(
+                connect = { cols, rows ->
+                  val h = app.database.hostDao().findById(hostId) ?: error("host removed")
+                  val p = app.hostRepository.toConnectParams(h) ?: error("secret missing")
+                  SshChannel.connect(
+                      params = p,
+                      knownHostDao = app.database.knownHostDao(),
+                      initialCols = cols,
+                      initialRows = rows,
+                      keepAliveSeconds = app.prefs.keepAliveSeconds.value,
+                  )
+                },
+                startup = {
+                  buildStartupCommand(useTmux, tmuxSession, app.prefs.claudeCodeFullscreen.value)
+                },
+            )
         try {
           val channel =
               SshChannel.connect(
@@ -213,36 +237,18 @@ fun TerminalScreen(
                   knownHostDao = app.database.knownHostDao(),
                   initialCols = 80,
                   initialRows = 24,
+                  keepAliveSeconds = keepAlive,
               )
-          val bundle = app.sessionManager.getOrCreate(tabId) { SessionBundle(controller, channel) }
+          val bundle =
+              app.sessionManager.getOrCreate(tabId) { SessionBundle(controller, channel, reconnectSpec) }
           controller.setConnectionState(ConnectionState.Connected)
           state = TabScreenState.Ready(bundle)
-          // 接続成功直後の自動投入コマンド。複数の機能を 1 行にまとめて送る。
-          // - claudeCodeFullscreen ON: `export CLAUDE_CODE_NO_FLICKER=1` を先に流す。
-          //   Claude Code の non-fullscreen モードで生じる「同じ応答が scrollback に
-          //   3〜4 重複する」現象を防ぐ。env が未参照のシェル/コマンドには無害。
-          // - claudeCodeFullscreen ON + useTmux ON: 既存 tmux session の env にも
-          //   `tmux set-environment -t <session>` で書き込む。これがないと PC 等で
-          //   既に立てていた tmux session に AnoTerm から attach した場合、
-          //   tmux の session env に変数が無いため新しい claude プロセスが env を継承できない。
-          //   `|| true` で session 不在時の失敗を握りつぶす (この場合は次の `tmux new -A`
-          //   が新規作成し、login shell の env を継承するので問題なし)。
-          // - useTmux ON: 続けて `tmux new -A -s <session>` で attach (-A = なければ作成)。
-          // この分岐は「既存 bundle がなくて新規 SSH を張った場合」にしか来ないので
-          // 2 重送信にはならない（前段の sessionManager.get(tabId) != null で早期 return 済み）。
-          val claudeCodeFullscreen = app.prefs.claudeCodeFullscreen.value
-          val parts = buildList {
-            if (claudeCodeFullscreen) add("export CLAUDE_CODE_NO_FLICKER=1")
-            if (claudeCodeFullscreen && params.useTmux) {
-              add(
-                  "tmux set-environment -t ${params.tmuxSession} CLAUDE_CODE_NO_FLICKER 1 2>/dev/null || true",
-              )
-            }
-            if (params.useTmux) add("tmux new -A -s ${params.tmuxSession}")
-          }
-          if (parts.isNotEmpty()) {
-            val cmd = parts.joinToString("; ") + "\r"
-            controller.sendToRemote(cmd.toByteArray(Charsets.US_ASCII))
+          // 接続成功直後の自動投入コマンド（tmux attach / Claude Code の fullscreen env 注入）。
+          // この分岐は「既存 bundle がなくて新規 SSH を張った場合」にしか来ないので 2 重送信にはならない
+          // （前段の sessionManager.get(tabId) != null で早期 return 済み）。再接続時は
+          // ReconnectSpec.startup が同じコマンドを流し直す。
+          buildStartupCommand(useTmux, tmuxSession, app.prefs.claudeCodeFullscreen.value)?.let {
+            controller.sendToRemote(it)
           }
         } catch (t: Throwable) {
           // 画面遷移でこの LaunchedEffect が cancel された場合の CancellationException は
@@ -648,6 +654,31 @@ private fun ErrorMessage(
 
 private fun hostIdFromTabId(tabId: String): Long? =
     tabId.removePrefix("host:").substringBefore(":").toLongOrNull()
+
+/**
+ * 接続直後（初回・再接続とも）にリモートへ流す起動コマンドを組み立てる。
+ * - claudeCodeFullscreen ON: `export CLAUDE_CODE_NO_FLICKER=1` で Claude Code を fullscreen 起動させ、
+ *   non-fullscreen モードの「同じ応答が scrollback に重複する」現象を防ぐ。無関係なシェルには無害。
+ * - claudeCodeFullscreen ON + useTmux ON: 既存 tmux session の env にも書き込む（PC で先に立てた
+ *   session に attach しても env を継承できるように）。session 不在は `|| true` で握りつぶす。
+ * - useTmux ON: `tmux new -A -s <session>` で attach（-A = 無ければ作成）。
+ * 送る物が無ければ null。
+ */
+private fun buildStartupCommand(
+    useTmux: Boolean,
+    tmuxSession: String,
+    claudeCodeFullscreen: Boolean,
+): ByteArray? {
+  val parts = buildList {
+    if (claudeCodeFullscreen) add("export CLAUDE_CODE_NO_FLICKER=1")
+    if (claudeCodeFullscreen && useTmux) {
+      add("tmux set-environment -t $tmuxSession CLAUDE_CODE_NO_FLICKER 1 2>/dev/null || true")
+    }
+    if (useTmux) add("tmux new -A -s $tmuxSession")
+  }
+  if (parts.isEmpty()) return null
+  return (parts.joinToString("; ") + "\r").toByteArray(Charsets.US_ASCII)
+}
 
 /**
  * 例外 → UI 用の無害な説明文にマップ。認証失敗時に username/host を表示しないのが要点。

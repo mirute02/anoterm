@@ -533,7 +533,7 @@ class TerminalEmulator(
   private fun deleteChars(count: Int) {
     val n = count.coerceAtMost(cols - cursorCol)
     for (c in cursorCol until cols - n) {
-      buffer.cellAt(cursorRow, c).copyFrom(buffer.cellAt(cursorRow, c + n))
+      buffer.copyCell(cursorRow, c, cursorRow, c + n)
     }
     for (c in cols - n until cols) buffer.clearCell(cursorRow, c, style)
   }
@@ -546,7 +546,7 @@ class TerminalEmulator(
   private fun insertChars(count: Int) {
     val n = count.coerceAtMost(cols - cursorCol)
     for (c in cols - 1 downTo cursorCol + n) {
-      buffer.cellAt(cursorRow, c).copyFrom(buffer.cellAt(cursorRow, c - n))
+      buffer.copyCell(cursorRow, c, cursorRow, c - n)
     }
     for (c in cursorCol until cursorCol + n) buffer.clearCell(cursorRow, c, style)
   }
