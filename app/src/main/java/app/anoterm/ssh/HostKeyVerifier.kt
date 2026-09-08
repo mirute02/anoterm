@@ -32,6 +32,14 @@ class HostKeyVerifier(
     private val dao: KnownHostDao,
     private val address: String,
     private val port: Int,
+    /**
+     * 初回接続で鍵を記録したときに、その種別と指紋を呼び出し側へ渡す。
+     *
+     * TOFU は最初の鍵を信じるしかない。信じた対象を見せなければ、利用者には
+     * 確かめる手段がない。OpenSSH が初回に指紋を出して確認を求めるのと同じ理由で、
+     * せめて「何を信頼したか」は伝える。
+     */
+    private val onFirstSeen: ((keyType: String, fingerprint: String) -> Unit)? = null,
 ) : SshjHostKeyVerifier {
 
   override fun verify(hostname: String, port: Int, key: PublicKey): Boolean {
@@ -53,6 +61,7 @@ class HostKeyVerifier(
             ),
         )
       }
+      onFirstSeen?.invoke(kt, fp)
       return true
     }
 

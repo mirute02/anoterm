@@ -38,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -115,6 +116,9 @@ fun TerminalScreen(
   var showHelp by remember { mutableStateOf(false) }
   var showHistory by remember { mutableStateOf(false) }
   var showTmux by remember { mutableStateOf(false) }
+  var showInstallKey by remember { mutableStateOf(false) }
+  // TOFU で初めて記録したホスト鍵。何を信頼したのかを利用者に見せるため。
+  var firstSeenKey by remember { mutableStateOf<Pair<String, String>?>(null) }
   var showMemo by remember { mutableStateOf(false) }
   var showDisconnectConfirm by remember { mutableStateOf(false) }
   var retryNonce by remember { mutableStateOf(0) }
@@ -218,6 +222,10 @@ fun TerminalScreen(
                       initialCols = cols,
                       initialRows = rows,
                       keepAliveSeconds = app.prefs.keepAliveSeconds.value,
+                      // 再接続では既知ホストのはずだが、鍵が入れ替わっていれば
+                      // verify が false を返して接続自体が失敗する。ここで初回扱いに
+                      // なるのは、既知ホストの記録を消したあとに繋ぎ直した場合のみ。
+                      onFirstSeenHostKey = { kt, fp -> firstSeenKey = kt to fp },
                   )
                 },
                 startup = {
@@ -232,6 +240,7 @@ fun TerminalScreen(
                   initialCols = 80,
                   initialRows = 24,
                   keepAliveSeconds = keepAlive,
+                  onFirstSeenHostKey = { kt, fp -> firstSeenKey = kt to fp },
               )
           val bundle =
               app.sessionManager.getOrCreate(tabId) { SessionBundle(controller, channel, reconnectSpec) }
@@ -351,6 +360,9 @@ fun TerminalScreen(
                 IconButton(onClick = { showTmux = true }) {
                   Icon(Icons.Filled.Dashboard, contentDescription = "tmux")
                 }
+              }
+              IconButton(onClick = { showInstallKey = true }) {
+                Icon(Icons.Filled.VpnKey, contentDescription = "公開鍵を登録")
               }
               IconButton(onClick = { showMemo = true }) {
                 Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = "メモ")
@@ -534,6 +546,31 @@ fun TerminalScreen(
       }
     }
 
+    firstSeenKey?.let { (keyType, fingerprint) ->
+      AlertDialog(
+          onDismissRequest = { firstSeenKey = null },
+          title = { Text("初めて接続するホストです") },
+          text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Text(
+                  "このホストの鍵を記録しました。以後、鍵が変わったら接続を拒否します。",
+                  style = MaterialTheme.typography.bodyMedium,
+              )
+              Text("$keyType\n$fingerprint", style = MaterialTheme.typography.bodySmall)
+              Text(
+                  "本当にその相手かを確かめるには、サーバー側で "
+                      + "ssh-keygen -lf /etc/ssh/ssh_host_${'$'}{keyType.removePrefix(\"ssh-\")}_key.pub "
+                      + "を実行し、上の指紋と一致するか見比べてください。"
+                      + "一致しない場合は、設定 → 既知のホスト から削除して接続し直すこと。",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+          },
+          confirmButton = { TextButton(onClick = { firstSeenKey = null }) { Text("OK") } },
+      )
+    }
+
     if (showHelp) HelpSheet(onDismiss = { showHelp = false })
     val readyBundle = app.sessionManager.get(currentTabId)
     if (showHistory && readyBundle != null) {
@@ -546,6 +583,19 @@ fun TerminalScreen(
           },
           onDismiss = { showHistory = false },
       )
+    }
+    if (showInstallKey) {
+      val ch = readyBundle?.channel
+      if (ch is app.anoterm.ssh.SshChannel) {
+        InstallKeySheet(
+            channel = ch,
+            hostLabel = tabLabels[currentTabId] ?: "この接続",
+            onDismiss = { showInstallKey = false },
+        )
+      } else {
+        // 未接続やループバックでは登録できない。黙って閉じるより理由を出す。
+        LaunchedEffect(Unit) { showInstallKey = false }
+      }
     }
     if (showTmux && readyBundle != null) {
       TmuxPanel(

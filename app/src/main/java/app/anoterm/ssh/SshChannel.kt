@@ -23,6 +23,11 @@ import java.io.OutputStream
  * "incomplete message" / "message authentication code incorrect" で
  * 切断される不具合が再現したため（同じ端末の Termux では正常動作）。
  */
+/** [SshChannel.exec] の結果。 */
+data class ExecResult(val exitStatus: Int, val stdout: String, val stderr: String) {
+  val isSuccess: Boolean get() = exitStatus == 0
+}
+
 class SshChannel private constructor(
     private val ssh: SSHClient,
     private val session: SshjSession,
@@ -49,6 +54,27 @@ class SshChannel private constructor(
 
   override fun isAlive(): Boolean = ssh.isConnected && shell.isOpen
 
+  /**
+   * 対話シェルとは別のセッションでコマンドを1つ実行し、終了ステータスと出力を返す。
+   *
+   * 端末に見せているシェルへ流し込むと、利用者の作業に混ざり、出力の切り出しも
+   * プロンプト頼みの当て推量になる。SSH は1接続に複数セッションを張れるので、
+   * 別セッションを開いて実行結果だけを受け取る。
+   */
+  suspend fun exec(command: String, timeoutMs: Long = 15_000): ExecResult =
+      withContext(Dispatchers.IO) {
+        val cmdSession = ssh.startSession()
+        try {
+          val cmd = cmdSession.exec(command)
+          val out = cmd.inputStream.readBytes().toString(Charsets.UTF_8)
+          val err = cmd.errorStream.readBytes().toString(Charsets.UTF_8)
+          cmd.join(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+          ExecResult(cmd.exitStatus ?: -1, out, err)
+        } finally {
+          runCatching { cmdSession.close() }
+        }
+      }
+
   fun debugState(): String =
       "sshConnected=${ssh.isConnected} shellOpen=${shell.isOpen} sessionOpen=${session.isOpen}"
 
@@ -70,6 +96,8 @@ class SshChannel private constructor(
         initialRows: Int,
         connectTimeoutMs: Int = 15_000,
         keepAliveSeconds: Int = 60,
+        /** 初回接続でホスト鍵を記録したとき、その種別と指紋を通知する。 */
+        onFirstSeenHostKey: ((keyType: String, fingerprint: String) -> Unit)? = null,
     ): SshChannel =
         withContext(Dispatchers.IO) {
           val ssh = SSHClient(hardenedConfig())
@@ -77,7 +105,7 @@ class SshChannel private constructor(
           ssh.connectTimeout = connectTimeoutMs
           ssh.timeout = connectTimeoutMs
           ssh.addHostKeyVerifier(
-              HostKeyVerifier(knownHostDao, params.address, params.port),
+              HostKeyVerifier(knownHostDao, params.address, params.port, onFirstSeenHostKey),
           )
 
           ssh.connect(params.address, params.port)
