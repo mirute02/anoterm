@@ -1,18 +1,31 @@
 # AnoTerm
 
+**日本語** | [English](README.en.md)
+
 Android 向けの SSH クライアント / ターミナルエミュレータ。Kotlin + Jetpack Compose。
+
+日本語・中国語を含む**全角文字を正しい幅で描画する**ことを主眼にしている。Android の
+ターミナルアプリで CJK を扱うと、カーソル位置がずれて表示が崩れることが多い。
+文字幅の計算と UTF-8 のデコードを自前で実装しているのはそのため。
 
 ## 機能
 
-- **ターミナルエミュレーション** — `TerminalEmulator.kt` による自前実装
-- **UTF-8 / 全角対応** — `Utf8Decoder.kt` と `CharWidth.kt` で東アジア文字幅を正しく扱う
-- **ホスト管理** — 接続先の保存（`HostRepository.kt`）
-- **認証方式** — パスワード / 秘密鍵の両対応（`AuthMethod`）
-- **秘密情報の保護** — `data/secrets/SecretStore.kt` に隔離。パスフレーズ等は端末内に保持
-- **コマンド履歴** — `CommandHistory.kt`
-- **セッション制御** — `TerminalSessionController.kt`
-- **表示カスタマイズ** — `TerminalStyle.kt` / テーマ
-- **ロケール切替** — `LocaleManager.kt`
+- **ターミナルエミュレーション** — `TerminalEmulator.kt` による実装
+- **全角・結合文字の正しい描画** — `CharWidth.kt` が East Asian Width を解決し、
+  `Utf8Decoder.kt` がサロゲートペアと不完全なバイト列を扱う
+- **接続先の管理** — ホスト・ポート・ユーザー名を保存（Room）
+- **認証** — パスワードと秘密鍵の両方。パスフレーズ付き鍵にも対応
+- **ホスト鍵の検証（TOFU）** — 初回の鍵を記録し、**変わったら接続を拒否する**
+- **資格情報の暗号化保存** — Android Keystore の鍵で `EncryptedFile`
+- **アプリロック** — 生体認証（任意）
+- **コマンド履歴**
+- **バックグラウンド接続** — フォアグラウンドサービスで画面OFF中も維持
+- **表示のカスタマイズ** — フォントサイズ、配色
+
+## 動作条件
+
+- Android 8.0 (API 26) 以上
+- JetBrains Mono を同梱しているため、端末側のフォント設定に依存しない
 
 ## ビルド
 
@@ -20,20 +33,51 @@ Android 向けの SSH クライアント / ターミナルエミュレータ。K
 ./gradlew assembleDebug
 ```
 
-`namespace` / `applicationId`: `app.anoterm`（デバッグビルドは `.debug` サフィックス）
+`namespace` / `applicationId` は `app.anoterm`（デバッグビルドは `.debug` サフィックス）。
 
-## リリースビルドについて
+### テスト
 
-署名鍵はリポジトリに含めない。`gradle.properties`（またはCI Secrets）で指定する:
+```bash
+./gradlew test
+```
+
+ターミナルエミュレーション、文字幅計算、UTF-8 デコード、IME の未確定文字列を
+対象にした単体テストがある。CI で毎回実行している。
+
+### リリースビルド
+
+署名鍵はリポジトリに含めない。`gradle.properties`（または CI の Secrets）に置く:
 
 ```properties
-WANOTERM_STORE_FILE=/path/to/release.jks
+WANOTERM_STORE_FILE=~/.android/wanoterm-upload.jks
 WANOTERM_STORE_PASSWORD=...
 WANOTERM_KEY_ALIAS=...
 WANOTERM_KEY_PASSWORD=...
 ```
 
-## 注意
+`app/build.gradle.kts` の `signingConfigs` は `project.findProperty()` 経由で読むため、
+プロパティが無い環境では署名なしビルドになる。クローン直後でもビルドが通る。
 
-SSH の秘密鍵とパスワードを扱うアプリのため、`SecretStore` 周辺を変更する際は
-鍵がログやクラッシュレポートに載らないことを必ず確認すること。
+詳細は [docs/RELEASE_SIGNING.md](docs/RELEASE_SIGNING.md)。
+
+## セキュリティ
+
+SSH クライアントは接続先の資格情報を預かり、その鍵で任意のコマンドを実行できる
+端末になる。[docs/security.md](docs/security.md) に、暗号化して保存していること、
+ホスト鍵が変わったら**警告して続行するのではなく拒否する**こと、そして端末の
+ロックを破られた場合は資格情報が取り出されうるという限界を書いてある。
+
+プライバシーポリシーは [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md)。
+
+## ライセンス
+
+MIT — [LICENSE](LICENSE) を参照。依存のライセンスは（各モジュールの POM から
+読み取って）[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) に記載。
+
+SSH は SSH Communications Security の登録商標。本プロジェクトは独立した
+クライアントであり、同社とは無関係。
+
+## 関連プロジェクト
+
+- [tvremocon](https://github.com/mirute02/tvremocon) — Tapo の赤外線ハブ経由で
+  テレビを操作する Android ウィジェット

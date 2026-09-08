@@ -3,10 +3,23 @@
 This document enumerates third-party components bundled in the released APK.
 All are compatible with Play Store distribution (closed-source permitted).
 
-## JSch (mwiede fork)
+## sshj
 
-- Source: https://github.com/mwiede/jsch
-- License: BSD-style (original) / see project LICENSE
+- Source: https://github.com/hierynomus/sshj
+- Version: 0.40.0
+- License: Apache License 2.0
+
+## Bouncy Castle (bcprov-jdk18on, bcpkix-jdk18on)
+
+- Source: https://www.bouncycastle.org/
+- Version: 1.78.1
+- License: Bouncy Castle Licence (MIT-style)
+
+## slf4j-android
+
+- Source: https://www.slf4j.org/android/
+- Version: 1.7.36
+- License: MIT
 
 ## AndroidX libraries (core, lifecycle, compose, activity, navigation3, room, biometric, security-crypto, appcompat)
 
