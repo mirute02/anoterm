@@ -84,10 +84,13 @@ class SshChannel private constructor(
 
           when (val auth = params.auth) {
             is AuthCredentials.Password -> {
-              // char[] に展開して直ちに sshj 側へ。String は immutable なので JVM の
-              // 文字列プールに残り続ける可能性はあるが、自分たちが制御できる部分は
-              // 最小限にとどめる（将来 AuthCredentials 自体を char[] ベースにする余地）。
-              ssh.authPassword(params.username, auth.value)
+              // CharArray のまま sshj へ渡し、認証が終わったら自分たちのコピーを消す。
+              // sshj 側の内部コピーは接続維持に要るので残る。
+              try {
+                ssh.authPassword(params.username, auth.value)
+              } finally {
+                auth.value.fill('\u0000')
+              }
             }
             is AuthCredentials.PrivateKey -> {
               // 秘密鍵 PEM を一度 String にして sshj に渡し、使い終わったら

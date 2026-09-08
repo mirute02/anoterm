@@ -115,7 +115,14 @@ class HostRepository(
     val existing = hostDao.findById(sourceId) ?: return -1L
     val secretId =
         when (existing.auth) {
-          AuthMethod.PASSWORD -> secrets.loadPassword(existing.secretId)?.let { secrets.putPassword(it) }
+          AuthMethod.PASSWORD ->
+              secrets.loadPassword(existing.secretId)?.let { chars ->
+                try {
+                  secrets.putPassword(chars)
+                } finally {
+                  chars.fill('\u0000')
+                }
+              }
           AuthMethod.PRIVATE_KEY ->
               secrets.loadPrivateKey(existing.secretId)?.let { (keyBytes, passphrase) ->
                 secrets.putPrivateKey(keyBytes, passphrase)

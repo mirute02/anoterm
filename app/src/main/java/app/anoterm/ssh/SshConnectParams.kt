@@ -15,9 +15,18 @@ data class SshConnectParams(
 )
 
 sealed interface AuthCredentials {
-  data class Password(val value: String) : AuthCredentials {
+  /**
+   * パスワード認証。[value] は認証後に [SshChannel] がゼロ埋めする。
+   *
+   * `String` ではなく `CharArray` なのは、使い終わった値を確実に消せるようにするため。
+   */
+  data class Password(val value: CharArray) : AuthCredentials {
     /** data class の既定 toString は中身を出す。ログに一行書かれるだけで秘密が漏れるので封じる。 */
     override fun toString(): String = "Password(redacted)"
+
+    override fun equals(other: Any?): Boolean = other is Password && value.contentEquals(other.value)
+
+    override fun hashCode(): Int = value.contentHashCode()
   }
 
   data class PrivateKey(val keyBytes: ByteArray, val passphrase: String?) : AuthCredentials {

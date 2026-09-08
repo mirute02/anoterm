@@ -27,13 +27,23 @@ class SecretStore(context: Context) {
   /** パスワードを保存し、参照 id を返す。 */
   fun putPassword(password: String): String = putBlob(Payload.Password(password).toBytes())
 
+  /** [putPassword] の `CharArray` 版。呼び出し側が元の配列をゼロ埋めできる。 */
+  fun putPassword(password: CharArray): String = putPassword(String(password))
+
   /** 秘密鍵 (+ optional passphrase) を保存し、参照 id を返す。 */
   fun putPrivateKey(keyBytes: ByteArray, passphrase: String?): String =
       putBlob(Payload.PrivateKey(keyBytes, passphrase).toBytes())
 
   /** 参照 id からパスワードを取り出す。鍵レコードの場合は null。 */
-  fun loadPassword(secretId: String): String? =
-      (loadBlob(secretId) as? Payload.Password)?.value
+  /**
+   * 参照 id からパスワードを取り出す。パスワードレコードでなければ null。
+   *
+   * `CharArray` で返すのは、使い終わったら呼び出し側でゼロ埋めできるようにするため。
+   * `String` は不変なので、いったん作ると GC されるまでヒープに残り、メモリダンプから
+   * 読める。認証に使う値は保持時間を自分で決められる形にしておく。
+   */
+  fun loadPassword(secretId: String): CharArray? =
+      (loadBlob(secretId) as? Payload.Password)?.value?.toCharArray()
 
   /** 参照 id から秘密鍵を取り出す。パスワードレコードの場合は null。 */
   fun loadPrivateKey(secretId: String): Pair<ByteArray, String?>? =

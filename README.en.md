@@ -25,6 +25,18 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 - **Background connections** — a foreground service keeps the session alive
 - **Display options** — font size, colours
 
+## Language
+
+**The UI is largely Japanese.** `strings.xml` defaults to English and a Japanese
+translation exists, but roughly 300 strings across 20 screens are written
+directly in Kotlin in Japanese and bypass the resource system — settings, key
+management, help sheets and the foreground-service notification among them.
+
+Terminal output itself is unaffected: that comes from the remote host. What is
+Japanese is the app's own chrome. If you read Japanese this is a non-issue; if
+you do not, expect to navigate by icon and position. Extracting those strings
+into resources is welcome as a contribution.
+
 ## Requirements
 
 - Android 7.0 (API 24) or later
