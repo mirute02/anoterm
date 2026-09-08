@@ -17,8 +17,16 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
   partial byte sequences
 - **Host management** — host, port and username stored in Room
 - **Authentication** — password or private key, including passphrase-protected keys
-- **Host key verification (TOFU)** — the first key is recorded, and a
-  **changed key refuses the connection**
+- **Key installation (`ssh-copy-id` equivalent)** — over a working password
+  session, the key icon appends your public key to the host's
+  `~/.ssh/authorized_keys`. Moving to key auth needs nothing but the phone.
+  Idempotent, and it does not disturb keys already there
+- **Automatic tmux attach** — set a session name on the host and the app sends
+  `tmux new -A -s <name>` after connecting (`-A` creates it if absent), so work
+  survives a dropped connection
+- **Host key verification (TOFU)** — the first key is recorded and a **changed
+  key refuses the connection**. The fingerprint is shown on that first connect
+  so you can check it against `ssh-keygen -lf` on the server
 - **Encrypted credential storage** — `EncryptedFile` under an Android Keystore key
 - **App lock** — optional biometric
 - **Command history**
