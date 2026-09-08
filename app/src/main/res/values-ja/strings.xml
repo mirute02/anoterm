@@ -73,4 +73,13 @@
     <string name="conn_failed">接続に失敗しました: %1$s</string>
 
     <string name="loopback_host_label">ローカルエコー (デバッグ)</string>
+    <string name="lock_unavailable">いまは認証を利用できません。少し待ってから試してください。</string>
+    <string name="settings_lock_grace_title">再ロックまでの時間</string>
+    <string name="settings_lock_grace_summary">背面にいてよい時間。これを超えると次に戻ったときロックが掛かります。</string>
+    <string name="settings_lock_grace_immediate">すぐに</string>
+    <string name="settings_lock_grace_30s">30 秒</string>
+    <string name="settings_lock_grace_1m">1 分</string>
+    <string name="settings_lock_grace_5m">5 分</string>
+    <string name="settings_secure_screen_title">スクリーンショットを禁止</string>
+    <string name="settings_secure_screen_summary">「最近使ったアプリ」のサムネイルにも端末画面が出なくなります。</string>
 </resources>

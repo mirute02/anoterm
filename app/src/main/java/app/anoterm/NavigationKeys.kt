@@ -21,4 +21,3 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object SshKeyList : NavKey
 
-@Serializable data object Lock : NavKey

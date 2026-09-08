@@ -62,6 +62,9 @@ class AnotermApp : Application() {
     sessionManager = SshSessionManager(applicationContext)
     hostRepository = HostRepository(database.hostDao(), secretStore)
 
+    // ロックが有効なら、プロセスが立ち上がった時点で掛かっている状態から始める。
+    app.anoterm.ui.lock.AppLock.onProcessStart(prefs.biometricLockEnabled.value)
+
     // Apply persisted locale before any Activity is created.
     AppCompatDelegate.setApplicationLocales(prefs.localeList())
   }

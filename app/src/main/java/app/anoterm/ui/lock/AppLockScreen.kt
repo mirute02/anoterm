@@ -76,11 +76,26 @@ private fun tryBiometric(
           BiometricManager.Authenticators.BIOMETRIC_STRONG or
               BiometricManager.Authenticators.DEVICE_CREDENTIAL,
       )
-  if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
-    // 利用できないなら即 unlock（Play Store 向けは後で堅くする）
-    Logger.w("Lock", "biometric not available: $canAuth — skipping")
-    onSuccess()
-    return
+  when (canAuth) {
+    BiometricManager.BIOMETRIC_SUCCESS -> Unit
+
+    // 生体もパターン/PIN も一つも登録されていない。照合する相手が存在しないので、
+    // ここで閉じるとアプリが二度と開けなくなる。開ける側に倒すが、記録は残す。
+    BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE,
+    BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+      Logger.w("Lock", "no credential enrolled on this device ($canAuth) — unlocking")
+      onSuccess()
+      return
+    }
+
+    // センサーが一時的に塞がっている、状態が読めない、などの場合。
+    // 認証は「いまはできない」だけで「不要」ではないので、通してはいけない。
+    // 端末を拾った者がセンサーを覆えば素通りできる、という穴になる。
+    else -> {
+      Logger.w("Lock", "authentication unavailable ($canAuth) — refusing to unlock")
+      onFail(activity.getString(R.string.lock_unavailable))
+      return
+    }
   }
   val prompt =
       BiometricPrompt(

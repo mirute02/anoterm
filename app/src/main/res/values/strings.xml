@@ -84,4 +84,13 @@
 
     <!-- Loopback (debug) -->
     <string name="loopback_host_label">Local echo (debug)</string>
+    <string name="lock_unavailable">Authentication is unavailable right now. Try again in a moment.</string>
+    <string name="settings_lock_grace_title">Re-lock after</string>
+    <string name="settings_lock_grace_summary">How long AnoTerm may stay in the background before it locks again.</string>
+    <string name="settings_lock_grace_immediate">Immediately</string>
+    <string name="settings_lock_grace_30s">30 seconds</string>
+    <string name="settings_lock_grace_1m">1 minute</string>
+    <string name="settings_lock_grace_5m">5 minutes</string>
+    <string name="settings_secure_screen_title">Block screenshots</string>
+    <string name="settings_secure_screen_summary">Also hides the terminal in the recent-apps thumbnail.</string>
 </resources>

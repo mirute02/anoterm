@@ -176,8 +176,6 @@ fun TerminalScreen(
       state = TabScreenState.Ready(existing)
       return@LaunchedEffect
     }
-    // Free tier のタブ上限チェック（既存タブの再利用ではない = 新規作成時のみ）
-    val currentCount = app.sessionManager.activeTabIds().size
     when {
       tabId.startsWith("loopback") -> {
         val controller = TerminalSessionController(initialRows = 24, initialCols = 80)

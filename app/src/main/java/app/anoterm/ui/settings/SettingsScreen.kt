@@ -55,6 +55,8 @@ fun SettingsScreen(
   val lineEnding by prefs.lineEnding.collectAsStateWithLifecycle()
   val locale by prefs.locale.collectAsStateWithLifecycle()
   val bioLock by prefs.biometricLockEnabled.collectAsStateWithLifecycle()
+  val lockGrace by prefs.lockGraceSeconds.collectAsStateWithLifecycle()
+  val secureScreen by prefs.secureScreen.collectAsStateWithLifecycle()
   val ambiguous by prefs.ambiguousWide.collectAsStateWithLifecycle()
   val terminalClipboardHistoryEnabled by
       prefs.terminalClipboardHistoryEnabled.collectAsStateWithLifecycle()
@@ -154,6 +156,32 @@ fun SettingsScreen(
         Text(stringResource(R.string.settings_biometric_lock))
         Switch(checked = bioLock, onCheckedChange = { prefs.setBiometricLockEnabled(it) })
       }
+      // 再ロックまでの猶予。ロックが無効なら意味がないので操作させない。
+      ListItem(
+          headlineContent = { Text(stringResource(R.string.settings_lock_grace_title)) },
+          supportingContent = {
+            Column {
+              Text(stringResource(R.string.settings_lock_grace_summary))
+              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LOCK_GRACE_CHOICES.forEach { (seconds, label) ->
+                  FilterChip(
+                      selected = lockGrace == seconds,
+                      enabled = bioLock,
+                      onClick = { prefs.setLockGraceSeconds(seconds) },
+                      label = { Text(stringResource(label)) },
+                  )
+                }
+              }
+            }
+          },
+      )
+      ListItem(
+          headlineContent = { Text(stringResource(R.string.settings_secure_screen_title)) },
+          supportingContent = { Text(stringResource(R.string.settings_secure_screen_summary)) },
+          trailingContent = {
+            Switch(checked = secureScreen, onCheckedChange = { prefs.setSecureScreen(it) })
+          },
+      )
       ListItem(
           headlineContent = { Text("ターミナルコピーを履歴に残す") },
           supportingContent = {
@@ -250,3 +278,11 @@ fun SettingsScreen(
     }
   }
 }
+
+private val LOCK_GRACE_CHOICES =
+    listOf(
+        0 to R.string.settings_lock_grace_immediate,
+        30 to R.string.settings_lock_grace_30s,
+        60 to R.string.settings_lock_grace_1m,
+        300 to R.string.settings_lock_grace_5m,
+    )

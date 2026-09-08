@@ -18,7 +18,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.Lifecycle
+import android.os.SystemClock
+import android.view.WindowManager
 import app.anoterm.theme.AnotermTheme
+import app.anoterm.ui.lock.AppLock
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -31,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     maybeRequestNotificationPermission()
+    observeSecureScreen()
     setContent {
       AnotermTheme {
         // ルート Surface にフォーカスのない領域タップで IME を閉じる動作を仕込む。
@@ -60,6 +68,14 @@ class MainActivity : AppCompatActivity() {
 
   override fun onStart() {
     super.onStart()
+    // 背面にいた時間が猶予を超えていればロックを掛け直す。SessionManager への通知より
+    // 先に判定しておく（再接続そのものは止めない。ロック画面の裏で繋がっていてよい）。
+    val prefs = AnotermApp.get().prefs
+    AppLock.onForegrounded(
+        enabled = prefs.biometricLockEnabled.value,
+        now = SystemClock.elapsedRealtime(),
+        graceSeconds = prefs.lockGraceSeconds.value,
+    )
     // 前面になったことを SessionManager に通知。切断中の host タブがあればここで自動再接続が動く。
     AnotermApp.get().sessionManager.setAppForeground(true)
     // 接続中にバックグラウンドへ移ってから接続が完了した等の理由で FGS の起動が
@@ -72,9 +88,30 @@ class MainActivity : AppCompatActivity() {
   }
 
   override fun onStop() {
+    AppLock.onBackgrounded(SystemClock.elapsedRealtime())
     // 背面では自動再接続を止める（Doze 下の連続失敗による電池浪費を避ける）。
     AnotermApp.get().sessionManager.setAppForeground(false)
     super.onStop()
+  }
+
+  /**
+   * FLAG_SECURE を設定に追従させる。
+   *
+   * これが無いと「最近使ったアプリ」のサムネイルに端末の中身がそのまま残り、
+   * 生体認証を通さずに読めてしまう。スクリーンショットも同時に禁じられる。
+   */
+  private fun observeSecureScreen() {
+    lifecycleScope.launch {
+      repeatOnLifecycle(Lifecycle.State.CREATED) {
+        AnotermApp.get().prefs.secureScreen.collect { secure ->
+          if (secure) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+          } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+          }
+        }
+      }
+    }
   }
 
   private fun maybeRequestNotificationPermission() {

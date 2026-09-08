@@ -45,6 +45,17 @@ class AppPrefs(context: Context) {
   private val _biometricLockEnabled = MutableStateFlow(readBiometricLock())
   val biometricLockEnabled: StateFlow<Boolean> = _biometricLockEnabled.asStateFlow()
 
+  // 背面に回ってから再ロックするまでの猶予。0 なら即時。
+  // 通知を見る、パスワードマネージャを開くといった数秒の離席で毎回生体認証を
+  // 求められると、利用者はロックそのものを切ってしまう。
+  private val _lockGraceSeconds = MutableStateFlow(readLockGraceSeconds())
+  val lockGraceSeconds: StateFlow<Int> = _lockGraceSeconds.asStateFlow()
+
+  // FLAG_SECURE。スクリーンショットと「最近使ったアプリ」のサムネイルを禁じる。
+  // これが無いと、生体認証を通さなくてもタスク一覧に端末の中身が見える。
+  private val _secureScreen = MutableStateFlow(readSecureScreen())
+  val secureScreen: StateFlow<Boolean> = _secureScreen.asStateFlow()
+
   private val _ambiguousWide = MutableStateFlow(readAmbiguousWide())
   val ambiguousWide: StateFlow<Boolean> = _ambiguousWide.asStateFlow()
 
@@ -111,6 +122,17 @@ class AppPrefs(context: Context) {
   fun setBiometricLockEnabled(enabled: Boolean) {
     sp.edit().putBoolean(KEY_BIO_LOCK, enabled).apply()
     _biometricLockEnabled.value = enabled
+  }
+
+  fun setLockGraceSeconds(seconds: Int) {
+    val clamped = seconds.coerceIn(0, MAX_LOCK_GRACE_SECONDS)
+    sp.edit().putInt(KEY_LOCK_GRACE_SECONDS, clamped).apply()
+    _lockGraceSeconds.value = clamped
+  }
+
+  fun setSecureScreen(enabled: Boolean) {
+    sp.edit().putBoolean(KEY_SECURE_SCREEN, enabled).apply()
+    _secureScreen.value = enabled
   }
 
   fun setAmbiguousWide(wide: Boolean) {
@@ -196,6 +218,13 @@ class AppPrefs(context: Context) {
 
   private fun readBiometricLock(): Boolean = sp.getBoolean(KEY_BIO_LOCK, false)
 
+  private fun readLockGraceSeconds(): Int =
+      sp.getInt(KEY_LOCK_GRACE_SECONDS, DEFAULT_LOCK_GRACE_SECONDS).coerceIn(0, MAX_LOCK_GRACE_SECONDS)
+
+  // 既定で有効。SSH の画面はほぼ常に人に見せたくないものが出ているので、
+  // 撮れないことより見えてしまうことの方が困る。設定で切れる。
+  private fun readSecureScreen(): Boolean = sp.getBoolean(KEY_SECURE_SCREEN, true)
+
   private fun readAmbiguousWide(): Boolean = sp.getBoolean(KEY_AMBIGUOUS_WIDE, false)
 
   private fun readLastTabId(): String? = sp.getString(KEY_LAST_TAB_ID, null)
@@ -241,10 +270,13 @@ class AppPrefs(context: Context) {
     private const val KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY = "gboard_clipboard_history_probe"
     private const val KEY_CLAUDE_CODE_FULLSCREEN = "claude_code_fullscreen"
     private const val KEY_KEEPALIVE_SECONDS = "keepalive_seconds"
+    private const val KEY_LOCK_GRACE_SECONDS = "lock_grace_seconds"
+    private const val KEY_SECURE_SCREEN = "secure_screen"
 
-    // Free tier の上限。Pro で解除。
     const val DEFAULT_FONT_SIZE_SP = 14f
     const val DEFAULT_KEEPALIVE_SECONDS = 60
+    const val DEFAULT_LOCK_GRACE_SECONDS = 30
+    const val MAX_LOCK_GRACE_SECONDS = 300
 
     // companion object に置くことでインスタンスプロパティの初期化順に依存しない。
     // インスタンス側の `_customShortcuts = MutableStateFlow(readCustomShortcuts())` から
