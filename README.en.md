@@ -42,6 +42,34 @@ into resources is welcome as a contribution.
 - Android 7.0 (API 24) or later
 - JetBrains Mono is bundled, so rendering does not depend on device fonts
 
+## Install
+
+### From the APK
+
+Download `app-release.apk` from
+[Releases](https://github.com/mirute02/wanoterm/releases) in the browser on your
+Android device and tap it — from the notification or a file manager. No PC and
+no adb needed.
+
+Android will ask you to allow installs from that source the first time. Since
+8.0 this is per-app, so allowing your browser or file manager once is enough.
+
+Because it does not come from the Play Store, Play Protect may show a
+confirmation screen. The build is self-signed; the certificate fingerprint is
+published with each release.
+
+### Building it yourself
+
+```bash
+git clone https://github.com/mirute02/wanoterm.git
+cd wanoterm
+./gradlew assembleDebug
+```
+
+The APK lands in `app/build/outputs/apk/debug/app-debug.apk`. Without signing
+properties the release variant builds unsigned and is not suitable for
+distribution.
+
 ## Build
 
 ```bash
@@ -98,8 +126,3 @@ rather than from project READMEs, are in
 
 SSH is a registered trademark of SSH Communications Security. This project is
 an independent client and is not affiliated with them.
-
-## Related
-
-- [tvremocon](https://github.com/mirute02/tvremocon) — an Android widget that
-  drives a TV through a Tapo infrared hub

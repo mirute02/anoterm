@@ -36,6 +36,31 @@ UI の大半は日本語である。`strings.xml` の既定は英語で日本語
 - Android 7.0 (API 24) 以上
 - JetBrains Mono を同梱しているため、端末側のフォント設定に依存しない
 
+## インストール
+
+### APK を入れる（推奨）
+
+[Releases](https://github.com/mirute02/wanoterm/releases) から `app-release.apk` を
+Android 端末のブラウザでダウンロードし、通知またはファイルアプリからタップする。
+PC も adb も要らない。
+
+初回は「提供元不明のアプリ」の許可を求められる。Android 8.0 以降はアプリ単位の
+許可なので、ブラウザやファイルアプリに対して一度許可すればよい。
+
+Play ストア経由ではないため、Play Protect が確認画面を出すことがある。
+署名は自己署名で、証明書のフィンガープリントは Releases に記載している。
+
+### 自分でビルドする
+
+```bash
+git clone https://github.com/mirute02/wanoterm.git
+cd wanoterm
+./gradlew assembleDebug
+```
+
+`app/build/outputs/apk/debug/app-debug.apk` ができる。
+署名鍵を持たない環境ではリリース版は署名なしになるため、配布用には使えない。
+
 ## ビルド
 
 ```bash
@@ -88,8 +113,3 @@ MIT — [LICENSE](LICENSE) を参照。依存のライセンスは（各モジ�
 
 SSH は SSH Communications Security の登録商標。本プロジェクトは独立した
 クライアントであり、同社とは無関係。
-
-## 関連プロジェクト
-
-- [tvremocon](https://github.com/mirute02/tvremocon) — Tapo の赤外線ハブ経由で
-  テレビを操作する Android ウィジェット
