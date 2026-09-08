@@ -53,12 +53,6 @@
     <string name="kbd_pgdn">PgDn</string>
 
     <!-- TOFU -->
-    <string name="tofu_new_title">Unknown host key</string>
-    <string name="tofu_new_message">The SSH server at %1$s presented a host key we have not seen before.\n\nFingerprint (%2$s):\n%3$s\n\nAccept and remember?</string>
-    <string name="tofu_changed_title">Host key CHANGED</string>
-    <string name="tofu_changed_message">WARNING: the host key for %1$s has changed.\n\nPrevious: %2$s\nCurrent: %3$s\n\nSomeone may be tampering with the connection. Accepting will overwrite the stored fingerprint.</string>
-    <string name="tofu_accept">Trust</string>
-    <string name="tofu_reject">Cancel</string>
 
     <!-- Settings -->
     <string name="settings_appearance">Appearance</string>

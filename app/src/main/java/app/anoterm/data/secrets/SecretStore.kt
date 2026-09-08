@@ -1,6 +1,7 @@
 package app.anoterm.data.secrets
 
 import android.content.Context
+import app.anoterm.util.Logger
 import androidx.security.crypto.EncryptedFile
 import androidx.security.crypto.MasterKey
 import java.io.File
@@ -52,14 +53,34 @@ class SecretStore(context: Context) {
     return secretId
   }
 
+  /**
+   * 復号して取り出す。取り出せなければ null。
+   *
+   * 復号は落ちうる：ファイルが壊れている、Keystore の鍵が端末のロック変更や
+   * 生体情報の再登録で無効化された、GCM タグが合わない、など。ここで例外を投げると
+   * 接続ボタンを押しただけでアプリが落ちるので、null を返して呼び出し側の
+   * 「secret missing」経路に合流させる。
+   *
+   * ここで復号できないレコードを消しはしない。Keystore の一時的な失敗と、
+   * 本当に復号不能になった状態を、この層では区別できないため。
+   */
   private fun loadBlob(secretId: String): Payload? {
     val file = fileFor(secretId)
     if (!file.exists()) return null
-    val enc =
-        EncryptedFile.Builder(appContext, file, masterKey, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB)
-            .build()
-    val bytes = enc.openFileInput().use { it.readBytes() }
-    return Payload.fromBytes(bytes)
+    return try {
+      val enc =
+          EncryptedFile.Builder(appContext, file, masterKey, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB)
+              .build()
+      val bytes = enc.openFileInput().use { it.readBytes() }
+      Payload.fromBytes(bytes)
+    } catch (e: java.io.IOException) {
+      // 例外オブジェクトはログに渡さない。メッセージに経路が載りうるため種別だけ記録する。
+      Logger.w("SecretStore", "decrypt failed for a stored secret (${e.javaClass.simpleName})")
+      null
+    } catch (e: java.security.GeneralSecurityException) {
+      Logger.w("SecretStore", "decrypt failed for a stored secret (${e.javaClass.simpleName})")
+      null
+    }
   }
 
   private fun fileFor(secretId: String): File = File(dir, "$secretId.bin")
@@ -69,10 +90,16 @@ private sealed interface Payload {
   fun toBytes(): ByteArray
 
   data class Password(val value: String) : Payload {
+    /** data class の既定 toString は中身を出す。ログに一行書かれるだけで秘密が漏れるので封じる。 */
+    override fun toString(): String = "Password(redacted)"
+
     override fun toBytes(): ByteArray = encode(TYPE_PASSWORD) { writeUtf8(value) }
   }
 
   data class PrivateKey(val keyBytes: ByteArray, val passphrase: String?) : Payload {
+    /** data class の既定 toString は中身を出す。ログに一行書かれるだけで秘密が漏れるので封じる。 */
+    override fun toString(): String = "PrivateKey(redacted)"
+
     override fun toBytes(): ByteArray =
         encode(TYPE_KEY) {
           writeInt(keyBytes.size)

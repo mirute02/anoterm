@@ -43,7 +43,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.anoterm.BuildConfig
 import app.anoterm.R
 import app.anoterm.AnotermApp
-import app.anoterm.data.prefs.AppPrefs
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
@@ -61,10 +60,8 @@ fun HostListScreen(
 ) {
   val state by vm.state.collectAsStateWithLifecycle()
   val app = remember { AnotermApp.get() }
-  val isPro by app.prefs.isPro.collectAsStateWithLifecycle()
   val developerMode by app.prefs.developerMode.collectAsStateWithLifecycle()
   val activeTabs by app.sessionManager.activeTabs.collectAsStateWithLifecycle()
-  var showUpgradeDialog by remember { mutableStateOf(false) }
   var disconnectTarget by remember { mutableStateOf<Pair<Long, String>?>(null) }
 
   Scaffold(
@@ -80,12 +77,7 @@ fun HostListScreen(
       },
       floatingActionButton = {
         FloatingActionButton(
-            onClick = {
-              // Free tier は 3 個までに制限。4 個目以降はアップグレードダイアログ。
-              if (!isPro && state.hosts.size >= AppPrefs.FREE_TIER_HOST_LIMIT) {
-                showUpgradeDialog = true
-              } else onAddHost()
-            },
+            onClick = onAddHost,
         ) {
           Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.hosts_add))
         }
@@ -211,33 +203,7 @@ fun HostListScreen(
       )
     }
 
-    if (showUpgradeDialog) {
-      AlertDialog(
-          onDismissRequest = { showUpgradeDialog = false },
-          title = { Text("Pro 版にアップグレード") },
-          text = {
-            Text(
-                "Free 版ではホストを ${AppPrefs.FREE_TIER_HOST_LIMIT} 個まで保存できます。\n"
-                    + "Pro 版（買い切り ¥980）で無制限に保存、tmux 統合・SFTP・ポートフォワード等が解放されます。\n\n"
-                    + "現在 Play Billing は準備中。設定画面の Pro スイッチから一時的に有効化できます。",
-            )
-          },
-          confirmButton = {
-            TextButton(
-                onClick = {
-                  showUpgradeDialog = false
-                  onOpenSettings()
-                },
-            ) {
-              Text("設定を開く")
-            }
-          },
-          dismissButton = {
-            TextButton(onClick = { showUpgradeDialog = false }) { Text("閉じる") }
-          },
-      )
-    }
-  }
+}
 }
 
 /** 認証方式を表す小さなバッジ。label の右に置いて鍵 / パス どちらで繋ぐかを一目で示す。 */

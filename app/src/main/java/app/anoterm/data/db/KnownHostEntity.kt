@@ -32,6 +32,16 @@ interface KnownHostDao {
   @Query("SELECT * FROM known_hosts WHERE address = :address AND port = :port AND key_type = :keyType LIMIT 1")
   suspend fun find(address: String, port: Int, keyType: String): KnownHostEntity?
 
+  /**
+   * ホストに対して記録済みの鍵をすべて返す（鍵種別を問わない）。
+   *
+   * 種別ごとに検索すると、ed25519 を記録済みのホストが ecdsa を提示してきたときに
+   * 「未知のホスト」と判定されて自動信頼されてしまう。中間者は提示する種別を選べるため、
+   * それは TOFU の迂回路になる。
+   */
+  @Query("SELECT * FROM known_hosts WHERE address = :address AND port = :port")
+  suspend fun findAllForHost(address: String, port: Int): List<KnownHostEntity>
+
   @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(entry: KnownHostEntity): Long
 
   @Query("DELETE FROM known_hosts WHERE id = :id") suspend fun deleteById(id: Long)

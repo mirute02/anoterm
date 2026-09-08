@@ -1,6 +1,5 @@
 package app.anoterm.ssh
 
-import net.schmizz.sshj.DefaultConfig
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.userauth.password.PasswordUtils
 
@@ -24,7 +23,7 @@ object KeyValidator {
   fun validate(pemBytes: ByteArray, passphrase: String? = null): Result<Unit> =
       runCatching {
         val pem = String(pemBytes, Charsets.UTF_8)
-        val ssh = SSHClient(DefaultConfig())
+        val ssh = SSHClient(hardenedConfig())
         try {
           val provider =
               if (passphrase != null) {

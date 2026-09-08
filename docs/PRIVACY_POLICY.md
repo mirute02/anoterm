@@ -1,10 +1,12 @@
-# wanoterm プライバシーポリシー
+# AnoTerm プライバシーポリシー
+
+<!-- リポジトリ名は wanoterm、アプリの表示名は AnoTerm。同一のものを指す。 -->
 
 最終更新: 2026-04-24
 
 ## 1. 収集するデータ
 
-wanoterm は**一切の個人情報を端末外に送信しません**。
+AnoTerm は**一切の個人情報を端末外に送信しません**。
 
 - **SSH 接続情報**（ホスト名、ユーザ名、パスワード、秘密鍵、パスフレーズ）: ユーザが入力した情報は端末内に保存され、暗号化されて SSH 接続以外の目的で使用されることはありません。
 - **Known hosts（ホスト鍵指紋）**: サーバ偽装防止のために端末内で保存します。
@@ -18,7 +20,7 @@ wanoterm は**一切の個人情報を端末外に送信しません**。
 
 ## 3. ネットワーク通信
 
-- wanoterm は SSH サーバ（ユーザが追加したホスト）に対してのみ TCP 接続を行います。
+- AnoTerm は SSH サーバ（ユーザが追加したホスト）に対してのみ TCP 接続を行います。
 - 外部サーバ（Google Analytics, Firebase, クラッシュレポート SaaS など）への通信は**一切行いません**。
 - HTTP（平文）通信は Network Security Config で禁止しています。
 
@@ -29,17 +31,16 @@ wanoterm は**一切の個人情報を端末外に送信しません**。
 - **INTERNET**: SSH サーバへの接続
 - **ACCESS_NETWORK_STATE**: 接続可否の判定
 - **USE_BIOMETRIC**: アプリロックで生体認証を使うため（任意機能）
-- **VIBRATE**: BEL（0x07）受信時の振動通知（予定）
 - **POST_NOTIFICATIONS**: SSH セッション実行中の常駐通知表示
-- **FOREGROUND_SERVICE / FOREGROUND_SERVICE_DATA_SYNC**: SSH セッションを OS に kill されないようにするため
+- **FOREGROUND_SERVICE / FOREGROUND_SERVICE_SPECIAL_USE**: SSH セッションを OS に kill されないようにするため
 
 ## 5. 広告・アナリティクス
 
-wanoterm は広告 SDK / アナリティクス SDK を一切含みません。
+AnoTerm は広告 SDK / アナリティクス SDK を一切含みません。
 
 ## 6. 第三者提供
 
-wanoterm は**第三者へのデータ提供を一切行いません**。SSH 接続先サーバはユーザ自身が指定するもので、wanoterm が管理・仲介するものではありません。
+AnoTerm は**第三者へのデータ提供を一切行いません**。SSH 接続先サーバはユーザ自身が指定するもので、AnoTerm が管理・仲介するものではありません。
 
 ## 7. 子供の保護
 

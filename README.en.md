@@ -27,7 +27,7 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 
 ## Requirements
 
-- Android 8.0 (API 26) or later
+- Android 7.0 (API 24) or later
 - JetBrains Mono is bundled, so rendering does not depend on device fonts
 
 ## Build
@@ -44,7 +44,7 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 ./gradlew test
 ```
 
-Unit tests cover terminal emulation, character width, UTF-8 decoding and IME
+43 unit tests cover terminal emulation, character width, UTF-8 decoding and IME
 composing state. CI runs them on every push.
 
 ### Release builds
@@ -53,11 +53,15 @@ Signing keys are not in the repository. Put them in `gradle.properties` or CI
 secrets:
 
 ```properties
-WANOTERM_STORE_FILE=~/.android/wanoterm-upload.jks
+WANOTERM_STORE_FILE=/absolute/path/to/release.jks
 WANOTERM_STORE_PASSWORD=...
 WANOTERM_KEY_ALIAS=...
 WANOTERM_KEY_PASSWORD=...
 ```
+
+The certificate DN is readable by anyone holding the APK, so put a project name
+there rather than your own. A key cannot be changed once you have shipped with
+it — see [docs/RELEASE_SIGNING.md](docs/RELEASE_SIGNING.md).
 
 `signingConfigs` in `app/build.gradle.kts` reads these through
 `project.findProperty()`, so a checkout without them still builds — unsigned.

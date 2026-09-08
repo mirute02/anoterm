@@ -68,7 +68,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.anoterm.BuildConfig
 import app.anoterm.R
 import app.anoterm.AnotermApp
-import app.anoterm.data.prefs.AppPrefs
 import app.anoterm.ssh.LoopbackChannel
 import app.anoterm.ssh.ReconnectSpec
 import app.anoterm.ssh.SessionBundle
@@ -108,7 +107,6 @@ fun TerminalScreen(
   val lineEnding by app.prefs.lineEnding.collectAsStateWithLifecycle()
   val activeTabs by app.sessionManager.activeTabs.collectAsStateWithLifecycle()
   val customShortcuts by app.prefs.customShortcuts.collectAsStateWithLifecycle()
-  val isPro by app.prefs.isPro.collectAsStateWithLifecycle()
   val developerMode by app.prefs.developerMode.collectAsStateWithLifecycle()
   val terminalClipboardHistoryEnabled by
       app.prefs.terminalClipboardHistoryEnabled.collectAsStateWithLifecycle()
@@ -176,10 +174,6 @@ fun TerminalScreen(
     }
     // Free tier のタブ上限チェック（既存タブの再利用ではない = 新規作成時のみ）
     val currentCount = app.sessionManager.activeTabIds().size
-    if (!isPro && currentCount >= AppPrefs.FREE_TIER_TAB_LIMIT) {
-      state = TabScreenState.Error("Free 版は同時 ${AppPrefs.FREE_TIER_TAB_LIMIT} タブまで。設定から Pro にアップグレードしてください。")
-      return@LaunchedEffect
-    }
     when {
       tabId.startsWith("loopback") -> {
         val controller = TerminalSessionController(initialRows = 24, initialCols = 80)

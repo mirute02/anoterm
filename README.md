@@ -24,7 +24,7 @@ Android 向けの SSH クライアント / ターミナルエミュレータ。K
 
 ## 動作条件
 
-- Android 8.0 (API 26) 以上
+- Android 7.0 (API 24) 以上
 - JetBrains Mono を同梱しているため、端末側のフォント設定に依存しない
 
 ## ビルド
@@ -42,18 +42,21 @@ Android 向けの SSH クライアント / ターミナルエミュレータ。K
 ```
 
 ターミナルエミュレーション、文字幅計算、UTF-8 デコード、IME の未確定文字列を
-対象にした単体テストがある。CI で毎回実行している。
+対象にした単体テストが 43 件ある。CI で毎回実行している。
 
 ### リリースビルド
 
 署名鍵はリポジトリに含めない。`gradle.properties`（または CI の Secrets）に置く:
 
 ```properties
-WANOTERM_STORE_FILE=~/.android/wanoterm-upload.jks
+WANOTERM_STORE_FILE=/absolute/path/to/release.jks
 WANOTERM_STORE_PASSWORD=...
 WANOTERM_KEY_ALIAS=...
 WANOTERM_KEY_PASSWORD=...
 ```
+
+証明書の DN は APK から誰でも読めるので、本名ではなくプロジェクト名を入れること。
+一度配布した鍵は変更できない。詳細は [docs/RELEASE_SIGNING.md](docs/RELEASE_SIGNING.md)。
 
 `app/build.gradle.kts` の `signingConfigs` は `project.findProperty()` 経由で読むため、
 プロパティが無い環境では署名なしビルドになる。クローン直後でもビルドが通る。

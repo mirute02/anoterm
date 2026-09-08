@@ -1,42 +1,89 @@
-# wanoterm リリース署名・配布フロー
+# AnoTerm リリース署名・配布フロー
 
-## 1. Upload key の生成（初回のみ）
+## 署名鍵について
+
+**一度でも配布した鍵は変更できない。** 鍵が変わったアプリは Android から別アプリとして
+扱われ、上書き更新ができなくなる。作り直せるのは、まだ誰にも配っていない間だけ。
+
+証明書の DN は **APK を入手した誰でも読める**。
 
 ```bash
-keytool -genkey -v \
-  -keystore ~/.android/wanoterm-upload.jks \
-  -alias wanoterm-upload \
-  -keyalg RSA -keysize 2048 -validity 10000
+apksigner verify --print-certs app-release.apk
+# Signer #1 certificate DN: CN=..., OU=..., O=...
 ```
 
-プロンプトで組織情報・パスワード設定。**このキーストアファイルを絶対に git にコミットしない**。
+ここに本名を入れると、公開した瞬間から取り消せない。プロジェクト名や組織名にすること。
+
+## 1. 鍵の生成（初回のみ）
+
+```bash
+keytool -genkeypair -v \
+  -keystore ~/keys/anoterm-release-v2.jks \
+  -alias anoterm \
+  -keyalg RSA -keysize 4096 \
+  -validity 10950 \
+  -dname "CN=AnoTerm, OU=AnoTerm, O=AnoTerm, L=Unknown, ST=Unknown, C=JP"
+chmod 600 ~/keys/anoterm-release-v2.jks
+```
+
+- `-dname` を明示してプロンプトを避ける。対話で入れると本名を打ちがち
+- 有効期限は配布予定期間より長く取る（30 年）
+- **キーストアを git にコミットしない**。`.gitignore` に `*.jks` がある
 
 ## 2. gradle.properties（git 管理外）
 
-ユーザホームの `~/.gradle/gradle.properties` に以下を追加:
+`~/.gradle/gradle.properties` に置く。リポジトリ内の `gradle.properties` ではない。
 
 ```
-WANOTERM_STORE_FILE=~/.android/wanoterm-upload.jks
+WANOTERM_STORE_FILE=/home/<user>/keys/anoterm-release-v2.jks
 WANOTERM_STORE_PASSWORD=<keystore password>
-WANOTERM_KEY_ALIAS=wanoterm-upload
+WANOTERM_KEY_ALIAS=anoterm
 WANOTERM_KEY_PASSWORD=<key password>
 ```
 
-`app/build.gradle.kts` は既に以下のように `project.findProperty` で参照している:
+`~` は展開されないので絶対パスで書く。
 
-```kotlin
-signingConfigs {
-  create("release") {
-    val keystorePath = (project.findProperty("WANOTERM_STORE_FILE") as String?)
-    if (keystorePath != null) {
-      storeFile = file(keystorePath)
-      storePassword = project.findProperty("WANOTERM_STORE_PASSWORD") as String?
-      keyAlias = project.findProperty("WANOTERM_KEY_ALIAS") as String?
-      keyPassword = project.findProperty("WANOTERM_KEY_PASSWORD") as String?
-    }
-  }
-}
+`app/build.gradle.kts` はこれらを `project.findProperty` 経由で読む。プロパティが
+無い環境では `signingConfigs` が素通りし、署名なしでビルドされる。CI やクローン
+直後でもビルドが通るのはそのため。
+
+## 3. ビルド
+
+```bash
+./gradlew assembleRelease
 ```
+
+`--offline` は使えない。R8 の Compose マッピング生成が追加の依存を取りに行く。
+
+出力: `app/build/outputs/apk/release/app-release.apk`
+
+## 4. 検証
+
+```bash
+apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+```
+
+確認すること:
+
+- `Verifies` が出ている
+- v2 と v3 が `true`（`build.gradle.kts` で v1/v2/v3 を明示している。
+  v1 は minSdk 24 では不要なため AGP が省くことがある）
+- **DN に本名が入っていない**
+- 証明書 SHA-256 が `~/keys/anoterm-keystore-info-v2.txt` の記録と一致する
+
+配布前に、実名やローカルパスが APK に混ざっていないことも見る:
+
+```bash
+strings app-release.apk | grep -iE "本名|/home/<user>|メールアドレス"
+```
+
+## 5. バックアップ
+
+鍵を失うと、そのアプリは二度と更新できない。
+
+- キーストアファイルとパスワードを**別々の場所**に保管する
+- パスワードをリポジトリ、共有ストレージ、チャットに置かない
+- 退役した鍵は `~/keys/retired/` に隔離し、配布には使わない
 
 ## 3. Release AAB のビルド
 

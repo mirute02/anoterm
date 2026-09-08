@@ -25,6 +25,12 @@ android {
         storePassword = project.findProperty("WANOTERM_STORE_PASSWORD") as String?
         keyAlias = project.findProperty("WANOTERM_KEY_ALIAS") as String?
         keyPassword = project.findProperty("WANOTERM_KEY_PASSWORD") as String?
+        // v2 だけだと API 24 未満で検証できず、v3 が無いと将来の鍵ローテーションが
+        // できない。minSdk 24 なので v1 は理屈上不要だが、サイドロード時に古い
+        // 検証経路を通る環境があるため付けておく。
+        enableV1Signing = true
+        enableV2Signing = true
+        enableV3Signing = true
       }
     }
   }

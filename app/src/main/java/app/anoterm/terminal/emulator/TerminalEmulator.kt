@@ -210,6 +210,9 @@ class TerminalEmulator(
     // 通常テキスト — UTF-8 デコーダへ
     val cp = utf8.feed(x.toByte()) ?: return
     writeCodePoint(cp)
+    // 途中で切れた UTF-8 シーケンスを壊したバイトは捨てず、先頭として読み直す。
+    // ESC が失われると、以降のエスケープシーケンスが本文として描画されてしまう。
+    utf8.pending()?.let { processByte(it) }
   }
 
   private fun handleC0(x: Int) {

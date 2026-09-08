@@ -162,9 +162,15 @@ class HostRepository(
 }
 
 sealed interface SecretInput {
-  data class Password(val value: String) : SecretInput
+  data class Password(val value: String) : SecretInput {
+    /** data class の既定 toString は中身を出す。ログに一行書かれるだけで秘密が漏れるので封じる。 */
+    override fun toString(): String = "Password(redacted)"
+  }
 
   data class PrivateKey(val keyBytes: ByteArray, val passphrase: String?) : SecretInput {
+    /** data class の既定 toString は中身を出す。ログに一行書かれるだけで秘密が漏れるので封じる。 */
+    override fun toString(): String = "PrivateKey(redacted)"
+
     override fun equals(other: Any?): Boolean =
         other is PrivateKey && keyBytes.contentEquals(other.keyBytes) && passphrase == other.passphrase
 

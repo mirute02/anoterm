@@ -1,5 +1,6 @@
 package app.anoterm.data.prefs
 
+import app.anoterm.util.CharWidth
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.os.LocaleListCompat
@@ -55,11 +56,6 @@ class AppPrefs(context: Context) {
   // SharedPreferences に永続化。
   private val _lastTabId = MutableStateFlow(readLastTabId())
   val lastTabId: StateFlow<String?> = _lastTabId.asStateFlow()
-
-  // Pro エンタイトルメント。Google Play Billing が有効化されるまでは SharedPreferences
-  // の値を使う。デバッグ時は設定画面から切替可能。
-  private val _isPro = MutableStateFlow(readIsPro())
-  val isPro: StateFlow<Boolean> = _isPro.asStateFlow()
 
   // 開発者モード。Loopback チャネル等のデバッグ専用 UI を出すかどうか。
   // debug ビルドでのみ Settings にトグルが出る（release では false 固定）。
@@ -120,6 +116,8 @@ class AppPrefs(context: Context) {
   fun setAmbiguousWide(wide: Boolean) {
     sp.edit().putBoolean(KEY_AMBIGUOUS_WIDE, wide).apply()
     _ambiguousWide.value = wide
+    // 描画側は CharWidth を直接引くので、設定を保持するだけでは効かない。
+    CharWidth.ambiguousWide = wide
   }
 
   fun setCustomShortcuts(list: List<CustomShortcut>) {
@@ -132,11 +130,6 @@ class AppPrefs(context: Context) {
     if (tabId == null) sp.edit().remove(KEY_LAST_TAB_ID).apply()
     else sp.edit().putString(KEY_LAST_TAB_ID, tabId).apply()
     _lastTabId.value = tabId
-  }
-
-  fun setPro(pro: Boolean) {
-    sp.edit().putBoolean(KEY_IS_PRO, pro).apply()
-    _isPro.value = pro
   }
 
   fun setDeveloperMode(enabled: Boolean) {
@@ -207,8 +200,6 @@ class AppPrefs(context: Context) {
 
   private fun readLastTabId(): String? = sp.getString(KEY_LAST_TAB_ID, null)
 
-  private fun readIsPro(): Boolean = sp.getBoolean(KEY_IS_PRO, false)
-
   private fun readDeveloperMode(): Boolean = sp.getBoolean(KEY_DEV_MODE, false)
 
   // 新規インストール時のデフォルトは true (= 履歴に残す)。SSH クライアント業界標準
@@ -245,7 +236,6 @@ class AppPrefs(context: Context) {
     private const val KEY_AMBIGUOUS_WIDE = "ambiguous_wide"
     private const val KEY_CUSTOM_SHORTCUTS = "custom_shortcuts"
     private const val KEY_LAST_TAB_ID = "last_tab_id"
-    private const val KEY_IS_PRO = "is_pro"
     private const val KEY_DEV_MODE = "developer_mode"
     private const val KEY_TERMINAL_CLIPBOARD_HISTORY_ENABLED = "terminal_clipboard_history_enabled"
     private const val KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY = "gboard_clipboard_history_probe"
@@ -253,8 +243,6 @@ class AppPrefs(context: Context) {
     private const val KEY_KEEPALIVE_SECONDS = "keepalive_seconds"
 
     // Free tier の上限。Pro で解除。
-    const val FREE_TIER_HOST_LIMIT = 3
-    const val FREE_TIER_TAB_LIMIT = 2
     const val DEFAULT_FONT_SIZE_SP = 14f
     const val DEFAULT_KEEPALIVE_SECONDS = 60
 

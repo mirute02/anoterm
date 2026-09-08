@@ -1,5 +1,6 @@
 package app.anoterm
 
+import app.anoterm.util.CharWidth
 import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
@@ -54,6 +55,8 @@ class AnotermApp : Application() {
     }
 
     prefs = AppPrefs(applicationContext)
+    // 曖昧幅の設定は描画のたびに CharWidth から読まれる。prefs を作った直後に一度渡す。
+    CharWidth.ambiguousWide = prefs.ambiguousWide.value
     database = AppDatabase.create(applicationContext)
     secretStore = SecretStore(applicationContext)
     sessionManager = SshSessionManager(applicationContext)

@@ -47,13 +47,6 @@
     <string name="kbd_pgup">PgUp</string>
     <string name="kbd_pgdn">PgDn</string>
 
-    <string name="tofu_new_title">未知のホスト鍵</string>
-    <string name="tofu_new_message">%1$s から今まで見たことのないホスト鍵が提示されました。\n\n指紋 (%2$s):\n%3$s\n\n信頼して記録しますか?</string>
-    <string name="tofu_changed_title">ホスト鍵が変化しています</string>
-    <string name="tofu_changed_message">警告: %1$s のホスト鍵が以前と異なります。\n\n以前: %2$s\n現在: %3$s\n\n通信が改竄されている可能性があります。承認すると記録を上書きします。</string>
-    <string name="tofu_accept">信頼する</string>
-    <string name="tofu_reject">取消</string>
-
     <string name="settings_appearance">外観</string>
     <string name="settings_theme">ターミナルテーマ</string>
     <string name="settings_font_size">フォントサイズ</string>

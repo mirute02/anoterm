@@ -4,7 +4,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- 通知権限（Foreground Service の常駐通知用、Android 13+ で要求） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- アプリ切替でプロセスが殺されるのを防ぎ SSH セッションを生かす -->

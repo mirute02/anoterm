@@ -37,6 +37,11 @@ class CommandHistory(private val maxEntries: Int = 50) {
         else -> {
           val cp = utf8.feed(bytes[i])
           if (cp != null && cp >= 0x20) current.appendCodePoint(cp)
+          // 壊れたシーケンスを終わらせたバイトは、そのまま次の入力として扱う。
+          utf8.pending()?.let { b ->
+            val v = b.toInt() and 0xFF
+            if (v >= 0x20) utf8.feed(b)?.let { if (it >= 0x20) current.appendCodePoint(it) }
+          }
         }
       }
       i++

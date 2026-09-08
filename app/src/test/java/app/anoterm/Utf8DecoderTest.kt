@@ -49,8 +49,11 @@ class Utf8DecoderTest {
     val dec = Utf8Decoder()
     // 0xE6 はじまり（3 byte のはず）の途中で ASCII が来た場合
     assertNull(dec.feed(0xE6.toByte()))
-    // 0x41 は継続バイトにならない → FFFD を返し、そのあとで A が再解釈される必要あり
+    // 0x41 は継続バイトにならない → FFFD を返し、0x41 自体は pending() から取り出せる
     assertEquals(0xFFFD, dec.feed(0x41.toByte()))
+    val reinterpreted = dec.pending()
+    assertEquals(0x41.toByte(), reinterpreted)
+    assertEquals('A'.code, dec.feed(reinterpreted!!))
     // 次に 'B' を渡すとそのまま通る
     assertEquals('B'.code, dec.feed('B'.code.toByte()))
   }
