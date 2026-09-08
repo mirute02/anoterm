@@ -93,4 +93,10 @@
     <string name="settings_lock_grace_5m">5 minutes</string>
     <string name="settings_secure_screen_title">Block screenshots</string>
     <string name="settings_secure_screen_summary">Also hides the terminal in the recent-apps thumbnail.</string>
+    <string name="tmux_windows">Windows</string>
+    <string name="tmux_loading">Reading tmux\u2026</string>
+    <string name="tmux_unavailable">tmux is not available: %1$s</string>
+    <string name="tmux_no_windows">No windows open.</string>
+    <string name="tmux_switch_failed">Could not switch window.</string>
+    <string name="tmux_refresh">Refresh</string>
 </resources>

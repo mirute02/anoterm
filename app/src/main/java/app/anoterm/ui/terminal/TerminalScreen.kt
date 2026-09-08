@@ -73,6 +73,7 @@ import app.anoterm.ssh.LoopbackChannel
 import app.anoterm.ssh.ReconnectSpec
 import app.anoterm.ssh.SessionBundle
 import app.anoterm.ssh.SshChannel
+import app.anoterm.ssh.TmuxController
 import app.anoterm.terminal.ConnectionState
 import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.terminal.compose.TerminalHost
@@ -599,6 +600,8 @@ fun TerminalScreen(
       TmuxPanel(
           onSend = { bytes -> readyBundle.controller.sendToRemote(bytes) },
           onDismiss = { showTmux = false },
+          // 一覧は SSH 越しにしか引けない。ループバック等では null のままボタンだけ出す。
+          channel = readyBundle.channel as? SshChannel,
       )
     }
     if (showMemo) {
@@ -706,20 +709,33 @@ private fun hostIdFromTabId(tabId: String): Long? =
  * - useTmux ON: `tmux new -A -s <session>` で attach（-A = 無ければ作成）。
  * 送る物が無ければ null。
  */
-private fun buildStartupCommand(
+internal fun buildStartupCommand(
     useTmux: Boolean,
     tmuxSession: String,
     claudeCodeFullscreen: Boolean,
 ): ByteArray? {
+  // セッション名はそのままシェルの語として並んでいた。`work log` のように空白を含む
+  // 名前は二語に割れて別のセッションを作ってしまう。引用符で囲めない名前
+  // （単一引用符や制御文字を含むもの）は tmux 部分ごと諦める。
+  val session = if (TmuxController.isSafeSessionName(tmuxSession)) tmuxSession else null
+  if (useTmux && session == null) {
+    Logger.w("Terminal", "tmux session name cannot be quoted safely — not starting tmux")
+  }
+  val withTmux = useTmux && session != null
   val parts = buildList {
     if (claudeCodeFullscreen) add("export CLAUDE_CODE_NO_FLICKER=1")
-    if (claudeCodeFullscreen && useTmux) {
-      add("tmux set-environment -t $tmuxSession CLAUDE_CODE_NO_FLICKER 1 2>/dev/null || true")
+    if (claudeCodeFullscreen && withTmux) {
+      add(
+          "tmux set-environment -t " +
+              TmuxController.quote(session!!) +
+              " CLAUDE_CODE_NO_FLICKER 1 2>/dev/null || true",
+      )
     }
-    if (useTmux) add("tmux new -A -s $tmuxSession")
+    if (withTmux) add("tmux new -A -s " + TmuxController.quote(session!!))
   }
   if (parts.isEmpty()) return null
-  return (parts.joinToString("; ") + "\r").toByteArray(Charsets.US_ASCII)
+  // 名前には非 ASCII も入りうる。US-ASCII だと '?' に潰れて別セッションになる。
+  return (parts.joinToString("; ") + "\r").toByteArray(Charsets.UTF_8)
 }
 
 /**

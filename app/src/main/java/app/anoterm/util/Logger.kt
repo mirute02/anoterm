@@ -19,14 +19,34 @@ object Logger {
   private const val TAG = "anoterm"
 
   fun d(subtag: String, msg: String) {
-    if (BuildConfig.DEBUG) Log.d(TAG, "[$subtag] $msg")
+    if (BuildConfig.DEBUG) safely { Log.d(TAG, "[$subtag] $msg") }
   }
 
   fun i(subtag: String, msg: String) {
-    if (BuildConfig.DEBUG) Log.i(TAG, "[$subtag] $msg")
+    if (BuildConfig.DEBUG) safely { Log.i(TAG, "[$subtag] $msg") }
   }
 
-  fun w(subtag: String, msg: String, t: Throwable? = null) = Log.w(TAG, "[$subtag] $msg", t)
+  fun w(subtag: String, msg: String, t: Throwable? = null) {
+    safely { Log.w(TAG, "[$subtag] $msg", t) }
+  }
 
-  fun e(subtag: String, msg: String, t: Throwable? = null) = Log.e(TAG, "[$subtag] $msg", t)
+  fun e(subtag: String, msg: String, t: Throwable? = null) {
+    safely { Log.e(TAG, "[$subtag] $msg", t) }
+  }
+
+  /**
+   * ログを書くこと自体で落ちないようにする。
+   *
+   * `android.util.Log` は JVM のユニットテストでは実装が無く、呼ぶと
+   * "not mocked" の [RuntimeException] を投げる。テストのためだけの配慮ではなく、
+   * 記録を残そうとした処理が記録に失敗して巻き添えで落ちる、というのがそもそも
+   * 筋が悪い。ここで握り潰す。
+   */
+  private inline fun safely(block: () -> Unit) {
+    try {
+      block()
+    } catch (_: Throwable) {
+      // 出力先が無い。呼び出し元の処理は続ける。
+    }
+  }
 }

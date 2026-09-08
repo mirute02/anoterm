@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ElevatedFilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -21,11 +22,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import app.anoterm.R
+import app.anoterm.ssh.SshChannel
+import app.anoterm.ssh.TmuxController
+import app.anoterm.ssh.TmuxListing
+import app.anoterm.ssh.TmuxWindow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * tmux 操作用ダッシュボードの MVP 版。
@@ -98,7 +116,12 @@ private val NUMBER_ACTIONS: List<TmuxAction> =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TmuxPanel(onSend: (ByteArray) -> Unit, onDismiss: () -> Unit) {
+fun TmuxPanel(
+    onSend: (ByteArray) -> Unit,
+    onDismiss: () -> Unit,
+    /** ウィンドウ一覧の取得に使う。null（未接続やループバック）ならボタンだけ出す。 */
+    channel: SshChannel? = null,
+) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   ModalBottomSheet(
       onDismissRequest = onDismiss,
@@ -119,6 +142,10 @@ fun TmuxPanel(onSend: (ByteArray) -> Unit, onDismiss: () -> Unit) {
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(bottom = 12.dp),
       )
+      if (channel != null) {
+        WindowList(channel)
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+      }
       ActionGroup("window", WINDOW_ACTIONS, onSend)
       HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
       ActionGroup("pane", PANE_ACTIONS, onSend)
@@ -186,4 +213,101 @@ private fun ActionGroup(title: String, actions: List<TmuxAction>, onSend: (ByteA
       }
     }
   }
+}
+
+/**
+ * サーバー側の tmux ウィンドウ一覧。
+ *
+ * 端末に `tmux list-windows` を打ち込むのではなく、別セッションで実行して
+ * 標準出力を読む（[TmuxController]）。利用者の画面に出力が混ざらない。
+ *
+ * 開いている間だけ数秒ごとに引き直す。端末側で新しいウィンドウを作られても
+ * 一覧が古いままにならないようにするためで、閉じれば止まる。
+ */
+@Composable
+private fun WindowList(channel: SshChannel) {
+  val scope = rememberCoroutineScope()
+  var listing by remember { mutableStateOf<TmuxListing?>(null) }
+  var switchFailed by remember { mutableStateOf(false) }
+  var reloadNonce by remember { mutableStateOf(0) }
+
+  LaunchedEffect(channel, reloadNonce) {
+    while (true) {
+      listing = TmuxController.listWindows(channel)
+      delay(REFRESH_INTERVAL_MS)
+    }
+  }
+
+  Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+  ) {
+    Text(
+        text = stringResource(R.string.tmux_windows),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    TextButton(onClick = { reloadNonce++ }) {
+      Text(stringResource(R.string.tmux_refresh), style = MaterialTheme.typography.labelMedium)
+    }
+  }
+
+  when (val current = listing) {
+    null ->
+        Text(
+            text = stringResource(R.string.tmux_loading),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    is TmuxListing.Unavailable ->
+        Text(
+            text = stringResource(R.string.tmux_unavailable, current.reason),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    is TmuxListing.Ok ->
+        if (current.windows.isEmpty()) {
+          Text(
+              text = stringResource(R.string.tmux_no_windows),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        } else {
+          // 複数セッションが動いていることもあるので、そのときだけ名前を出す。
+          val multipleSessions = current.windows.map { it.session }.distinct().size > 1
+          Row(
+              modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+              horizontalArrangement = Arrangement.spacedBy(6.dp),
+          ) {
+            current.windows.forEach { w ->
+              ElevatedFilterChip(
+                  selected = w.active,
+                  onClick = {
+                    scope.launch {
+                      switchFailed = !TmuxController.selectWindow(channel, w)
+                      listing = TmuxController.listWindows(channel)
+                    }
+                  },
+                  label = { Text(chipLabel(w, multipleSessions), style = MaterialTheme.typography.labelMedium) },
+              )
+            }
+          }
+        }
+  }
+
+  if (switchFailed) {
+    Text(
+        text = stringResource(R.string.tmux_switch_failed),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+    )
+  }
+}
+
+private const val REFRESH_INTERVAL_MS = 5_000L
+
+private fun chipLabel(w: TmuxWindow, withSession: Boolean): String {
+  val panes = if (w.panes > 1) " (${w.panes})" else ""
+  val prefix = if (withSession) "${w.session}:" else ""
+  return "$prefix${w.index} ${w.name}$panes"
 }

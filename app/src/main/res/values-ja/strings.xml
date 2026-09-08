@@ -82,4 +82,10 @@
     <string name="settings_lock_grace_5m">5 分</string>
     <string name="settings_secure_screen_title">スクリーンショットを禁止</string>
     <string name="settings_secure_screen_summary">「最近使ったアプリ」のサムネイルにも端末画面が出なくなります。</string>
+    <string name="tmux_windows">ウィンドウ</string>
+    <string name="tmux_loading">tmux を読み込み中\u2026</string>
+    <string name="tmux_unavailable">tmux を利用できません: %1$s</string>
+    <string name="tmux_no_windows">開いているウィンドウがありません。</string>
+    <string name="tmux_switch_failed">ウィンドウを切り替えられませんでした。</string>
+    <string name="tmux_refresh">更新</string>
 </resources>
