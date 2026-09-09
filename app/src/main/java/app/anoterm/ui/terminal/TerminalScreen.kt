@@ -153,12 +153,16 @@ fun TerminalScreen(
   // 同時に開始する。
   val tabLabels = remember { mutableStateMapOf<String, String>() }
   val remoteTitles = remember { mutableStateMapOf<String, String?>() }
+  // tmux 統合が有効なタブのセッション名。バーはこれを手掛かりに「いま見ている
+  // セッション」を決める（クライアントが複数繋がっていると自動判別できないため）。
+  val tabTmuxSessions = remember { mutableStateMapOf<String, String>() }
   LaunchedEffect(activeTabs, tabId) {
     // 閉じたタブのキャッシュを掃除。放置するとラベル/タイトルの map が session 寿命を超えて
     // 肥大化し、同じ tabId が再利用されたときに古い名前を見せてしまう事故もありうる。
     val alive = activeTabs.toSet() + tabId
     (tabLabels.keys - alive).forEach { tabLabels.remove(it) }
     (remoteTitles.keys - alive).forEach { remoteTitles.remove(it) }
+    (tabTmuxSessions.keys - alive).forEach { tabTmuxSessions.remove(it) }
 
     for (t in alive) {
       if (!tabLabels.containsKey(t)) {
@@ -169,6 +173,9 @@ fun TerminalScreen(
                 val hostId = hostIdFromTabId(t)
                 val host = hostId?.let { app.database.hostDao().findById(it) }
                 val base = host?.label ?: t.removePrefix("host:").substringBefore(":")
+                if (host?.useTmux == true) {
+                  tabTmuxSessions[t] = host.tmuxSession.ifBlank { "anoterm" }
+                }
                 // tmux 統合ホストは label に badge を付けて視覚的に区別する。
                 if (host?.useTmux == true) "$base · tmux:${host.tmuxSession.ifBlank { "anoterm" }}"
                 else base
@@ -442,6 +449,18 @@ fun TerminalScreen(
             modifier = Modifier.height(36.dp),
         )
       }
+      // tmux のウィンドウ列。SSH タブのバーと同じ場所に置くのは、どちらも
+      // 「いま見ているものを切り替える」操作で、探す場所が同じ方がよいため。
+      val tmuxBundle = app.sessionManager.get(currentTabId)
+      val tmuxChannel = tmuxBundle?.channel as? SshChannel
+      val tmuxSessionName = tabTmuxSessions[currentTabId]
+      if (tmuxChannel != null && tmuxSessionName != null) {
+        TmuxBar(
+            channel = tmuxChannel,
+            onSend = { bytes -> tmuxBundle.controller.sendToRemote(bytes) },
+            configuredSession = tmuxSessionName,
+        )
+      }
       when (val s = state) {
         is TabScreenState.Loading, is TabScreenState.Connecting ->
             Box(modifier = Modifier.weight(1f).fillMaxSize()) { ConnectingIndicator() }
@@ -629,8 +648,6 @@ fun TerminalScreen(
       TmuxPanel(
           onSend = { bytes -> readyBundle.controller.sendToRemote(bytes) },
           onDismiss = { showTmux = false },
-          // 一覧は SSH 越しにしか引けない。ループバック等では null のままボタンだけ出す。
-          channel = readyBundle.channel as? SshChannel,
       )
     }
     if (showMemo) {

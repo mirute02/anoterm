@@ -24,10 +24,13 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 - **Automatic tmux attach** — set a session name on the host and the app sends
   `tmux new -A -s <name>` after connecting (`-A` creates it if absent), so work
   survives a dropped connection
-- **tmux dashboard** — lists the windows on the server and switches between them
-  with a tap. The list comes from `list-windows` run on a separate SSH session
-  rather than typed into the terminal, so nothing lands in the middle of your
-  work. The prefix-shortcut buttons are still there
+- **tmux switcher bar** — the server's tmux windows sit in a strip under the
+  connection tabs, so **one tap reaches a window in the background** instead of
+  repeating `prefix n`. When more than one session exists, the menu on the left
+  changes which one you are attached to. The list is read over a separate SSH
+  session rather than typed into the terminal, so nothing lands in the middle of
+  your work, and it refreshes every ten seconds only while the app is in front
+- **tmux dashboard** — buttons that send prefixed shortcuts (splits, copy mode)
 - **Host key verification (TOFU)** — the first key is recorded and a **changed
   key refuses the connection**. The fingerprint is shown on that first connect
   so you can check it against `ssh-keygen -lf` on the server

@@ -321,4 +321,5 @@
     <string name="kh_fmt_ecdsa">**ECDSA**: あまり使わない。特定の会社ポリシーで必要な場合のみ。</string>
     <string name="kh_fmt_dsa">**DSA**: 非推奨・使わない</string>
     <string name="kh_fmt_pem">**OpenSSH 形式 / PEM 形式**: AnoTerm は両方読める。生成時は OpenSSH 形式がデフォルト。</string>
+    <string name="tmux_session_unknown">セッション</string>
 </resources>

@@ -1,0 +1,152 @@
+package app.anoterm.ui.terminal
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import app.anoterm.R
+import app.anoterm.ssh.SshChannel
+import app.anoterm.ssh.TmuxController
+import app.anoterm.ssh.TmuxListing
+import app.anoterm.ssh.TmuxWindow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+/**
+ * サーバー側の tmux を、端末を見ながら切り替えるバー。
+ *
+ * ボトムシートに入れていたときは「開く → 選ぶ → 閉じる」の 3 操作が要り、しかも
+ * 切り替えた結果はシートの裏に隠れていた。アプリの SSH タブが上に出ているのと
+ * 同じ理由で、ここも常に出しておく。
+ *
+ * 左が**アタッチ先**（いま見ているセッション）、右が**そのセッションのウィンドウ**。
+ * この 2 つは別の操作で、tmux 側でも別のコマンドになる。
+ */
+@Composable
+fun TmuxBar(
+    channel: SshChannel,
+    /** 端末チャネルへ直接キーを送る。`switch-client` に使う。 */
+    onSend: (ByteArray) -> Unit,
+    /** ホスト設定のセッション名。クライアントが複数いるときの手掛かりにする。 */
+    configuredSession: String,
+    modifier: Modifier = Modifier,
+) {
+  val scope = rememberCoroutineScope()
+  var listing by remember { mutableStateOf<TmuxListing?>(null) }
+  var attached by remember { mutableStateOf(configuredSession) }
+  var sessionMenuOpen by remember { mutableStateOf(false) }
+  var reloadNonce by remember { mutableStateOf(0) }
+
+  // 背面でも回し続けると、10 秒ごとに SSH のチャネルを開くことになる。
+  // SessionManager が背面で自動再接続を止めているのと同じ理由で、ここも止める。
+  val lifecycleOwner = LocalLifecycleOwner.current
+  LaunchedEffect(channel, reloadNonce, lifecycleOwner) {
+    lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+      while (true) {
+        val next = TmuxController.snapshot(channel, fallbackAttached = attached)
+        listing = next
+        if (next is TmuxListing.Ok) next.snapshot.attached?.let { attached = it }
+        delay(POLL_INTERVAL_MS)
+      }
+    }
+  }
+
+  val snapshot = (listing as? TmuxListing.Ok)?.snapshot ?: return
+  val windows = snapshot.attachedWindows
+  // 切り替える先が無いなら場所を取らせない。SSH タブのバーと同じ考え方。
+  if (windows.size <= 1 && snapshot.sessions.size <= 1) return
+
+  fun refreshSoon() {
+    scope.launch {
+      // switch-client は端末側で処理されるので、すぐ読むと切り替え前の状態が返る。
+      delay(SETTLE_MS)
+      reloadNonce++
+    }
+  }
+
+  Row(
+      modifier =
+          modifier
+              .fillMaxWidth()
+              .background(MaterialTheme.colorScheme.surfaceVariant)
+              .horizontalScroll(rememberScrollState())
+              .padding(horizontal = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(6.dp),
+  ) {
+    if (snapshot.sessions.size > 1) {
+      TextButton(onClick = { sessionMenuOpen = true }) {
+        Text(
+            text = snapshot.attached ?: stringResource(R.string.tmux_session_unknown),
+            style = MaterialTheme.typography.labelMedium,
+        )
+        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+      }
+      DropdownMenu(expanded = sessionMenuOpen, onDismissRequest = { sessionMenuOpen = false }) {
+        snapshot.sessions.forEach { name ->
+          DropdownMenuItem(
+              text = { Text(name) },
+              onClick = {
+                sessionMenuOpen = false
+                TmuxController.buildSwitchClientKeys(name)?.let(onSend)
+                refreshSoon()
+              },
+          )
+        }
+      }
+    }
+
+    windows.forEach { w ->
+      FilterChip(
+          selected = w.active,
+          onClick = {
+            scope.launch {
+              TmuxController.selectWindow(channel, w)
+              reloadNonce++
+            }
+          },
+          label = { Text(chipLabel(w), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelMedium) },
+          modifier = Modifier.height(32.dp),
+      )
+    }
+  }
+}
+
+/** 開いている間だけ引き直す。端末側で新しいウィンドウを作られても一覧が古びない。 */
+private const val POLL_INTERVAL_MS = 10_000L
+
+/** switch-client を送ってから読み直すまでの待ち。 */
+private const val SETTLE_MS = 350L
+
+private fun chipLabel(w: TmuxWindow): String {
+  val panes = if (w.panes > 1) " (" + w.panes + ")" else ""
+  return "" + w.index + " " + w.name + panes
+}

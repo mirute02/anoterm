@@ -333,4 +333,5 @@
     <string name="kh_fmt_ecdsa">**ECDSA**: rarely needed, except where a policy asks for it.</string>
     <string name="kh_fmt_dsa">**DSA**: obsolete, do not use</string>
     <string name="kh_fmt_pem">**OpenSSH and PEM**: AnoTerm reads both. New keys are written in OpenSSH format.</string>
+    <string name="tmux_session_unknown">session</string>
 </resources>

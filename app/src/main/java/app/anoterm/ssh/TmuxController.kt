@@ -15,9 +15,23 @@ data class TmuxWindow(
     get() = "=$session:$index"
 }
 
-/** ウィンドウ一覧の取得結果。 */
+/**
+ * サーバー側の tmux の状態。
+ *
+ * [attached] は「いまこの接続が見ているセッション」。分からなければ null。
+ */
+data class TmuxSnapshot(val attached: String?, val windows: List<TmuxWindow>) {
+  val sessions: List<String>
+    get() = windows.map { it.session }.distinct()
+
+  /** いま見えているセッションのウィンドウ。 */
+  val attachedWindows: List<TmuxWindow>
+    get() = windows.filter { it.session == attached }
+}
+
+/** 状態取得の結果。 */
 sealed interface TmuxListing {
-  data class Ok(val windows: List<TmuxWindow>) : TmuxListing
+  data class Ok(val snapshot: TmuxSnapshot) : TmuxListing
 
   /** tmux が入っていない、サーバーが動いていない、など。[reason] はそのまま画面に出す。 */
   data class Unavailable(val reason: String) : TmuxListing
@@ -33,6 +47,9 @@ sealed interface TmuxListing {
  */
 object TmuxController {
 
+  /** tmux の既定 prefix（Ctrl-B）。 */
+  const val PREFIX: Byte = 0x02
+
   /**
    * フィールド区切り。ユニットセパレータ (0x1F)。
    *
@@ -41,16 +58,29 @@ object TmuxController {
    */
   const val SEP = "\u001F"
 
-  private val FORMAT =
+  private const val WINDOW_TAG = "W"
+  private const val CLIENT_TAG = "C"
+
+  // 1 回の exec で両方読む。ウィンドウ一覧とアタッチ先を別々に問い合わせると
+  // チャネルを 2 本開くことになり、常時表示のバーから定期的に叩くには重い。
+  private val COMMAND =
       listOf(
-              "#{session_name}",
-              "#{window_index}",
-              "#{window_active}",
-              "#{window_panes}",
-              // 名前は最後。区切りが壊れたときに巻き込まれる範囲を狭くする。
-              "#{window_name}",
+              "tmux list-clients -F " + quote(CLIENT_TAG + SEP + "#{client_session}"),
+              "tmux list-windows -a -F " +
+                  quote(
+                      listOf(
+                              WINDOW_TAG,
+                              "#{session_name}",
+                              "#{window_index}",
+                              "#{window_active}",
+                              "#{window_panes}",
+                              // 名前は最後。区切りが壊れたときに巻き込まれる範囲を狭くする。
+                              "#{window_name}",
+                          )
+                          .joinToString(SEP),
+                  ),
           )
-          .joinToString(SEP)
+          .joinToString("; ")
 
   /**
    * セッション名をシェルに渡してよいか。
@@ -65,35 +95,58 @@ object TmuxController {
   fun quote(value: String): String = "'" + value + "'"
 
   /**
-   * `list-windows` の出力を解析する。
+   * `list-clients` と `list-windows` を混ぜた出力を解析する。
    *
    * 区切りの数が合わない行は捨てる。名前に区切り文字が入っていた場合など、
    * 解釈のしようがない行を無理に読むと、別のウィンドウを選ばせてしまう。
    */
-  fun parseWindows(stdout: String): List<TmuxWindow> =
-      stdout
-          .lineSequence()
-          .map { it.trimEnd('\r') }
-          .filter { it.isNotBlank() }
-          .mapNotNull { line ->
-            val parts = line.split(SEP)
-            if (parts.size != 5) return@mapNotNull null
-            val index = parts[1].toIntOrNull() ?: return@mapNotNull null
-            val panes = parts[3].toIntOrNull() ?: 1
-            TmuxWindow(
-                session = parts[0],
-                index = index,
-                active = parts[2] == "1",
-                panes = panes,
-                name = parts[4],
-            )
-          }
-          .toList()
+  fun parseSnapshot(stdout: String, fallbackAttached: String? = null): TmuxSnapshot {
+    val windows = mutableListOf<TmuxWindow>()
+    val clientSessions = mutableListOf<String>()
+    for (raw in stdout.lineSequence()) {
+      val parts = raw.trimEnd('\r').split(SEP)
+      when {
+        parts.size == 2 && parts[0] == CLIENT_TAG -> clientSessions += parts[1]
+        parts.size == 6 && parts[0] == WINDOW_TAG -> {
+          val index = parts[2].toIntOrNull() ?: continue
+          windows +=
+              TmuxWindow(
+                  session = parts[1],
+                  index = index,
+                  active = parts[3] == "1",
+                  panes = parts[4].toIntOrNull() ?: 1,
+                  name = parts[5],
+              )
+        }
+      }
+    }
+    // クライアントが 1 つならそれが自分。PC からも同じ tmux に繋いでいるとどれが
+    // 自分か分からないので、アプリ側が覚えている値に頼る（実在しない名前なら諦める）。
+    val attached =
+        clientSessions.singleOrNull()
+            ?: fallbackAttached?.takeIf { name -> windows.any { it.session == name } }
+    return TmuxSnapshot(attached = attached, windows = windows)
+  }
 
-  /** 全セッションのウィンドウを列挙する。 */
-  suspend fun listWindows(channel: SshChannel): TmuxListing {
+  /**
+   * アタッチ先を切り替えるキー列。安全でない名前なら null。
+   *
+   * prefix → `:` で tmux のコマンドプロンプトを開き、`switch-client` を打って改行する。
+   * これを読むのはシェルではなく tmux なので、利用者のコマンドラインには何も残らない。
+   *
+   * `exec` から `switch-client` を投げないのは、どのクライアントを動かすかを
+   * 指定できないため。PC からも同じセッションに繋いでいると、そちらが切り替わる。
+   */
+  fun buildSwitchClientKeys(session: String): ByteArray? {
+    if (!isSafeSessionName(session)) return null
+    val command = ":switch-client -t " + quote("=" + session) + "\r"
+    return byteArrayOf(PREFIX) + command.toByteArray(Charsets.UTF_8)
+  }
+
+  /** サーバー側の状態を読む。 */
+  suspend fun snapshot(channel: SshChannel, fallbackAttached: String? = null): TmuxListing {
     val result =
-        runCatching { channel.exec("tmux list-windows -a -F " + quote(FORMAT)) }
+        runCatching { channel.exec(COMMAND) }
             .getOrElse { return TmuxListing.Unavailable(it.message ?: "failed to run tmux") }
     if (!result.isSuccess) {
       // tmux が無ければシェルが "command not found" を、サーバー未起動なら tmux 自身が
@@ -101,17 +154,27 @@ object TmuxController {
       val reason = result.stderr.trim().ifEmpty { "tmux exited with ${result.exitStatus}" }
       return TmuxListing.Unavailable(reason.lineSequence().first())
     }
-    val windows = parseWindows(result.stdout)
-    val lines = result.stdout.lineSequence().count { it.isNotBlank() }
-    if (windows.size != lines) {
+    val snapshot = parseSnapshot(result.stdout, fallbackAttached)
+    val total = result.stdout.lineSequence().count { it.isNotBlank() }
+    val clients = result.stdout.lineSequence().count { line ->
+      val parts = line.trimEnd('\r').split(SEP)
+      parts.size == 2 && parts[0] == CLIENT_TAG
+    }
+    val understood = snapshot.windows.size + clients
+    if (total > understood) {
       // 解釈できなかった行は黙って捨てている（読み違えて別のウィンドウを選ばせない
       // ための判断）。捨てたこと自体は残しておかないと、一覧が欠ける理由が追えない。
-      Logger.w("Tmux", "dropped ${lines - windows.size} unparsable list-windows line(s)")
+      Logger.w("Tmux", "dropped ${total - understood} unparsable line(s)")
     }
-    return TmuxListing.Ok(windows)
+    return TmuxListing.Ok(snapshot)
   }
 
-  /** ウィンドウを切り替える。成功したかどうかだけ返す。 */
+  /**
+   * 同じアタッチの中でウィンドウを切り替える。成功したかどうかだけ返す。
+   *
+   * クライアントは自分のセッションのカレントウィンドウを映すので、別セッションから
+   * `select-window` を投げても表示は追随する。
+   */
   suspend fun selectWindow(channel: SshChannel, window: TmuxWindow): Boolean {
     if (!isSafeSessionName(window.session)) {
       Logger.w("Tmux", "refusing to switch to a session whose name cannot be quoted")
