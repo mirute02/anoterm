@@ -183,9 +183,9 @@ fun SettingsScreen(
           },
       )
       ListItem(
-          headlineContent = { Text("ターミナルコピーを履歴に残す") },
+          headlineContent = { Text(stringResource(R.string.settings_clipboard_history)) },
           supportingContent = {
-            Text("Gboard履歴に出やすくなります。ONではIMEの個人学習抑止を外します。")
+            Text(stringResource(R.string.settings_clipboard_history_summary))
           },
           trailingContent = {
             Switch(
@@ -195,11 +195,10 @@ fun SettingsScreen(
           },
       )
       ListItem(
-          headlineContent = { Text("Claude Code 互換モード") },
+          headlineContent = { Text(stringResource(R.string.settings_claude_code)) },
           supportingContent = {
             Text(
-                "接続時に CLAUDE_CODE_NO_FLICKER=1 を送って Claude Code を fullscreen で起動。"
-                    + "scrollback に同じ応答が複数回積まれるのを防ぎます。",
+                stringResource(R.string.settings_claude_code_summary),
             )
           },
           trailingContent = {
@@ -214,22 +213,22 @@ fun SettingsScreen(
           modifier = Modifier.clickable { onOpenKnownHosts() },
       )
       ListItem(
-          headlineContent = { Text("カスタムショートカット") },
+          headlineContent = { Text(stringResource(R.string.shortcuts_title)) },
           modifier = Modifier.clickable { onOpenCustomShortcuts() },
       )
       // SSH 鍵は以前 3 項目 (一覧/作成/使い方) に分かれていたが、一覧画面から
       // 作成 FAB・ヘルプアイコンでそれぞれに入れるよう統合。導線を 1 本化。
       ListItem(
-          headlineContent = { Text("SSH 鍵") },
-          supportingContent = { Text("一覧・作成・使い方（サーバ登録の手順付き）") },
+          headlineContent = { Text(stringResource(R.string.settings_ssh_keys)) },
+          supportingContent = { Text(stringResource(R.string.settings_ssh_keys_summary)) },
           modifier = Modifier.clickable { onOpenSshKeyList() },
       )
 
       HorizontalDivider()
-      Text("接続・電池", style = MaterialTheme.typography.titleMedium)
-      Text("キープアライブ間隔", style = MaterialTheme.typography.bodyMedium)
+      Text(stringResource(R.string.settings_connection), style = MaterialTheme.typography.titleMedium)
+      Text(stringResource(R.string.settings_keepalive), style = MaterialTheme.typography.bodyMedium)
       Text(
-          "短いほど切断検知と自動再接続が速く、長いほど省電力（無線ウェイクアップが減る）。0 で無効。",
+          stringResource(R.string.settings_keepalive_summary),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -246,7 +245,7 @@ fun SettingsScreen(
         }
       }
       Text(
-          "切断されたセッションは、アプリを前面に戻すと自動で再接続を試みます（tmux ホストは再アタッチ）。",
+          stringResource(R.string.settings_autoreconnect_summary),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -271,7 +270,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-          Text("開発者モード（Loopback を表示）")
+          Text(stringResource(R.string.settings_developer_mode))
           Switch(checked = devMode, onCheckedChange = { prefs.setDeveloperMode(it) })
         }
       }

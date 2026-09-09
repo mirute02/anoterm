@@ -33,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import app.anoterm.R
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,7 +53,7 @@ fun CustomShortcutsScreen(onBack: () -> Unit) {
   Scaffold(
       topBar = {
         TopAppBar(
-            title = { Text("カスタムショートカット") },
+            title = { Text(stringResource(R.string.shortcuts_title)) },
             navigationIcon = {
               IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -66,7 +68,7 @@ fun CustomShortcutsScreen(onBack: () -> Unit) {
               editIndex = -1
               showDialog = true
             },
-        ) { Icon(Icons.Filled.Add, contentDescription = "追加") }
+        ) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_add)) }
       },
   ) { inner ->
     if (list.isEmpty()) {
@@ -75,7 +77,7 @@ fun CustomShortcutsScreen(onBack: () -> Unit) {
           contentAlignment = Alignment.Center,
       ) {
         Text(
-            "右下の + からショートカットを追加",
+            stringResource(R.string.shortcuts_empty),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
@@ -130,20 +132,26 @@ private fun EditDialog(
 
   AlertDialog(
       onDismissRequest = onDismiss,
-      title = { Text(if (initial.label.isEmpty()) "ショートカットを追加" else "編集") },
+      title = {
+        Text(
+            stringResource(
+                if (initial.label.isEmpty()) R.string.shortcuts_add else R.string.shortcuts_edit,
+            ),
+        )
+      },
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
           OutlinedTextField(
               value = label,
               onValueChange = { label = it.take(12) },
-              label = { Text("ラベル（最大 12 文字）") },
+              label = { Text(stringResource(R.string.shortcuts_label)) },
               singleLine = true,
               modifier = Modifier.fillMaxWidth(),
           )
           OutlinedTextField(
               value = text,
               onValueChange = { text = it },
-              label = { Text("送信する文字列") },
+              label = { Text(stringResource(R.string.shortcuts_text)) },
               modifier = Modifier.fillMaxWidth(),
           )
           Row(
@@ -151,7 +159,7 @@ private fun EditDialog(
               horizontalArrangement = Arrangement.spacedBy(4.dp),
           ) {
             Checkbox(checked = enter, onCheckedChange = { enter = it })
-            Text("送信後に Enter を付ける（タップで即実行）")
+            Text(stringResource(R.string.shortcuts_append_enter))
           }
         }
       },
@@ -159,8 +167,8 @@ private fun EditDialog(
         TextButton(
             enabled = label.isNotBlank() && text.isNotEmpty(),
             onClick = { onSave(CustomShortcut(label.trim(), text, enter)) },
-        ) { Text("保存") }
+        ) { Text(stringResource(R.string.action_save)) }
       },
-      dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
   )
 }

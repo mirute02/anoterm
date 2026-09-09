@@ -36,9 +36,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import app.anoterm.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
 import app.anoterm.AnotermApp
 import app.anoterm.data.db.SshKeyEntity
 import app.anoterm.ssh.KeyValidator
@@ -56,9 +59,10 @@ import org.bouncycastle.crypto.util.PrivateKeyFactory
 import org.bouncycastle.util.io.pem.PemObject
 import org.bouncycastle.util.io.pem.PemWriter
 
-enum class KeyAlgo(val display: String, val jceName: String) {
-  ED25519("Ed25519 (推奨)", "Ed25519"),
-  RSA_4096("RSA 4096 (互換性優先)", "RSA"),
+/** enum は Composable の外にあるので、表示名は文字列ではなくリソース ID で持つ。 */
+enum class KeyAlgo(@StringRes val display: Int, val jceName: String) {
+  ED25519(R.string.keygen_ed25519, "Ed25519"),
+  RSA_4096(R.string.keygen_rsa, "RSA"),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,6 +72,9 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
   val app = remember { AnotermApp.get() }
   val scope = rememberCoroutineScope()
   var algo by remember { mutableStateOf(KeyAlgo.ED25519) }
+  // 下の生成処理は Composable スコープの外で走る。文言はここで引いておく。
+  val unreadableMessage = stringResource(R.string.keygen_unreadable)
+  val generateFailed = stringResource(R.string.keygen_failed)
   var label by remember { mutableStateOf("") }
   var comment by remember { mutableStateOf("") }
   var passphrase by remember { mutableStateOf("") }
@@ -78,7 +85,7 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
   Scaffold(
       topBar = {
         TopAppBar(
-            title = { Text("SSH 鍵を作成") },
+            title = { Text(stringResource(R.string.keygen_title)) },
             navigationIcon = {
               IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -97,12 +104,12 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Text("鍵の種類", style = MaterialTheme.typography.titleMedium)
+      Text(stringResource(R.string.keygen_type), style = MaterialTheme.typography.titleMedium)
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         KeyAlgo.values().forEach { k ->
           AssistChip(
               onClick = { algo = k },
-              label = { Text(k.display) },
+              label = { Text(stringResource(k.display)) },
               colors =
                   if (algo == k)
                       androidx.compose.material3.AssistChipDefaults.assistChipColors(
@@ -116,19 +123,19 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
       OutlinedTextField(
           value = label,
           onValueChange = { label = it },
-          label = { Text("鍵の名前（例: work_ed25519, personal）") },
+          label = { Text(stringResource(R.string.keygen_name)) },
           modifier = Modifier.fillMaxWidth(),
       )
       OutlinedTextField(
           value = comment,
           onValueChange = { comment = it },
-          label = { Text("コメント（メールアドレス等、公開鍵に残る）") },
+          label = { Text(stringResource(R.string.keygen_comment)) },
           modifier = Modifier.fillMaxWidth(),
       )
       OutlinedTextField(
           value = passphrase,
           onValueChange = { passphrase = it },
-          label = { Text("passphrase（空でも可）") },
+          label = { Text(stringResource(R.string.keygen_passphrase)) },
           modifier = Modifier.fillMaxWidth(),
       )
 
@@ -149,7 +156,7 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
                       )
                   if (v.isFailure) {
                     throw IllegalStateException(
-                        "生成した鍵が AnoTerm で読めませんでした: "
+                        unreadableMessage
                             + (v.exceptionOrNull()?.message ?: "unknown"),
                     )
                   }
@@ -183,14 +190,14 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
                     }
                     generated = g
                   }
-                  .onFailure { error = it.message ?: "鍵生成に失敗しました" }
+                  .onFailure { error = it.message ?: generateFailed }
               busy = false
             }
           },
           enabled = !busy,
           modifier = Modifier.fillMaxWidth(),
       ) {
-        Text(if (busy) "作成中..." else "鍵を作成")
+        Text(stringResource(if (busy) R.string.keygen_working else R.string.keygen_create))
       }
 
       error?.let {
@@ -199,10 +206,9 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
 
       generated?.let { g ->
         HorizontalDivider()
-        Text("作成完了 ✓", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.keygen_done), style = MaterialTheme.typography.titleMedium)
         Text(
-            "秘密鍵は端末内に暗号化保存されました。以下の公開鍵を SSH サーバの "
-                + "~/.ssh/authorized_keys に追記してください。",
+            stringResource(R.string.keygen_done_body),
             style = MaterialTheme.typography.bodyMedium,
         )
         Text(
@@ -220,22 +226,22 @@ fun SshKeyGenScreen(onBack: () -> Unit) {
           Button(onClick = {
             val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             cm.setPrimaryClip(ClipData.newPlainText("ssh public key", g.publicSsh))
-            Toast.makeText(ctx, "公開鍵をコピーしました", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, ctx.getString(R.string.keygen_copied), Toast.LENGTH_SHORT).show()
           }) {
-            Text("コピー")
+            Text(stringResource(R.string.action_copy))
           }
           Button(
               onClick = {
                 val i = Intent(Intent.ACTION_SEND).apply {
                   type = "text/plain"
-                  putExtra(Intent.EXTRA_SUBJECT, "SSH 公開鍵 (AnoTerm)")
+                  putExtra(Intent.EXTRA_SUBJECT, ctx.getString(R.string.keygen_share_subject))
                   putExtra(Intent.EXTRA_TEXT, g.publicSsh)
                 }
-                ctx.startActivity(Intent.createChooser(i, "公開鍵を送る"))
+                ctx.startActivity(Intent.createChooser(i, ctx.getString(R.string.keygen_share_title)))
               },
               colors = ButtonDefaults.outlinedButtonColors(),
           ) {
-            Text("共有")
+            Text(stringResource(R.string.action_share))
           }
         }
       }

@@ -22,6 +22,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import app.anoterm.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -49,7 +51,7 @@ fun HistorySheet(
   ) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
       Text(
-          text = "最近のコマンド",
+          text = stringResource(R.string.history_title),
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.primary,
           modifier = Modifier.padding(bottom = 8.dp),
@@ -58,7 +60,7 @@ fun HistorySheet(
         Box(
             modifier = Modifier.fillMaxWidth().padding(32.dp),
             contentAlignment = Alignment.Center,
-        ) { Text("まだ履歴がありません", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        ) { Text(stringResource(R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant) }
       } else {
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(2.dp),

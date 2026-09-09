@@ -91,7 +91,7 @@ fun HostListScreen(
           ListItem(
               leadingContent = { Icon(Icons.Outlined.Computer, contentDescription = null) },
               headlineContent = { Text(stringResource(R.string.loopback_host_label)) },
-              supportingContent = { Text("echo back / IME 動作確認用 (長押しで新規)") },
+              supportingContent = { Text(stringResource(R.string.host_loopback_summary)) },
               modifier =
                   Modifier.fillMaxWidth().combinedClickable(
                       onClick = { onOpenTerminal("loopback") },
@@ -118,7 +118,7 @@ fun HostListScreen(
                   if (connected) {
                     Icon(
                         imageVector = Icons.Outlined.Computer,
-                        contentDescription = "接続中",
+                        contentDescription = stringResource(R.string.host_connected),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp).padding(end = 4.dp),
                     )
@@ -135,7 +135,7 @@ fun HostListScreen(
               },
               supportingContent = {
                 Text(
-                    "${h.username}@${h.address}:${h.port} · 長押しで新規接続",
+                    stringResource(R.string.host_summary, h.username, h.address, h.port),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -148,7 +148,7 @@ fun HostListScreen(
                     ) {
                       Icon(
                           Icons.Filled.PowerSettingsNew,
-                          contentDescription = "切断",
+                          contentDescription = stringResource(R.string.host_disconnect),
                           tint = MaterialTheme.colorScheme.error,
                       )
                     }
@@ -176,11 +176,10 @@ fun HostListScreen(
     disconnectTarget?.let { (targetId, targetLabel) ->
       AlertDialog(
           onDismissRequest = { disconnectTarget = null },
-          title = { Text("切断しますか?") },
+          title = { Text(stringResource(R.string.host_disconnect_title)) },
           text = {
             Text(
-                "${targetLabel} への SSH 接続を終了します。tmux 統合中の場合、リモート側の "
-                    + "セッションは残るので次回接続時に続きから再開できます。",
+                stringResource(R.string.host_disconnect_body, targetLabel),
             )
           },
           confirmButton = {
@@ -194,11 +193,11 @@ fun HostListScreen(
                   disconnectTarget = null
                 },
             ) {
-              Text("切断", color = MaterialTheme.colorScheme.error)
+              Text(stringResource(R.string.host_disconnect), color = MaterialTheme.colorScheme.error)
             }
           },
           dismissButton = {
-            TextButton(onClick = { disconnectTarget = null }) { Text("キャンセル") }
+            TextButton(onClick = { disconnectTarget = null }) { Text(stringResource(R.string.action_cancel)) }
           },
       )
     }

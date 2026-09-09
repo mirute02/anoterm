@@ -39,6 +39,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import app.anoterm.R
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.anoterm.AnotermApp
@@ -99,13 +101,14 @@ fun MemoSheet(
         modifier = Modifier.fillMaxWidth().padding(16.dp).imePadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Text("メモ", style = MaterialTheme.typography.titleLarge)
+      val memoExplanation = stringResource(R.string.memo_explanation)
+      val memoScope = stringResource(R.string.memo_scope)
+      Text(stringResource(R.string.memo_title), style = MaterialTheme.typography.titleLarge)
       Text(
           buildString {
-            append("ターミナル作業中の覚書を残せます。done で取り消し線、todo としても使えます。\n")
-            append("メモをタップで編集 / コピー。")
+            append(memoExplanation)
             if (contextLabel != null) {
-              append("\nスコープ: ")
+              append(memoScope)
               append(contextLabel)
             }
           },
@@ -115,7 +118,7 @@ fun MemoSheet(
       OutlinedTextField(
           value = draft,
           onValueChange = { draft = it },
-          label = { Text("メモを書く") },
+          label = { Text(stringResource(R.string.memo_write)) },
           modifier = Modifier.fillMaxWidth(),
           minLines = 3,
           // 8 行を超えたらフィールド内でスクロール。これがないと TextField が無限に伸び続け、
@@ -133,9 +136,9 @@ fun MemoSheet(
               draft = ""
             },
         ) {
-          Text("保存")
+          Text(stringResource(R.string.action_save))
         }
-        TextButton(onClick = onDismiss) { Text("閉じる") }
+        TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
       }
 
       val doneCount = memos.count { it.status == "done" }
@@ -144,11 +147,14 @@ fun MemoSheet(
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
       ) {
-        Text("メモ一覧 (${memos.size})", style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.memo_list, memos.size),
+            style = MaterialTheme.typography.titleMedium,
+        )
         if (doneCount > 0) {
           TextButton(
               onClick = { scope.launch(Dispatchers.IO) { dao.purgeDone() } },
-          ) { Text("完了済み ${doneCount} 件を削除") }
+          ) { Text(stringResource(R.string.memo_delete_done, doneCount)) }
         }
       }
       LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -182,7 +188,8 @@ fun MemoSheet(
           val cm = androidContext.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
           if (cm != null) {
             cm.setPrimaryClip(ClipData.newPlainText("anoterm memo", body))
-            Toast.makeText(androidContext, "メモをコピーしました", Toast.LENGTH_SHORT).show()
+            Toast.makeText(androidContext, androidContext.getString(R.string.memo_copied), Toast.LENGTH_SHORT)
+                .show()
           }
         },
     )
@@ -201,7 +208,7 @@ private fun MemoEditDialog(
 
   AlertDialog(
       onDismissRequest = onDismiss,
-      title = { Text("メモを編集") },
+      title = { Text(stringResource(R.string.memo_edit)) },
       text = {
         OutlinedTextField(
             value = draft,
@@ -215,7 +222,7 @@ private fun MemoEditDialog(
         TextButton(
             onClick = { onUpdate(draft.trim()) },
             enabled = isDirty,
-        ) { Text("更新") }
+        ) { Text(stringResource(R.string.action_update)) }
       },
       dismissButton = {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -228,9 +235,9 @@ private fun MemoEditDialog(
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
             )
-            Text(" コピー")
+            Text(" " + stringResource(R.string.action_copy))
           }
-          TextButton(onClick = onDismiss) { Text("閉じる") }
+          TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
         }
       },
   )
