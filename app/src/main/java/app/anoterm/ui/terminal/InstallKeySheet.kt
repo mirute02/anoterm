@@ -1,5 +1,7 @@
 package app.anoterm.ui.terminal
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,8 +23,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.anoterm.AnotermApp
+import app.anoterm.R
 import app.anoterm.data.db.SshKeyEntity
 import app.anoterm.ssh.AuthorizedKeyInstaller
 import app.anoterm.ssh.SshChannel
@@ -38,6 +43,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun InstallKeySheet(channel: SshChannel, hostLabel: String, onDismiss: () -> Unit) {
   val app = remember { AnotermApp.get() }
+  val context = LocalContext.current
   val scope = rememberCoroutineScope()
   var keys by remember { mutableStateOf<List<SshKeyEntity>>(emptyList()) }
   var busy by remember { mutableStateOf(false) }
@@ -50,18 +56,19 @@ fun InstallKeySheet(channel: SshChannel, hostLabel: String, onDismiss: () -> Uni
         modifier = Modifier.fillMaxWidth().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Text("公開鍵を $hostLabel に登録", style = MaterialTheme.typography.titleMedium)
       Text(
-          "接続中のセッションを使って、選んだ鍵の公開鍵を接続先の "
-              + "~/.ssh/authorized_keys に追記します。登録後、ホスト設定の認証方法を"
-              + "「秘密鍵」に変えると次回から鍵で入れます。",
+          stringResource(R.string.install_key_title, hostLabel),
+          style = MaterialTheme.typography.titleMedium,
+      )
+      Text(
+          stringResource(R.string.install_key_explanation),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
 
       if (keys.isEmpty()) {
         Text(
-            "登録できる鍵がありません。設定 → SSH 鍵 から作成してください。",
+            stringResource(R.string.install_key_none),
             style = MaterialTheme.typography.bodyMedium,
         )
       } else {
@@ -73,14 +80,7 @@ fun InstallKeySheet(channel: SshChannel, hostLabel: String, onDismiss: () -> Uni
                 message = null
                 scope.launch {
                   val r = AuthorizedKeyInstaller.install(channel, key.publicSsh)
-                  message =
-                      when (r) {
-                        is AuthorizedKeyInstaller.Result.Installed ->
-                            "「${key.label}」を登録しました。ホスト設定で認証方法を秘密鍵に変えてください。"
-                        is AuthorizedKeyInstaller.Result.AlreadyPresent ->
-                            "「${key.label}」は既に登録されています。"
-                        is AuthorizedKeyInstaller.Result.Failed -> "失敗: ${r.message}"
-                      }
+                  message = context.describe(r, key.label)
                   busy = false
                 }
               },
@@ -97,7 +97,45 @@ fun InstallKeySheet(channel: SshChannel, hostLabel: String, onDismiss: () -> Uni
         Text(it, style = MaterialTheme.typography.bodyMedium)
       }
 
-      Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("閉じる") }
+      Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.action_close)) }
     }
   }
 }
+
+/**
+ * 登録結果を利用者に見せる 1 行にする。
+ *
+ * 文言はここで組み立てる。[AuthorizedKeyInstaller] 側は理由コードだけを返し、
+ * 表示に使う言語を知らない。
+ */
+private fun Context.describe(result: AuthorizedKeyInstaller.Result, keyLabel: String): String =
+    when (result) {
+      is AuthorizedKeyInstaller.Result.Installed ->
+          getString(R.string.install_key_installed, keyLabel)
+      is AuthorizedKeyInstaller.Result.AlreadyPresent ->
+          getString(R.string.install_key_already, keyLabel)
+      is AuthorizedKeyInstaller.Result.Invalid ->
+          getString(R.string.install_key_failed, getString(reasonOf(result.rejection)))
+      is AuthorizedKeyInstaller.Result.CommandFailed ->
+          getString(
+              R.string.install_key_failed,
+              getString(R.string.install_key_command_failed, result.detail),
+          )
+      is AuthorizedKeyInstaller.Result.ServerRefused ->
+          getString(
+              R.string.install_key_failed,
+              // サーバーが理由を言ってきたなら、こちらの一般化した文言より役に立つ。
+              result.detail.ifEmpty {
+                getString(R.string.install_key_server_refused, result.exitStatus)
+              },
+          )
+    }
+
+@StringRes
+private fun reasonOf(rejection: AuthorizedKeyInstaller.Rejection): Int =
+    when (rejection) {
+      AuthorizedKeyInstaller.Rejection.EMPTY -> R.string.install_key_rejected_empty
+      AuthorizedKeyInstaller.Rejection.MULTIPLE_LINES -> R.string.install_key_rejected_multiline
+      AuthorizedKeyInstaller.Rejection.CONTAINS_QUOTE -> R.string.install_key_rejected_quote
+      AuthorizedKeyInstaller.Rejection.MALFORMED -> R.string.install_key_rejected_malformed
+    }

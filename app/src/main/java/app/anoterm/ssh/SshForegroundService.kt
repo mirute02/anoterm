@@ -111,8 +111,9 @@ class SshForegroundService : Service() {
             Intent(this, SshForegroundService::class.java).setAction(ACTION_DISCONNECT_ALL),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-    val text =
-        if (activeCount == 1) "1 セッション接続中" else "$activeCount セッション接続中"
+    // 英語は単数と複数で語形が変わる。日本語は変わらない。数え方は言語ごとの
+    // 問題なので plurals に任せ、ここで if を書かない。
+    val text = resources.getQuantityString(R.plurals.notification_sessions, activeCount, activeCount)
     return NotificationCompat.Builder(this, CHANNEL_ID)
         // Android 8+ は status bar の小アイコンを単色 alpha で描画するので mipmap/ic_launcher は
         // 白い角丸四角に潰れてしまう。専用のモノクロ vector drawable を指す。
@@ -122,7 +123,7 @@ class SshForegroundService : Service() {
         .setOngoing(true)
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .setContentIntent(pi)
-        .addAction(0, "すべて切断", disconnectPi)
+        .addAction(0, getString(R.string.notification_disconnect_all), disconnectPi)
         .build()
   }
 

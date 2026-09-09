@@ -21,13 +21,37 @@ import app.anoterm.util.Logger
  */
 object AuthorizedKeyInstaller {
 
+  /** 公開鍵として受け付けなかった理由。文言は画面側で選ぶ。 */
+  enum class Rejection {
+    EMPTY,
+    MULTIPLE_LINES,
+    CONTAINS_QUOTE,
+    MALFORMED,
+  }
+
   sealed interface Result {
     /** 追記した。 */
     data object Installed : Result
+
     /** 既に登録済みだった。 */
     data object AlreadyPresent : Result
-    /** 失敗。[message] は利用者に見せる想定。 */
-    data class Failed(val message: String) : Result
+
+    /** 鍵そのものが受け付けられなかった。サーバーには何も送っていない。 */
+    data class Invalid(val rejection: Rejection) : Result
+
+    /** コマンドを流せなかった（接続断など）。[detail] は例外クラス名。 */
+    data class CommandFailed(val detail: String) : Result
+
+    /** サーバー側で失敗した。[detail] は stderr の 1 行目（空のこともある）。 */
+    data class ServerRefused(val exitStatus: Int, val detail: String) : Result
+  }
+
+  /** [validate] の結果。 */
+  sealed interface Validation {
+    /** 通った。[keyBody] は「type base64」の 2 列。 */
+    data class Valid(val keyBody: String) : Validation
+
+    data class Invalid(val rejection: Rejection) : Validation
   }
 
   /**
@@ -40,20 +64,14 @@ object AuthorizedKeyInstaller {
    * 通れば「type base64」の 2 列を返す。これが authorized_keys の照合キーになる
    * （コメント欄は端末ごとに違うので比較に含めない）。
    */
-  fun validate(publicSsh: String): kotlin.Result<String> {
+  fun validate(publicSsh: String): Validation {
     val key = publicSsh.trim()
-    if (key.isEmpty()) return kotlin.Result.failure(IllegalArgumentException("公開鍵が空です。"))
-    if (key.contains('\n')) {
-      return kotlin.Result.failure(IllegalArgumentException("公開鍵が複数行になっています。"))
-    }
-    if (key.contains('\'')) {
-      return kotlin.Result.failure(IllegalArgumentException("公開鍵に引用符が含まれています。"))
-    }
+    if (key.isEmpty()) return Validation.Invalid(Rejection.EMPTY)
+    if (key.contains('\n')) return Validation.Invalid(Rejection.MULTIPLE_LINES)
+    if (key.contains('\'')) return Validation.Invalid(Rejection.CONTAINS_QUOTE)
     val columns = key.split(" ").filter { it.isNotEmpty() }
-    if (columns.size < 2) {
-      return kotlin.Result.failure(IllegalArgumentException("公開鍵の形式が不正です。"))
-    }
-    return kotlin.Result.success(columns.take(2).joinToString(" "))
+    if (columns.size < 2) return Validation.Invalid(Rejection.MALFORMED)
+    return Validation.Valid(columns.take(2).joinToString(" "))
   }
 
   /**
@@ -62,8 +80,9 @@ object AuthorizedKeyInstaller {
   suspend fun install(channel: SshChannel, publicSsh: String): Result {
     val key = publicSsh.trim()
     val keyBody =
-        validate(key).getOrElse {
-          return Result.Failed(it.message ?: "公開鍵を検証できませんでした。")
+        when (val v = validate(key)) {
+          is Validation.Invalid -> return Result.Invalid(v.rejection)
+          is Validation.Valid -> v.keyBody
         }
 
     val script = buildString {
@@ -79,7 +98,7 @@ object AuthorizedKeyInstaller {
 
     val result =
         runCatching { channel.exec(script) }
-            .getOrElse { return Result.Failed("コマンドを実行できませんでした: ${it.javaClass.simpleName}") }
+            .getOrElse { return Result.CommandFailed(it.javaClass.simpleName) }
 
     val out = result.stdout.trim()
     return when {
@@ -89,10 +108,7 @@ object AuthorizedKeyInstaller {
         // 鍵そのものはログに出さない。失敗の原因はサーバー側の stderr にある。
         Logger.w("AuthorizedKey", "install failed: exit=${result.exitStatus}")
         val detail = result.stderr.trim().lines().firstOrNull()?.take(120).orEmpty()
-        Result.Failed(
-            if (detail.isNotEmpty()) detail
-            else "追記に失敗しました（終了コード ${result.exitStatus}）。",
-        )
+        Result.ServerRefused(result.exitStatus, detail)
       }
     }
   }

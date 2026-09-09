@@ -104,6 +104,7 @@ fun TerminalScreen(
     onOpenKnownHosts: () -> Unit = {},
 ) {
   val app = remember { AnotermApp.get() }
+  val context = LocalContext.current
   val theme by app.prefs.theme.collectAsStateWithLifecycle()
   val fontSizeSp by app.prefs.fontSizeSp.collectAsStateWithLifecycle()
   val lineEnding by app.prefs.lineEnding.collectAsStateWithLifecycle()
@@ -181,7 +182,15 @@ fun TerminalScreen(
       tabId.startsWith("loopback") -> {
         val controller = TerminalSessionController(initialRows = 24, initialCols = 80)
         controller.setConnectionState(ConnectionState.Connected)
-        val channel = LoopbackChannel()
+        val channel =
+            LoopbackChannel(
+                listOf(
+                    context.getString(R.string.loopback_banner) +
+                        " — " +
+                        context.getString(R.string.loopback_explanation),
+                    context.getString(R.string.loopback_echo),
+                ),
+            )
         val bundle = app.sessionManager.getOrCreate(tabId) { SessionBundle(controller, channel) }
         state = TabScreenState.Ready(bundle)
       }
@@ -326,7 +335,6 @@ fun TerminalScreen(
           .collectAsStateWithLifecycle(initialValue = ConnectionState.Idle)
 
 
-  val context = LocalContext.current
   val composeView = LocalView.current
 
   Scaffold(

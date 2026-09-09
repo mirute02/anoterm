@@ -21,7 +21,15 @@ import java.util.concurrent.atomic.AtomicBoolean
  * PipedInputStream は書き込み側スレッドが死ぬと `Write end dead` で読み出しが失敗するため、
  * ウェルカムを別スレッドから書き込むモデルでは破綻する。
  */
-class LoopbackChannel : TerminalChannel {
+class LoopbackChannel(
+    /**
+     * 起動時に流す案内。1 行目だけ色を付ける。
+     *
+     * この層は Context を持たないので、文言は呼び出し側から受け取る。
+     * 空なら何も流さない。
+     */
+    private val welcomeLines: List<String> = emptyList(),
+) : TerminalChannel {
   private val closed = AtomicBoolean(false)
   private val queue = LinkedBlockingQueue<ByteArray>()
 
@@ -87,12 +95,14 @@ class LoopbackChannel : TerminalChannel {
   init {
     // ウェルカムは即時キューに積む（別スレッド不要）
     runCatching {
+      val body =
+          welcomeLines
+              .mapIndexed { i, line ->
+                if (i == 0) "\u001B[36m" + line + "\u001B[0m\r\n" else line + "\r\n"
+              }
+              .joinToString("")
       queue.offer(
-          ("[2J[H" +
-                  "[36mAnoTerm loopback channel[0m — SSH なしで IME/VT を確認できます。\r\n" +
-                  "打った文字がそのままエコーされます。\r\n" +
-                  "[32m$ [0m")
-              .toByteArray(Charsets.UTF_8),
+          ("\u001B[2J\u001B[H" + body + "\u001B[32m$ \u001B[0m").toByteArray(Charsets.UTF_8),
       )
     }.onFailure { Logger.w("Loopback", "welcome queue failed", it) }
   }

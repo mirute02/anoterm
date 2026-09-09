@@ -88,4 +88,27 @@
     <string name="tmux_no_windows">開いているウィンドウがありません。</string>
     <string name="tmux_switch_failed">ウィンドウを切り替えられませんでした。</string>
     <string name="tmux_refresh">更新</string>
+    <string name="install_key_title">公開鍵を %1$s に登録</string>
+    <string name="install_key_explanation">接続中のセッションを使って、選んだ鍵の公開鍵を接続先の <![CDATA[<code>~/.ssh/authorized_keys</code>]]> に追記します。登録後、ホスト設定の認証方法を「秘密鍵」に変えると次回から鍵で入れます。</string>
+    <string name="install_key_none">登録できる鍵がありません。設定 \u2192 SSH 鍵 から作成してください。</string>
+    <string name="install_key_installed">「%1$s」を登録しました。ホスト設定で認証方法を秘密鍵に変えてください。</string>
+    <string name="install_key_already">「%1$s」は既に登録されています。</string>
+    <string name="install_key_rejected_empty">公開鍵が空です。</string>
+    <string name="install_key_rejected_multiline">公開鍵が複数行になっています。</string>
+    <string name="install_key_rejected_quote">公開鍵に引用符が含まれています。</string>
+    <string name="install_key_rejected_malformed">公開鍵の形式が不正です。</string>
+    <string name="install_key_command_failed">コマンドを実行できませんでした: %1$s</string>
+    <string name="install_key_server_refused">接続先に拒否されました（終了コード %1$d）。</string>
+    <string name="install_key_failed">失敗: %1$s</string>
+    <string name="action_close">閉じる</string>
+    <string name="terminal_copy_empty">選択範囲が空でした</string>
+    <string name="terminal_copy_done">コピーしました (%1$d 文字)</string>
+    <string name="terminal_copy_mismatch">コピー失敗 (読戻不一致)</string>
+    <string name="notification_disconnect_all">すべて切断</string>
+    <string name="loopback_banner">AnoTerm loopback channel</string>
+    <string name="loopback_explanation">SSH なしで IME/VT を確認できます。</string>
+    <string name="loopback_echo">打った文字がそのままエコーされます。</string>
+    <plurals name="notification_sessions">
+        <item quantity="other">%d セッション接続中</item>
+    </plurals>
 </resources>

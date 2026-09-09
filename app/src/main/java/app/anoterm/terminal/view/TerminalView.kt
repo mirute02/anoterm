@@ -30,6 +30,7 @@ import app.anoterm.BuildConfig
 import app.anoterm.data.prefs.LineEnding
 import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.theme.TerminalPalette
+import app.anoterm.R
 import app.anoterm.util.Logger
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -796,7 +797,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   private fun showSelectionActionMode() {
     val callback = object : ActionMode.Callback2() {
       override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
-        menu.add(0, MENU_COPY, 0, "コピー")
+        menu.add(0, MENU_COPY, 0, context.getString(R.string.terminal_copy))
         return true
       }
 
@@ -855,7 +856,8 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     )
     clearSelection()
     if (text.isNullOrEmpty()) {
-      Toast.makeText(context, "選択範囲が空でした", Toast.LENGTH_SHORT).show()
+      Toast.makeText(context, context.getString(R.string.terminal_copy_empty), Toast.LENGTH_SHORT)
+          .show()
       return
     }
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -892,8 +894,8 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
         "setPrimaryClip readbackLen=${readback?.length ?: -1} match=${readback == text}",
     )
     val shown =
-        if (readback == text) "コピーしました (${text.length}文字)"
-        else "コピー失敗 (読戻不一致)"
+        if (readback == text) context.getString(R.string.terminal_copy_done, text.length)
+        else context.getString(R.string.terminal_copy_mismatch)
     Toast.makeText(context, shown, Toast.LENGTH_SHORT).show()
   }
 

@@ -99,4 +99,28 @@
     <string name="tmux_no_windows">No windows open.</string>
     <string name="tmux_switch_failed">Could not switch window.</string>
     <string name="tmux_refresh">Refresh</string>
+    <string name="install_key_title">Add a public key to %1$s</string>
+    <string name="install_key_explanation">Uses the session you already have open to append the selected key to <![CDATA[<code>~/.ssh/authorized_keys</code>]]> on the host. Afterwards switch the host\'s authentication to Private key and you are in without a password.</string>
+    <string name="install_key_none">No keys to install. Create one under Settings \u2192 SSH keys.</string>
+    <string name="install_key_installed">Added \u201c%1$s\u201d. Switch the host\'s authentication to Private key.</string>
+    <string name="install_key_already">\u201c%1$s\u201d is already installed.</string>
+    <string name="install_key_rejected_empty">The public key is empty.</string>
+    <string name="install_key_rejected_multiline">The public key spans several lines.</string>
+    <string name="install_key_rejected_quote">The public key contains a quote character.</string>
+    <string name="install_key_rejected_malformed">That does not look like a public key.</string>
+    <string name="install_key_command_failed">Could not run the command: %1$s</string>
+    <string name="install_key_server_refused">The host refused it (exit %1$d).</string>
+    <string name="install_key_failed">Failed: %1$s</string>
+    <string name="action_close">Close</string>
+    <string name="terminal_copy_empty">Nothing was selected.</string>
+    <string name="terminal_copy_done">Copied (%1$d characters)</string>
+    <string name="terminal_copy_mismatch">Copy failed (read back differently)</string>
+    <string name="notification_disconnect_all">Disconnect all</string>
+    <string name="loopback_banner">AnoTerm loopback channel</string>
+    <string name="loopback_explanation">check the IME and VT without SSH.</string>
+    <string name="loopback_echo">What you type is echoed straight back.</string>
+    <plurals name="notification_sessions">
+        <item quantity="one">%d session connected</item>
+        <item quantity="other">%d sessions connected</item>
+    </plurals>
 </resources>
