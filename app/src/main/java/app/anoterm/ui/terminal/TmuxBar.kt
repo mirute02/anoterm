@@ -54,15 +54,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun TmuxBar(
     channel: SshChannel,
-    /** 端末チャネルへ直接キーを送る。`switch-client` に使う。 */
-    onSend: (ByteArray) -> Unit,
-    /** ホスト設定のセッション名。クライアントが複数いるときの手掛かりにする。 */
-    configuredSession: String,
+    /** クライアント特定用の環境変数名。[TmuxController.ttyVarFor] が作る。 */
+    ttyVar: String,
     modifier: Modifier = Modifier,
 ) {
   val scope = rememberCoroutineScope()
   var listing by remember { mutableStateOf<TmuxListing?>(null) }
-  var attached by remember { mutableStateOf(configuredSession) }
   var sessionMenuOpen by remember { mutableStateOf(false) }
   var reloadNonce by remember { mutableStateOf(0) }
 
@@ -72,9 +69,7 @@ fun TmuxBar(
   LaunchedEffect(channel, reloadNonce, lifecycleOwner) {
     lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
       while (true) {
-        val next = TmuxController.snapshot(channel, fallbackAttached = attached)
-        listing = next
-        if (next is TmuxListing.Ok) next.snapshot.attached?.let { attached = it }
+        listing = TmuxController.snapshot(channel, ttyVar)
         delay(POLL_INTERVAL_MS)
       }
     }
@@ -108,14 +103,6 @@ fun TmuxBar(
   // 切り替える先が無いなら場所を取らせない。SSH タブのバーと同じ考え方。
   if (windows.size <= 1 && snapshot.sessions.size <= 1) return
 
-  fun refreshSoon() {
-    scope.launch {
-      // switch-client は端末側で処理されるので、すぐ読むと切り替え前の状態が返る。
-      delay(SETTLE_MS)
-      reloadNonce++
-    }
-  }
-
   Row(
       modifier =
           modifier
@@ -140,8 +127,14 @@ fun TmuxBar(
               text = { Text(name) },
               onClick = {
                 sessionMenuOpen = false
-                TmuxController.buildSwitchClientKeys(name)?.let(onSend)
-                refreshSoon()
+                val tty = snapshot.clientTty
+                scope.launch {
+                  // 自分のクライアントが特定できていないと、別の端末を切り替えて
+                  // しまいかねない。押しても何も起きない方がまだ良い。
+                  switchFailed =
+                      tty == null || !TmuxController.switchClient(channel, tty, name)
+                  reloadNonce++
+                }
               },
           )
         }
@@ -174,9 +167,6 @@ fun TmuxBar(
 
 /** 開いている間だけ引き直す。端末側で新しいウィンドウを作られても一覧が古びない。 */
 private const val POLL_INTERVAL_MS = 10_000L
-
-/** switch-client を送ってから読み直すまでの待ち。 */
-private const val SETTLE_MS = 350L
 
 private fun chipLabel(w: TmuxWindow): String {
   val panes = if (w.panes > 1) " (" + w.panes + ")" else ""

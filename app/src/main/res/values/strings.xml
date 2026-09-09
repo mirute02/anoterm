@@ -182,26 +182,18 @@
     <string name="first_seen_title">First time connecting to this host</string>
     <string name="first_seen_recorded">This host\'s key has been recorded. From now on, a changed key refuses the connection.</string>
     <string name="first_seen_verify">To confirm it really is the machine you meant, run %1$s on the server and compare the fingerprint above. If they differ, delete the entry under Settings \u2192 Known hosts and connect again.</string>
-    <string name="tmux_dashboard">tmux dashboard</string>
-    <string name="tmux_prefix_hint">prefix = Ctrl-B. The buttons send a prefixed shortcut.</string>
-    <string name="tmux_pane_move">Move between panes (prefix + arrow)</string>
-    <string name="tmux_jump">Jump to a window by number</string>
     <string name="tmux_new_window">New window</string>
     <string name="tmux_next_window">Next window</string>
     <string name="tmux_prev_window">Previous window</string>
-    <string name="tmux_list_windows">List windows</string>
     <string name="tmux_rename_window">Rename window</string>
     <string name="tmux_close_window">Close window</string>
     <string name="tmux_split_vertical" formatted="false">Split vertically %</string>
     <string name="tmux_split_horizontal">Split horizontally \"</string>
     <string name="tmux_next_pane">Next pane (o)</string>
     <string name="tmux_zoom_pane">Zoom pane (z)</string>
-    <string name="tmux_number_panes">Number panes (q)</string>
     <string name="tmux_close_pane">Close pane (x)</string>
-    <string name="tmux_list_sessions">List sessions</string>
     <string name="tmux_rename_session">Rename session</string>
     <string name="tmux_paste">Paste</string>
-    <string name="tmux_inner_prefix">Prefix to the inner tmux</string>
     <string name="tmux_detach">detach</string>
     <string name="tmux_copy_mode">copy mode</string>
     <string name="host_key_unreadable">AnoTerm cannot read this file.\n\nSupported: OpenSSH v1 (-----BEGIN OPENSSH PRIVATE KEY-----) or PKCS#8 / PEM. Regenerate it with something like `ssh-keygen -t ed25519 -f newkey` and import that instead.</string>
@@ -330,4 +322,13 @@
     <string name="kh_fmt_dsa">**DSA**: obsolete, do not use</string>
     <string name="kh_fmt_pem">**OpenSSH and PEM**: AnoTerm reads both. New keys are written in OpenSSH format.</string>
     <string name="tmux_session_unknown">session</string>
+    <string name="tmux_window_group">Window</string>
+    <string name="tmux_pane_group">Pane</string>
+    <string name="tmux_session_group">Session</string>
+    <string name="tmux_touch_hint">These act on the server directly. No prefix key is sent.</string>
+    <string name="tmux_rename_title">New name</string>
+    <string name="tmux_close_window_confirm">Close window \u201c%1$s\u201d? Anything running in it stops.</string>
+    <string name="tmux_close_pane_confirm">Close this pane? Anything running in it stops.</string>
+    <string name="tmux_no_window">Not attached to a tmux session.</string>
+    <string name="tmux_failed">tmux refused that.</string>
 </resources>

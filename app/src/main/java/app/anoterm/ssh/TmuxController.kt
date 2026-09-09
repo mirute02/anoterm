@@ -20,7 +20,12 @@ data class TmuxWindow(
  *
  * [attached] は「いまこの接続が見ているセッション」。分からなければ null。
  */
-data class TmuxSnapshot(val attached: String?, val windows: List<TmuxWindow>) {
+data class TmuxSnapshot(
+    /** この接続のクライアント（tmux から見た tty）。特定できなければ null。 */
+    val clientTty: String?,
+    val attached: String?,
+    val windows: List<TmuxWindow>,
+) {
   val sessions: List<String>
     get() = windows.map { it.session }.distinct()
 
@@ -47,9 +52,6 @@ sealed interface TmuxListing {
  */
 object TmuxController {
 
-  /** tmux の既定 prefix（Ctrl-B）。 */
-  const val PREFIX: Byte = 0x02
-
   /**
    * フィールド区切り。ユニットセパレータ (0x1F)。
    *
@@ -60,12 +62,29 @@ object TmuxController {
 
   private const val WINDOW_TAG = "W"
   private const val CLIENT_TAG = "C"
+  private const val TTY_PREFIX = "ANOTERM_TTY_"
+
+  /**
+   * このタブのクライアントを見分けるための環境変数名。
+   *
+   * tmux のコマンドの多くは「どのクライアントに対する操作か」を要求する。外から
+   * `list-clients` を見ても、同じセッションに PC からも繋がっていればどれが自分か
+   * 分からない。そこで接続時に自分の tty を tmux サーバーの環境に書いておく。
+   *
+   * タブごとに別の名前にするのは、同じホストの同じセッションを 2 タブで開いたときに
+   * 後から繋いだ方が前の値を上書きしてしまうため。
+   */
+  fun ttyVarFor(tabId: String): String =
+      TTY_PREFIX + tabId.uppercase().map { if (it.isLetterOrDigit()) it else '_' }.joinToString("")
 
   // 1 回の exec で両方読む。ウィンドウ一覧とアタッチ先を別々に問い合わせると
   // チャネルを 2 本開くことになり、常時表示のバーから定期的に叩くには重い。
-  private val COMMAND =
+  private fun readCommand(ttyVar: String) =
       listOf(
-              "tmux list-clients -F " + quote(CLIENT_TAG + SEP + "#{client_session}"),
+              // 未設定なら "-VAR" が返る。エラーにはしない。
+              "tmux show-environment -g " + quote(ttyVar) + " 2>/dev/null || true",
+              "tmux list-clients -F " +
+                  quote(CLIENT_TAG + SEP + "#{client_tty}" + SEP + "#{client_session}"),
               "tmux list-windows -a -F " +
                   quote(
                       listOf(
@@ -100,13 +119,19 @@ object TmuxController {
    * 区切りの数が合わない行は捨てる。名前に区切り文字が入っていた場合など、
    * 解釈のしようがない行を無理に読むと、別のウィンドウを選ばせてしまう。
    */
-  fun parseSnapshot(stdout: String, fallbackAttached: String? = null): TmuxSnapshot {
+  fun parseSnapshot(stdout: String, ttyVar: String): TmuxSnapshot {
     val windows = mutableListOf<TmuxWindow>()
-    val clientSessions = mutableListOf<String>()
+    val clientSessionByTty = mutableMapOf<String, String>()
+    var ourTty: String? = null
     for (raw in stdout.lineSequence()) {
-      val parts = raw.trimEnd('\r').split(SEP)
+      val line = raw.trimEnd('\r')
+      if (line.startsWith(ttyVar + "=")) {
+        ourTty = line.substringAfter('=').takeIf { it.isNotBlank() }
+        continue
+      }
+      val parts = line.split(SEP)
       when {
-        parts.size == 2 && parts[0] == CLIENT_TAG -> clientSessions += parts[1]
+        parts.size == 3 && parts[0] == CLIENT_TAG -> clientSessionByTty[parts[1]] = parts[2]
         parts.size == 6 && parts[0] == WINDOW_TAG -> {
           val index = parts[2].toIntOrNull() ?: continue
           windows +=
@@ -120,33 +145,32 @@ object TmuxController {
         }
       }
     }
-    // クライアントが 1 つならそれが自分。PC からも同じ tmux に繋いでいるとどれが
-    // 自分か分からないので、アプリ側が覚えている値に頼る（実在しない名前なら諦める）。
+    // 自分の tty が分かればアタッチ先は一意に決まる。分からない（古い接続や、
+    // 環境変数を書く前の tmux）ときだけ「クライアントが 1 つならそれが自分」に頼る。
+    val tty = ourTty?.takeIf { clientSessionByTty.containsKey(it) }
     val attached =
-        clientSessions.singleOrNull()
-            ?: fallbackAttached?.takeIf { name -> windows.any { it.session == name } }
-    return TmuxSnapshot(attached = attached, windows = windows)
+        if (tty != null) clientSessionByTty[tty]
+        else clientSessionByTty.values.distinct().singleOrNull()
+    return TmuxSnapshot(clientTty = tty, attached = attached, windows = windows)
   }
 
   /**
-   * アタッチ先を切り替えるキー列。安全でない名前なら null。
+   * 接続直後に自分の tty を tmux サーバーの環境へ書くコマンド。
    *
-   * prefix → `:` で tmux のコマンドプロンプトを開き、`switch-client` を打って改行する。
-   * これを読むのはシェルではなく tmux なので、利用者のコマンドラインには何も残らない。
-   *
-   * `exec` から `switch-client` を投げないのは、どのクライアントを動かすかを
-   * 指定できないため。PC からも同じセッションに繋いでいると、そちらが切り替わる。
+   * これを撃っておかないと、後から外側の `exec` で「どのクライアントが自分か」を
+   * 決められない。`start-server` はサーバーがまだ無いときのために要る（既にあれば
+   * 何もしない）。tmux が入っていない環境では黙って失敗させる。
    */
-  fun buildSwitchClientKeys(session: String): ByteArray? {
-    if (!isSafeSessionName(session)) return null
-    val command = ":switch-client -t " + quote("=" + session) + "\r"
-    return byteArrayOf(PREFIX) + command.toByteArray(Charsets.UTF_8)
-  }
+  fun markClientCommand(ttyVar: String): String =
+      "tmux start-server 2>/dev/null && " +
+          "tmux set-environment -g " +
+          quote(ttyVar) +
+          " \"\$(tty)\" 2>/dev/null || true"
 
   /** サーバー側の状態を読む。 */
-  suspend fun snapshot(channel: SshChannel, fallbackAttached: String? = null): TmuxListing {
+  suspend fun snapshot(channel: SshChannel, ttyVar: String): TmuxListing {
     val result =
-        runCatching { channel.exec(COMMAND) }
+        runCatching { channel.exec(readCommand(ttyVar)) }
             .getOrElse { return TmuxListing.Unavailable(it.message ?: "failed to run tmux") }
     if (!result.isSuccess) {
       // tmux が無ければシェルが "command not found" を、サーバー未起動なら tmux 自身が
@@ -154,13 +178,15 @@ object TmuxController {
       val reason = result.stderr.trim().ifEmpty { "tmux exited with ${result.exitStatus}" }
       return TmuxListing.Unavailable(reason.lineSequence().first())
     }
-    val snapshot = parseSnapshot(result.stdout, fallbackAttached)
+    val snapshot = parseSnapshot(result.stdout, ttyVar)
     val total = result.stdout.lineSequence().count { it.isNotBlank() }
-    val clients = result.stdout.lineSequence().count { line ->
-      val parts = line.trimEnd('\r').split(SEP)
-      parts.size == 2 && parts[0] == CLIENT_TAG
-    }
-    val understood = snapshot.windows.size + clients
+    val others =
+        result.stdout.lineSequence().count { raw ->
+          val line = raw.trimEnd('\r')
+          val parts = line.split(SEP)
+          line.startsWith(ttyVar) || (parts.size == 3 && parts[0] == CLIENT_TAG)
+        }
+    val understood = snapshot.windows.size + others
     if (total > understood) {
       // 解釈できなかった行は黙って捨てている（読み違えて別のウィンドウを選ばせない
       // ための判断）。捨てたこと自体は残しておかないと、一覧が欠ける理由が追えない。
@@ -180,12 +206,34 @@ object TmuxController {
       Logger.w("Tmux", "refusing to switch to a session whose name cannot be quoted")
       return false
     }
+    return run(channel, "select-window -t " + quote(window.target))
+  }
+
+  /**
+   * アタッチ先（このクライアントが見るセッション）を切り替える。
+   *
+   * `-c` が要る。省くと tmux が適当なクライアントを選ぶので、PC からも同じ tmux に
+   * 繋いでいるとそちらが切り替わってしまう。[clientTty] は [snapshot] が返す値。
+   */
+  suspend fun switchClient(channel: SshChannel, clientTty: String, session: String): Boolean {
+    if (!isSafeSessionName(session) || !isSafeSessionName(clientTty)) {
+      Logger.w("Tmux", "refusing to switch: name cannot be quoted")
+      return false
+    }
+    return run(channel, "switch-client -c " + quote(clientTty) + " -t " + quote("=" + session))
+  }
+
+  /** `tmux <args>` を実行し、成功したかどうかだけ返す。 */
+  suspend fun run(channel: SshChannel, args: String): Boolean {
     val result =
-        runCatching { channel.exec("tmux select-window -t " + quote(window.target)) }
+        runCatching { channel.exec("tmux " + args) }
             .getOrElse {
-              Logger.w("Tmux", "select-window failed", it)
+              Logger.w("Tmux", "tmux " + args.substringBefore(' ') + " failed", it)
               return false
             }
+    if (!result.isSuccess) {
+      Logger.w("Tmux", "tmux " + args.substringBefore(' ') + " exited " + result.exitStatus)
+    }
     return result.isSuccess
   }
 }

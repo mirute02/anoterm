@@ -53,6 +53,26 @@ class StartupCommandTest {
   }
 
   @Test
+  fun `attaching records the tty so the client can be found later`() {
+    // これが無いと、外側の exec から「どのクライアントが自分か」を決められず、
+    // アタッチ先の切り替えが別の端末に効いてしまう。
+    val out =
+        buildStartupCommand(true, "anoterm", false, "ANOTERM_TTY_HOST_1")!!
+            .toString(Charsets.UTF_8)
+    val mark = out.indexOf("set-environment -g 'ANOTERM_TTY_HOST_1'")
+    val attach = out.indexOf("tmux new -A -s 'anoterm'")
+    assertTrue(mark >= 0)
+    // アタッチすると tmux がその端末を掴んで戻ってこないので、刻むのは先。
+    assertTrue(mark < attach)
+  }
+
+  @Test
+  fun `without tmux nothing is recorded`() {
+    val out = command(useTmux = false, session = "anoterm", fullscreen = true)
+    assertFalse(out!!.contains("set-environment"))
+  }
+
+  @Test
   fun `without tmux only the exported variable is sent`() {
     assertEquals(
         "export CLAUDE_CODE_NO_FLICKER=1\r",

@@ -30,7 +30,10 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
   changes which one you are attached to. The list is read over a separate SSH
   session rather than typed into the terminal, so nothing lands in the middle of
   your work, and it refreshes every ten seconds only while the app is in front
-- **tmux dashboard** — buttons that send prefixed shortcuts (splits, copy mode)
+- **tmux dashboard** — splits, pane movement, copy mode and renaming, as buttons.
+  **No prefix key is ever sent**: each one runs a `tmux` command on a separate
+  session, so it works whatever has hold of Ctrl-B and whatever prefix you have
+  bound
 - **Host key verification (TOFU)** — the first key is recorded and a **changed
   key refuses the connection**. The fingerprint is shown on that first connect
   so you can check it against `ssh-keygen -lf` on the server

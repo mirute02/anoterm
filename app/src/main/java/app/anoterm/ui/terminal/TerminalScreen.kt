@@ -263,7 +263,12 @@ fun TerminalScreen(
                   )
                 },
                 startup = {
-                  buildStartupCommand(useTmux, tmuxSession, app.prefs.claudeCodeFullscreen.value)
+                  buildStartupCommand(
+                      useTmux,
+                      tmuxSession,
+                      app.prefs.claudeCodeFullscreen.value,
+                      TmuxController.ttyVarFor(tabId),
+                  )
                 },
             )
         try {
@@ -284,7 +289,12 @@ fun TerminalScreen(
           // この分岐は「既存 bundle がなくて新規 SSH を張った場合」にしか来ないので 2 重送信にはならない
           // （前段の sessionManager.get(tabId) != null で早期 return 済み）。再接続時は
           // ReconnectSpec.startup が同じコマンドを流し直す。
-          buildStartupCommand(useTmux, tmuxSession, app.prefs.claudeCodeFullscreen.value)?.let {
+          buildStartupCommand(
+                      useTmux,
+                      tmuxSession,
+                      app.prefs.claudeCodeFullscreen.value,
+                      TmuxController.ttyVarFor(tabId),
+                  )?.let {
             controller.sendToRemote(it)
           }
         } catch (t: Throwable) {
@@ -455,11 +465,7 @@ fun TerminalScreen(
       val tmuxChannel = tmuxBundle?.channel as? SshChannel
       val tmuxSessionName = tabTmuxSessions[currentTabId]
       if (tmuxChannel != null && tmuxSessionName != null) {
-        TmuxBar(
-            channel = tmuxChannel,
-            onSend = { bytes -> tmuxBundle.controller.sendToRemote(bytes) },
-            configuredSession = tmuxSessionName,
-        )
+        TmuxBar(channel = tmuxChannel, ttyVar = TmuxController.ttyVarFor(currentTabId))
       }
       when (val s = state) {
         is TabScreenState.Loading, is TabScreenState.Connecting ->
@@ -645,10 +651,16 @@ fun TerminalScreen(
       }
     }
     if (showTmux && readyBundle != null) {
-      TmuxPanel(
-          onSend = { bytes -> readyBundle.controller.sendToRemote(bytes) },
-          onDismiss = { showTmux = false },
-      )
+      val panelChannel = readyBundle.channel as? SshChannel
+      if (panelChannel != null) {
+        TmuxPanel(
+            channel = panelChannel,
+            ttyVar = TmuxController.ttyVarFor(currentTabId),
+            onDismiss = { showTmux = false },
+        )
+      } else {
+        LaunchedEffect(Unit) { showTmux = false }
+      }
     }
     if (showMemo) {
       MemoSheet(
@@ -761,6 +773,8 @@ internal fun buildStartupCommand(
     useTmux: Boolean,
     tmuxSession: String,
     claudeCodeFullscreen: Boolean,
+    /** クライアント特定用の環境変数名。null なら刻印しない（テスト用）。 */
+    ttyVar: String? = null,
 ): ByteArray? {
   // セッション名はそのままシェルの語として並んでいた。`work log` のように空白を含む
   // 名前は二語に割れて別のセッションを作ってしまう。引用符で囲めない名前
@@ -779,6 +793,9 @@ internal fun buildStartupCommand(
               " CLAUDE_CODE_NO_FLICKER 1 2>/dev/null || true",
       )
     }
+    // アタッチする前に自分の tty を tmux の環境へ書く。後から外側の exec で
+    // 「どのクライアントが自分か」を決める唯一の手掛かりになる。
+    if (withTmux && ttyVar != null) add(TmuxController.markClientCommand(ttyVar))
     if (withTmux) add("tmux new -A -s " + TmuxController.quote(session!!))
   }
   if (parts.isEmpty()) return null
