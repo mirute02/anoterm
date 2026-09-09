@@ -56,6 +56,7 @@ fun SettingsScreen(
   val locale by prefs.locale.collectAsStateWithLifecycle()
   val lineSpacing by prefs.lineSpacing.collectAsStateWithLifecycle()
   val hideTmuxStatus by prefs.hideTmuxStatus.collectAsStateWithLifecycle()
+  val replyPad by prefs.replyPadEnabled.collectAsStateWithLifecycle()
   val bioLock by prefs.biometricLockEnabled.collectAsStateWithLifecycle()
   val lockGrace by prefs.lockGraceSeconds.collectAsStateWithLifecycle()
   val secureScreen by prefs.secureScreen.collectAsStateWithLifecycle()
@@ -216,6 +217,13 @@ fun SettingsScreen(
                 checked = terminalClipboardHistoryEnabled,
                 onCheckedChange = { prefs.setTerminalClipboardHistoryEnabled(it) },
             )
+          },
+      )
+      ListItem(
+          headlineContent = { Text(stringResource(R.string.settings_reply_pad)) },
+          supportingContent = { Text(stringResource(R.string.settings_reply_pad_summary)) },
+          trailingContent = {
+            Switch(checked = replyPad, onCheckedChange = { prefs.setReplyPadEnabled(it) })
           },
       )
       ListItem(

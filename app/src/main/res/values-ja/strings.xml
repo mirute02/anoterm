@@ -330,4 +330,6 @@
     <string name="settings_line_spacing_summary">行と行の余白。広いほど読みやすく、狭いほど一画面に多く入ります。</string>
     <string name="host_hide_tmux_status">tmux のステータス行を隠す</string>
     <string name="host_hide_tmux_status_summary">ウィンドウ一覧はアプリ側のバーに出ているので、tmux 側のバーは同じ情報で 1 行を使います。このセッションにだけ適用されます。</string>
+    <string name="settings_reply_pad">返答パッドを浮かべる</string>
+    <string name="settings_reply_pad_summary">キーボードを閉じている間、端末の上に 1/2/3 を三角に重ねます。中央のつまみをドラッグすると移動できます。</string>
 </resources>

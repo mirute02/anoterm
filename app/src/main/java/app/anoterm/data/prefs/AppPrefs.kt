@@ -46,6 +46,17 @@ class AppPrefs(context: Context) {
   private val _hideTmuxStatus = MutableStateFlow(readHideTmuxStatus())
   val hideTmuxStatus: StateFlow<Boolean> = _hideTmuxStatus.asStateFlow()
 
+  // 返答パッドの位置。端末領域に対する比率で持つ。画面サイズや回転が変わっても
+  // 同じ「右下」に留まるようにするため、絶対座標では保存しない。
+  private val _replyPadX = MutableStateFlow(readReplyPad(KEY_REPLY_PAD_X, DEFAULT_REPLY_PAD_X))
+  val replyPadX: StateFlow<Float> = _replyPadX.asStateFlow()
+
+  private val _replyPadY = MutableStateFlow(readReplyPad(KEY_REPLY_PAD_Y, DEFAULT_REPLY_PAD_Y))
+  val replyPadY: StateFlow<Float> = _replyPadY.asStateFlow()
+
+  private val _replyPadEnabled = MutableStateFlow(readReplyPadEnabled())
+  val replyPadEnabled: StateFlow<Boolean> = _replyPadEnabled.asStateFlow()
+
   private val _lineEnding = MutableStateFlow(readLineEnding())
   val lineEnding: StateFlow<LineEnding> = _lineEnding.asStateFlow()
 
@@ -117,6 +128,19 @@ class AppPrefs(context: Context) {
     val clamped = value.coerceIn(8f, 28f)
     sp.edit().putFloat(KEY_FONT_SIZE, clamped).apply()
     _fontSizeSp.value = clamped
+  }
+
+  fun setReplyPadPosition(x: Float, y: Float) {
+    sp.edit().putFloat(KEY_REPLY_PAD_X, x.coerceIn(0f, 1f))
+        .putFloat(KEY_REPLY_PAD_Y, y.coerceIn(0f, 1f))
+        .apply()
+    _replyPadX.value = x.coerceIn(0f, 1f)
+    _replyPadY.value = y.coerceIn(0f, 1f)
+  }
+
+  fun setReplyPadEnabled(enabled: Boolean) {
+    sp.edit().putBoolean(KEY_REPLY_PAD_ENABLED, enabled).apply()
+    _replyPadEnabled.value = enabled
   }
 
   fun setHideTmuxStatus(hide: Boolean) {
@@ -237,6 +261,11 @@ class AppPrefs(context: Context) {
         AppLocale.SYSTEM
       }
 
+  private fun readReplyPad(key: String, fallback: Float): Float =
+      sp.getFloat(key, fallback).coerceIn(0f, 1f)
+
+  private fun readReplyPadEnabled(): Boolean = sp.getBoolean(KEY_REPLY_PAD_ENABLED, true)
+
   private fun readHideTmuxStatus(): Boolean = sp.getBoolean(KEY_HIDE_TMUX_STATUS, false)
 
   private fun readLineSpacing(): Float =
@@ -298,6 +327,9 @@ class AppPrefs(context: Context) {
     private const val KEY_KEEPALIVE_SECONDS = "keepalive_seconds"
     private const val KEY_LINE_SPACING = "line_spacing"
     private const val KEY_HIDE_TMUX_STATUS = "hide_tmux_status"
+    private const val KEY_REPLY_PAD_X = "reply_pad_x"
+    private const val KEY_REPLY_PAD_Y = "reply_pad_y"
+    private const val KEY_REPLY_PAD_ENABLED = "reply_pad_enabled"
     private const val KEY_LOCK_GRACE_SECONDS = "lock_grace_seconds"
     private const val KEY_SECURE_SCREEN = "secure_screen"
 
@@ -310,6 +342,10 @@ class AppPrefs(context: Context) {
     const val DEFAULT_LINE_SPACING = 1.15f
     const val MIN_LINE_SPACING = 1.0f
     const val MAX_LINE_SPACING = 1.6f
+
+    // 既定は右下。右手の親指が最も届く位置。
+    const val DEFAULT_REPLY_PAD_X = 0.86f
+    const val DEFAULT_REPLY_PAD_Y = 0.82f
     const val MAX_LOCK_GRACE_SECONDS = 300
 
     // companion object に置くことでインスタンスプロパティの初期化順に依存しない。

@@ -128,6 +128,9 @@ fun TerminalScreen(
   val theme by app.prefs.theme.collectAsStateWithLifecycle()
   val fontSizeSp by app.prefs.fontSizeSp.collectAsStateWithLifecycle()
   val lineSpacing by app.prefs.lineSpacing.collectAsStateWithLifecycle()
+  val replyPadEnabled by app.prefs.replyPadEnabled.collectAsStateWithLifecycle()
+  val replyPadX by app.prefs.replyPadX.collectAsStateWithLifecycle()
+  val replyPadY by app.prefs.replyPadY.collectAsStateWithLifecycle()
   val lineEnding by app.prefs.lineEnding.collectAsStateWithLifecycle()
   val activeTabs by app.sessionManager.activeTabs.collectAsStateWithLifecycle()
   val customShortcuts by app.prefs.customShortcuts.collectAsStateWithLifecycle()
@@ -531,6 +534,7 @@ fun TerminalScreen(
           // その分だけ縮む → リモートシェルの入力行（cursor 行）がツールバーの直上、
           // つまり IME の上に見える。ターミナルが縮むので SIGWINCH は飛ぶが、
           // adjustNothing + Compose 内のレイアウト変化だけなので一度で settle する。
+          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
           if (sortedTabs.size <= 1) {
             TerminalHost(
                 controller = s.bundle.controller,
@@ -539,13 +543,13 @@ fun TerminalScreen(
                 lineSpacing = lineSpacing,
                 lineEnding = lineEnding,
                 relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.fillMaxSize(),
                 viewBinding = { v -> terminalViews[currentTabId] = v },
             )
           } else {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.fillMaxSize(),
                 key = { page -> sortedTabs.getOrNull(page) ?: page },
             ) { page ->
               val pageTabId = sortedTabs.getOrNull(page)
@@ -566,6 +570,17 @@ fun TerminalScreen(
               }
             }
           }
+          // キーボードを閉じている間だけ重ねる。開いているときは下の列で足りるし、
+          // 重なったままだと IME の上に浮いて本文をさらに隠す。
+          if (replyPadEnabled && !imeVisible) {
+            FloatingReplyPad(
+                onSend = sendBytes,
+                position = replyPadX to replyPadY,
+                onMove = { x, y -> app.prefs.setReplyPadPosition(x, y) },
+                modifier = Modifier.fillMaxSize(),
+            )
+          }
+          }
           // ツールバー + ショートカットバーはターミナル直下に固定し、IME が出れば
           // その上に押し上げる。`imePadding()` はアニメ補間値を読むので毎フレーム
           // 再レイアウトが走り terminal 側の SIGWINCH も連発される。代わりに
@@ -580,7 +595,8 @@ fun TerminalScreen(
             // AnimatedVisibility だと expand/shrink 中に毎フレーム terminal が縮み、
             // PTY resize → feed/draw が連発して「ショートカット展開がカクつく」。
             // snap 表示にすれば layout は 1 回で決まる。
-            ReplyKeyBar(onSend = sendBytes)
+            // パッドが出ている間は同じキーを二重に置かない。1 行ぶん端末に返す。
+            if (imeVisible || !replyPadEnabled) ReplyKeyBar(onSend = sendBytes)
             if (showShortcutBar) {
               CustomShortcutBar(
                   shortcuts = customShortcuts,

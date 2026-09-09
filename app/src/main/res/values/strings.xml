@@ -342,4 +342,6 @@
     <string name="settings_line_spacing_summary">Room between lines. Wider is easier to read; narrower fits more on screen.</string>
     <string name="host_hide_tmux_status">Hide the tmux status line</string>
     <string name="host_hide_tmux_status_summary">The app already lists the windows above, so tmux\'s own bar repeats it and costs a row. Applies to this session only.</string>
+    <string name="settings_reply_pad">Floating reply pad</string>
+    <string name="settings_reply_pad_summary">1/2/3 in a triangle over the terminal while the keyboard is closed. Drag the centre dot to move it.</string>
 </resources>
