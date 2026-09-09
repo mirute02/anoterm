@@ -54,6 +54,8 @@ fun SettingsScreen(
   val fontSizeSp by prefs.fontSizeSp.collectAsStateWithLifecycle()
   val lineEnding by prefs.lineEnding.collectAsStateWithLifecycle()
   val locale by prefs.locale.collectAsStateWithLifecycle()
+  val lineSpacing by prefs.lineSpacing.collectAsStateWithLifecycle()
+  val hideTmuxStatus by prefs.hideTmuxStatus.collectAsStateWithLifecycle()
   val bioLock by prefs.biometricLockEnabled.collectAsStateWithLifecycle()
   val lockGrace by prefs.lockGraceSeconds.collectAsStateWithLifecycle()
   val secureScreen by prefs.secureScreen.collectAsStateWithLifecycle()
@@ -132,6 +134,24 @@ fun SettingsScreen(
       }
 
       HorizontalDivider()
+      ListItem(
+          headlineContent = { Text(stringResource(R.string.settings_line_spacing)) },
+          supportingContent = {
+            Column {
+              Text(stringResource(R.string.settings_line_spacing_summary))
+              Slider(
+                  value = lineSpacing,
+                  onValueChange = { prefs.setLineSpacing(it) },
+                  valueRange = AppPrefs.MIN_LINE_SPACING..AppPrefs.MAX_LINE_SPACING,
+                  // 0.05 刻み。連続だと再レイアウトが走り続けて重い。
+                  steps = 11,
+              )
+            }
+          },
+          trailingContent = { Text(String.format("%.2f", lineSpacing)) },
+      )
+
+      HorizontalDivider()
       Text(stringResource(R.string.settings_line_ending), style = MaterialTheme.typography.titleMedium)
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         LineEnding.entries.forEach { le ->
@@ -196,6 +216,13 @@ fun SettingsScreen(
                 checked = terminalClipboardHistoryEnabled,
                 onCheckedChange = { prefs.setTerminalClipboardHistoryEnabled(it) },
             )
+          },
+      )
+      ListItem(
+          headlineContent = { Text(stringResource(R.string.host_hide_tmux_status)) },
+          supportingContent = { Text(stringResource(R.string.host_hide_tmux_status_summary)) },
+          trailingContent = {
+            Switch(checked = hideTmuxStatus, onCheckedChange = { prefs.setHideTmuxStatus(it) })
           },
       )
       ListItem(

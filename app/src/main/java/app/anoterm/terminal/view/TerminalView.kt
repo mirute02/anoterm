@@ -244,6 +244,15 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     invalidate()
   }
 
+  fun setLineSpacing(multiplier: Float) {
+    if (renderer.lineSpacing == multiplier) return
+    renderer.lineSpacing = multiplier
+    // 行高が変わると 1 画面に入る行数が変わる。PTY にも伝えないと、サーバー側は
+    // 古い行数のまま描いてくる。
+    reflowToViewport()
+    invalidate()
+  }
+
   fun setLineEnding(le: LineEnding) {
     this.lineEnding = le
   }

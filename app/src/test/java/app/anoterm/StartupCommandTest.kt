@@ -23,13 +23,13 @@ class StartupCommandTest {
 
   @Test
   fun `a plain session name attaches with -A`() {
-    assertEquals("tmux new -A -s 'anoterm'\r", command(useTmux = true, session = "anoterm"))
+    assertTrue(command(useTmux = true, session = "anoterm")!!.endsWith("tmux new -A -s 'anoterm'\r"))
   }
 
   @Test
   fun `a session name with a space stays one argument`() {
     // 引用符が無いと `tmux new -A -s work log` になり、"work" という別のセッションが立つ。
-    assertEquals("tmux new -A -s 'work log'\r", command(useTmux = true, session = "work log"))
+    assertTrue(command(useTmux = true, session = "work log")!!.endsWith("tmux new -A -s 'work log'\r"))
   }
 
   @Test
@@ -42,7 +42,7 @@ class StartupCommandTest {
   @Test
   fun `a non-ascii session name is not mangled`() {
     // US-ASCII で符号化していたころは '?' に潰れ、毎回別のセッションができていた。
-    assertEquals("tmux new -A -s '作業'\r", command(useTmux = true, session = "作業"))
+    assertTrue(command(useTmux = true, session = "作業")!!.endsWith("tmux new -A -s '作業'\r"))
   }
 
   @Test
@@ -64,6 +64,26 @@ class StartupCommandTest {
     assertTrue(mark >= 0)
     // アタッチすると tmux がその端末を掴んで戻ってこないので、刻むのは先。
     assertTrue(mark < attach)
+  }
+
+  @Test
+  fun `hiding the tmux status line is asked for before attaching`() {
+    val out =
+        buildStartupCommand(true, "work", false, "ANOTERM_TTY_X", hideTmuxStatus = true)!!
+            .toString(Charsets.UTF_8)
+    val set = out.indexOf("status off")
+    val attach = out.indexOf("tmux new -A -s 'work'")
+    assertTrue(set in 0 until attach)
+  }
+
+  @Test
+  fun `showing it again unsets the session option instead of forcing it on`() {
+    // "on" を書き込むと、.tmux.conf で自分から消している利用者の設定を上書きする。
+    val out =
+        buildStartupCommand(true, "work", false, "ANOTERM_TTY_X", hideTmuxStatus = false)!!
+            .toString(Charsets.UTF_8)
+    assertTrue(out.contains("set-option -u -t '=work' status"))
+    assertFalse(out.contains("status on"))
   }
 
   @Test

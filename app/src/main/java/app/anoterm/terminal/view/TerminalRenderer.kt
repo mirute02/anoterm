@@ -72,16 +72,27 @@ class TerminalRenderer(
       return w
     }
 
-  val cellHeight: Float
+  /** 行の高さの倍率。1.0 でフォントの推奨行送りそのまま。 */
+  var lineSpacing: Float = 1.0f
+    set(value) {
+      field = value.coerceIn(1.0f, 2.0f)
+    }
+
+  /** フォントが要求する最小の行高。ここを下回るとグリフが切れる。 */
+  private val glyphHeight: Float
     get() {
       val fm = textPaint.fontMetrics
       return fm.descent - fm.ascent + fm.leading
     }
 
+  val cellHeight: Float
+    get() = glyphHeight * lineSpacing
+
   val baselineOffset: Float
     get() {
       val fm = textPaint.fontMetrics
-      return -fm.ascent
+      // 広げた分はセルの上下に均等に割る。上だけに足すと行が下寄りに見える。
+      return (cellHeight - glyphHeight) / 2f - fm.ascent
     }
 
   fun updateFontSize(newSizePx: Float) {

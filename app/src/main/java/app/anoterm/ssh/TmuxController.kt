@@ -181,6 +181,24 @@ object TmuxController {
           quote(ttyVar) +
           " \"\$(tty)\" 2>/dev/null || true"
 
+  /**
+   * tmux 自身のステータス行を隠す／戻すコマンド。
+   *
+   * 戻すときは `off` を `on` にするのではなく、セッション側の設定を消す（`-u`）。
+   * `on` を書き込むと、`.tmux.conf` で自分から消している利用者の設定を、こちらが
+   * 勝手に上書きしてしまう。`-u` ならグローバル設定に従うだけになる。
+   *
+   * 設定が off のときも毎回 `-u` を撃つ。撃たないと、一度隠したあとアプリ側から
+   * 戻す手段が無くなる。代償として、tmux 側でセッション単位に `status off` を
+   * 設定している人の指定は接続のたびに解除される（グローバル設定は無傷）。
+   */
+  fun statusLineCommand(session: String, hide: Boolean): String? {
+    if (!isSafeSessionName(session)) return null
+    val target = quote("=" + session)
+    return if (hide) "tmux set-option -t " + target + " status off 2>/dev/null || true"
+    else "tmux set-option -u -t " + target + " status 2>/dev/null || true"
+  }
+
   /** サーバー側の状態を読む。 */
   suspend fun snapshot(channel: SshChannel, ttyVar: String): TmuxListing {
     val result =

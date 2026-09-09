@@ -17,7 +17,7 @@ import app.anoterm.theme.TerminalPalette
 /**
  * TerminalView を Compose の階層に載せる薄いブリッジ。
  *
- * - palette / fontSizeSp / lineEnding が変わったら update ブロックで反映
+ * - palette / fontSizeSp / lineSpacing / lineEnding が変わったら update ブロックで反映
  * - redrawSignal を監視して invalidate をトリガ（TerminalView 側の coalesce に委ねる）
  */
 @Composable
@@ -25,6 +25,7 @@ fun TerminalHost(
     controller: TerminalSessionController,
     palette: TerminalPalette,
     fontSizeSp: Float,
+    lineSpacing: Float,
     lineEnding: LineEnding,
     relaxedImePrivacyForClipboard: Boolean = false,
     modifier: Modifier = Modifier,
@@ -38,6 +39,8 @@ fun TerminalHost(
           it.bind(controller)
           it.setPalette(palette)
           it.setFontSizeSp(fontSizeSp)
+        it.setLineSpacing(lineSpacing)
+          it.setLineSpacing(lineSpacing)
           it.setLineEnding(lineEnding)
           it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
           viewRef.view = it

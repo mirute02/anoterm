@@ -326,4 +326,8 @@
     <string name="tmux_tree_open">ウィンドウ一覧を開く</string>
     <string name="tmux_tree_loading">接続を読み込み中\u2026</string>
     <string name="tmux_activity">更新あり</string>
+    <string name="settings_line_spacing">行間</string>
+    <string name="settings_line_spacing_summary">行と行の余白。広いほど読みやすく、狭いほど一画面に多く入ります。</string>
+    <string name="host_hide_tmux_status">tmux のステータス行を隠す</string>
+    <string name="host_hide_tmux_status_summary">ウィンドウ一覧はアプリ側のバーに出ているので、tmux 側のバーは同じ情報で 1 行を使います。このセッションにだけ適用されます。</string>
 </resources>

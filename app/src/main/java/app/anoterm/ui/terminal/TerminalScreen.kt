@@ -127,6 +127,7 @@ fun TerminalScreen(
   val context = LocalContext.current
   val theme by app.prefs.theme.collectAsStateWithLifecycle()
   val fontSizeSp by app.prefs.fontSizeSp.collectAsStateWithLifecycle()
+  val lineSpacing by app.prefs.lineSpacing.collectAsStateWithLifecycle()
   val lineEnding by app.prefs.lineEnding.collectAsStateWithLifecycle()
   val activeTabs by app.sessionManager.activeTabs.collectAsStateWithLifecycle()
   val customShortcuts by app.prefs.customShortcuts.collectAsStateWithLifecycle()
@@ -273,6 +274,7 @@ fun TerminalScreen(
                       tmuxSession,
                       app.prefs.claudeCodeFullscreen.value,
                       TmuxController.ttyVarFor(tabId),
+                      app.prefs.hideTmuxStatus.value,
                   )
                 },
             )
@@ -299,6 +301,7 @@ fun TerminalScreen(
                       tmuxSession,
                       app.prefs.claudeCodeFullscreen.value,
                       TmuxController.ttyVarFor(tabId),
+                      app.prefs.hideTmuxStatus.value,
                   )?.let {
             controller.sendToRemote(it)
           }
@@ -533,6 +536,7 @@ fun TerminalScreen(
                 controller = s.bundle.controller,
                 palette = theme.toPalette(),
                 fontSizeSp = fontSizeSp,
+                lineSpacing = lineSpacing,
                 lineEnding = lineEnding,
                 relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -551,6 +555,7 @@ fun TerminalScreen(
                     controller = pageBundle.controller,
                     palette = theme.toPalette(),
                     fontSizeSp = fontSizeSp,
+                    lineSpacing = lineSpacing,
                     lineEnding = lineEnding,
                     relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
                     modifier = Modifier.fillMaxSize(),
@@ -575,6 +580,7 @@ fun TerminalScreen(
             // AnimatedVisibility だと expand/shrink 中に毎フレーム terminal が縮み、
             // PTY resize → feed/draw が連発して「ショートカット展開がカクつく」。
             // snap 表示にすれば layout は 1 回で決まる。
+            ReplyKeyBar(onSend = sendBytes)
             if (showShortcutBar) {
               CustomShortcutBar(
                   shortcuts = customShortcuts,
@@ -832,6 +838,7 @@ internal fun buildStartupCommand(
     claudeCodeFullscreen: Boolean,
     /** クライアント特定用の環境変数名。null なら刻印しない（テスト用）。 */
     ttyVar: String? = null,
+    hideTmuxStatus: Boolean = false,
 ): ByteArray? {
   // セッション名はそのままシェルの語として並んでいた。`work log` のように空白を含む
   // 名前は二語に割れて別のセッションを作ってしまう。引用符で囲めない名前
@@ -853,6 +860,8 @@ internal fun buildStartupCommand(
     // アタッチする前に自分の tty を tmux の環境へ書く。後から外側の exec で
     // 「どのクライアントが自分か」を決める唯一の手掛かりになる。
     if (withTmux && ttyVar != null) add(TmuxController.markClientCommand(ttyVar))
+    // アタッチ前に撃つ。attach してしまうとこのシェルには戻ってこない。
+    if (withTmux) TmuxController.statusLineCommand(session!!, hideTmuxStatus)?.let { add(it) }
     if (withTmux) add("tmux new -A -s " + TmuxController.quote(session!!))
   }
   if (parts.isEmpty()) return null

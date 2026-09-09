@@ -338,4 +338,8 @@
     <string name="tmux_tree_open">Open the window list</string>
     <string name="tmux_tree_loading">Reading the connections\u2026</string>
     <string name="tmux_activity">new output</string>
+    <string name="settings_line_spacing">Line spacing</string>
+    <string name="settings_line_spacing_summary">Room between lines. Wider is easier to read; narrower fits more on screen.</string>
+    <string name="host_hide_tmux_status">Hide the tmux status line</string>
+    <string name="host_hide_tmux_status_summary">The app already lists the windows above, so tmux\'s own bar repeats it and costs a row. Applies to this session only.</string>
 </resources>

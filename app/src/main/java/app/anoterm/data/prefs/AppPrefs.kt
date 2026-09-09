@@ -36,6 +36,16 @@ class AppPrefs(context: Context) {
   private val _fontSizeSp = MutableStateFlow(readFontSize())
   val fontSizeSp: StateFlow<Float> = _fontSizeSp.asStateFlow()
 
+  // 行の高さの倍率。フォントの推奨行送りは端末向けに詰まっており、小さい画面で
+  // 長時間読むには窮屈になる。1.0 が従来どおり。
+  private val _lineSpacing = MutableStateFlow(readLineSpacing())
+  val lineSpacing: StateFlow<Float> = _lineSpacing.asStateFlow()
+
+  // tmux 自身のステータス行を隠すか。アプリのバーが同じ情報を出しているので、
+  // 狭い画面では 1 行ぶんの重複になる。
+  private val _hideTmuxStatus = MutableStateFlow(readHideTmuxStatus())
+  val hideTmuxStatus: StateFlow<Boolean> = _hideTmuxStatus.asStateFlow()
+
   private val _lineEnding = MutableStateFlow(readLineEnding())
   val lineEnding: StateFlow<LineEnding> = _lineEnding.asStateFlow()
 
@@ -107,6 +117,17 @@ class AppPrefs(context: Context) {
     val clamped = value.coerceIn(8f, 28f)
     sp.edit().putFloat(KEY_FONT_SIZE, clamped).apply()
     _fontSizeSp.value = clamped
+  }
+
+  fun setHideTmuxStatus(hide: Boolean) {
+    sp.edit().putBoolean(KEY_HIDE_TMUX_STATUS, hide).apply()
+    _hideTmuxStatus.value = hide
+  }
+
+  fun setLineSpacing(multiplier: Float) {
+    val clamped = multiplier.coerceIn(MIN_LINE_SPACING, MAX_LINE_SPACING)
+    sp.edit().putFloat(KEY_LINE_SPACING, clamped).apply()
+    _lineSpacing.value = clamped
   }
 
   fun setLineEnding(le: LineEnding) {
@@ -216,6 +237,11 @@ class AppPrefs(context: Context) {
         AppLocale.SYSTEM
       }
 
+  private fun readHideTmuxStatus(): Boolean = sp.getBoolean(KEY_HIDE_TMUX_STATUS, false)
+
+  private fun readLineSpacing(): Float =
+      sp.getFloat(KEY_LINE_SPACING, DEFAULT_LINE_SPACING).coerceIn(MIN_LINE_SPACING, MAX_LINE_SPACING)
+
   private fun readBiometricLock(): Boolean = sp.getBoolean(KEY_BIO_LOCK, false)
 
   private fun readLockGraceSeconds(): Int =
@@ -270,12 +296,20 @@ class AppPrefs(context: Context) {
     private const val KEY_GBOARD_CLIPBOARD_HISTORY_PROBE_LEGACY = "gboard_clipboard_history_probe"
     private const val KEY_CLAUDE_CODE_FULLSCREEN = "claude_code_fullscreen"
     private const val KEY_KEEPALIVE_SECONDS = "keepalive_seconds"
+    private const val KEY_LINE_SPACING = "line_spacing"
+    private const val KEY_HIDE_TMUX_STATUS = "hide_tmux_status"
     private const val KEY_LOCK_GRACE_SECONDS = "lock_grace_seconds"
     private const val KEY_SECURE_SCREEN = "secure_screen"
 
     const val DEFAULT_FONT_SIZE_SP = 14f
     const val DEFAULT_KEEPALIVE_SECONDS = 60
     const val DEFAULT_LOCK_GRACE_SECONDS = 30
+
+    // 既定を 1.0 より上げる。詰まった行送りは端末の慣習だが、スマホの画面で
+    // 読むには窮屈で、1 行増やして得られる情報より読みやすさの方が効く。
+    const val DEFAULT_LINE_SPACING = 1.15f
+    const val MIN_LINE_SPACING = 1.0f
+    const val MAX_LINE_SPACING = 1.6f
     const val MAX_LOCK_GRACE_SECONDS = 300
 
     // companion object に置くことでインスタンスプロパティの初期化順に依存しない。
