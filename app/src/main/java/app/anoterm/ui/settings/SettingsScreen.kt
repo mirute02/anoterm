@@ -116,11 +116,15 @@ fun SettingsScreen(
               },
               label = {
                 Text(
-                    when (l) {
-                      AppLocale.SYSTEM -> "System"
-                      AppLocale.EN -> "English"
-                      AppLocale.JA -> "日本語"
-                    },
+                    stringResource(
+                        when (l) {
+                          AppLocale.SYSTEM -> R.string.language_system
+                          // 言語名はその言語で書く。設定画面が何語で出ていても、
+                          // 自分の言語を探している人が見つけられるように。
+                          AppLocale.EN -> R.string.language_english
+                          AppLocale.JA -> R.string.language_japanese
+                        },
+                    ),
                 )
               },
           )

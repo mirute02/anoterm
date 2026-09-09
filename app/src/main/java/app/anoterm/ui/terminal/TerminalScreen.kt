@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.anoterm.BuildConfig
 import app.anoterm.R
+import androidx.annotation.StringRes
 import app.anoterm.AnotermApp
 import app.anoterm.ssh.LoopbackChannel
 import app.anoterm.ssh.ReconnectSpec
@@ -89,10 +90,28 @@ sealed interface TabScreenState {
   data class Ready(val bundle: SessionBundle) : TabScreenState
 
   data class Error(
-      val message: String,
+      val failure: ConnectFailure,
       val canRetry: Boolean = false,
       val hostId: Long? = null,
   ) : TabScreenState
+}
+
+/**
+ * 接続できなかった理由。
+ *
+ * 以前は表示用の日本語をそのまま持ち回り、「ホスト鍵」という文字列が含まれるかで
+ * 既知ホスト画面へのボタンを出すか決めていた。翻訳した時点で一致しなくなる。
+ * 分岐に使う値と、人に見せる文字列は別物にしておく。
+ */
+enum class ConnectFailure(@StringRes val message: Int) {
+  AUTH(R.string.conn_fail_auth),
+  UNREACHABLE(R.string.conn_fail_unreachable),
+  TIMEOUT(R.string.conn_fail_timeout),
+  HOST_KEY(R.string.conn_fail_host_key),
+  SECRET_MISSING(R.string.conn_fail_secret_missing),
+  HOST_NOT_FOUND(R.string.conn_fail_host_not_found),
+  INVALID_TAB(R.string.conn_fail_invalid_tab),
+  UNKNOWN(R.string.conn_fail_unknown),
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -198,17 +217,17 @@ fun TerminalScreen(
         state = TabScreenState.Connecting
         val hostId = hostIdFromTabId(tabId)
         if (hostId == null) {
-          state = TabScreenState.Error("invalid tabId")
+          state = TabScreenState.Error(ConnectFailure.INVALID_TAB)
           return@LaunchedEffect
         }
         val host = app.database.hostDao().findById(hostId)
         if (host == null) {
-          state = TabScreenState.Error("host not found")
+          state = TabScreenState.Error(ConnectFailure.HOST_NOT_FOUND)
           return@LaunchedEffect
         }
         val params = app.hostRepository.toConnectParams(host)
         if (params == null) {
-          state = TabScreenState.Error("secret missing", hostId = hostId)
+          state = TabScreenState.Error(ConnectFailure.SECRET_MISSING, hostId = hostId)
           return@LaunchedEffect
         }
         val controller = TerminalSessionController(initialRows = 24, initialCols = 80)
@@ -271,10 +290,10 @@ fun TerminalScreen(
           // 例外 message はサーバ名/ユーザ名/鍵パス等を含みうるため UI には出さない。
           // カテゴリ別に固定文言に落とす（詳細はデバッグビルドの Logger.e で別途確認可能）。
           Logger.e("TerminalScreen", "connect failed", t)
-          state = TabScreenState.Error(sanitizedConnectError(t), canRetry = true, hostId = hostId)
+          state = TabScreenState.Error(connectFailureOf(t), canRetry = true, hostId = hostId)
         }
       }
-      else -> state = TabScreenState.Error("unknown tab type")
+      else -> state = TabScreenState.Error(ConnectFailure.INVALID_TAB)
     }
   }
 
@@ -359,7 +378,7 @@ fun TerminalScreen(
             },
             actions = {
               IconButton(onClick = { showHistory = true }) {
-                Icon(Icons.Filled.History, contentDescription = "履歴")
+                Icon(Icons.Filled.History, contentDescription = stringResource(R.string.terminal_history))
               }
               // tmux ダッシュボードは Phase 2 以降の機能 (control mode 未完成)。
               // 一般ユーザには未使用機能が紛れて見えるのでノイズ、debug + 開発者モード時のみ出す。
@@ -369,18 +388,18 @@ fun TerminalScreen(
                 }
               }
               IconButton(onClick = { showInstallKey = true }) {
-                Icon(Icons.Filled.VpnKey, contentDescription = "公開鍵を登録")
+                Icon(Icons.Filled.VpnKey, contentDescription = stringResource(R.string.terminal_install_key))
               }
               IconButton(onClick = { showMemo = true }) {
-                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = "メモ")
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = stringResource(R.string.terminal_memo))
               }
               IconButton(onClick = { showHelp = true }) {
-                Icon(Icons.Filled.HelpOutline, contentDescription = "ヘルプ")
+                Icon(Icons.Filled.HelpOutline, contentDescription = stringResource(R.string.terminal_help))
               }
               IconButton(onClick = { showDisconnectConfirm = true }) {
                 Icon(
                     Icons.Filled.PowerSettingsNew,
-                    contentDescription = "切断",
+                    contentDescription = stringResource(R.string.host_disconnect),
                     tint = MaterialTheme.colorScheme.error,
                 )
               }
@@ -429,7 +448,7 @@ fun TerminalScreen(
         is TabScreenState.Error ->
             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
               ErrorMessage(
-                  message = s.message,
+                  failure = s.failure,
                   canRetry = s.canRetry,
                   hostId = s.hostId,
                   onRetry = { retryNonce++ },
@@ -556,19 +575,21 @@ fun TerminalScreen(
     firstSeenKey?.let { (keyType, fingerprint) ->
       AlertDialog(
           onDismissRequest = { firstSeenKey = null },
-          title = { Text("初めて接続するホストです") },
+          title = { Text(stringResource(R.string.first_seen_title)) },
           text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
               Text(
-                  "このホストの鍵を記録しました。以後、鍵が変わったら接続を拒否します。",
+                  stringResource(R.string.first_seen_recorded),
                   style = MaterialTheme.typography.bodyMedium,
               )
               Text("$keyType\n$fingerprint", style = MaterialTheme.typography.bodySmall)
               Text(
-                  "本当にその相手かを確かめるには、サーバー側で "
-                      + "ssh-keygen -lf /etc/ssh/ssh_host_${'$'}{keyType.removePrefix(\"ssh-\")}_key.pub "
-                      + "を実行し、上の指紋と一致するか見比べてください。"
-                      + "一致しない場合は、設定 → 既知のホスト から削除して接続し直すこと。",
+                  stringResource(
+                      R.string.first_seen_verify,
+                      "ssh-keygen -lf /etc/ssh/ssh_host_" +
+                          keyType.removePrefix("ssh-") +
+                          "_key.pub",
+                  ),
                   style = MaterialTheme.typography.bodySmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
@@ -596,7 +617,7 @@ fun TerminalScreen(
       if (ch is app.anoterm.ssh.SshChannel) {
         InstallKeySheet(
             channel = ch,
-            hostLabel = tabLabels[currentTabId] ?: "この接続",
+            hostLabel = tabLabels[currentTabId] ?: stringResource(R.string.terminal_this_connection),
             onDismiss = { showInstallKey = false },
         )
       } else {
@@ -621,12 +642,10 @@ fun TerminalScreen(
     if (showDisconnectConfirm) {
       AlertDialog(
           onDismissRequest = { showDisconnectConfirm = false },
-          title = { Text("切断しますか?") },
+          title = { Text(stringResource(R.string.terminal_disconnect_title)) },
           text = {
             Text(
-                "このタブの SSH 接続を終了し、ホスト一覧に戻ります。"
-                    + "tmux 統合が ON のホストではリモート側のセッションは残るので、"
-                    + "次回接続時に続きから再開できます。",
+                stringResource(R.string.terminal_disconnect_body),
             )
           },
           confirmButton = {
@@ -638,11 +657,11 @@ fun TerminalScreen(
                   if (app.sessionManager.activeTabIds().isEmpty()) onBack()
                 },
             ) {
-              Text("切断", color = MaterialTheme.colorScheme.error)
+              Text(stringResource(R.string.host_disconnect), color = MaterialTheme.colorScheme.error)
             }
           },
           dismissButton = {
-            TextButton(onClick = { showDisconnectConfirm = false }) { Text("キャンセル") }
+            TextButton(onClick = { showDisconnectConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
           },
       )
     }
@@ -675,7 +694,7 @@ private fun ConnectingIndicator() {
 
 @Composable
 private fun ErrorMessage(
-    message: String,
+    failure: ConnectFailure,
     canRetry: Boolean,
     hostId: Long?,
     onRetry: () -> Unit,
@@ -688,18 +707,22 @@ private fun ErrorMessage(
       horizontalAlignment = Alignment.CenterHorizontally,
   ) {
     Text(
-        text = stringResource(R.string.conn_failed, message),
+        text = stringResource(R.string.conn_failed, stringResource(failure.message)),
         textAlign = TextAlign.Center,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       if (canRetry) {
-        TextButton(onClick = onRetry) { Text("再試行") }
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
       }
       if (hostId != null) {
-        TextButton(onClick = { onEditHost(hostId) }) { Text("ホスト編集") }
+        TextButton(onClick = { onEditHost(hostId) }) {
+          Text(stringResource(R.string.action_edit_host))
+        }
       }
-      if ("ホスト鍵" in message || "TOFU" in message) {
-        TextButton(onClick = onOpenKnownHosts) { Text("信頼済みホスト") }
+      if (failure == ConnectFailure.HOST_KEY) {
+        TextButton(onClick = onOpenKnownHosts) {
+          Text(stringResource(R.string.action_known_hosts))
+        }
       }
     }
   }
@@ -750,14 +773,15 @@ internal fun buildStartupCommand(
  * 例外 → UI 用の無害な説明文にマップ。認証失敗時に username/host を表示しないのが要点。
  * 詳細デバッグは Logger で別途出力済み。
  */
-private fun sanitizedConnectError(t: Throwable): String {
+private fun connectFailureOf(t: Throwable): ConnectFailure {
   val m = t.message.orEmpty().lowercase()
   return when {
-    "authentication" in m || "auth fail" in m || "permission denied" in m -> "認証に失敗しました"
-    "unknownhost" in m || "no route" in m || "connect" in m && "refused" in m -> "サーバに接続できません"
-    "timeout" in m || "timed out" in m -> "接続がタイムアウトしました"
-    "hostkey" in m || "host key" in m -> "ホスト鍵が一致しません（TOFU）"
-    "secret" in m -> "認証情報が見つかりません"
-    else -> "接続に失敗しました"
+    "authentication" in m || "auth fail" in m || "permission denied" in m -> ConnectFailure.AUTH
+    "unknownhost" in m || "no route" in m || "connect" in m && "refused" in m ->
+        ConnectFailure.UNREACHABLE
+    "timeout" in m || "timed out" in m -> ConnectFailure.TIMEOUT
+    "hostkey" in m || "host key" in m -> ConnectFailure.HOST_KEY
+    "secret" in m -> ConnectFailure.SECRET_MISSING
+    else -> ConnectFailure.UNKNOWN
   }
 }

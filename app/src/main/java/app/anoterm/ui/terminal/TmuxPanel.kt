@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Modifier
@@ -59,60 +60,73 @@ import kotlinx.coroutines.launch
  */
 private const val TMUX_PREFIX: Byte = 0x02 // Ctrl-B
 
-private data class TmuxAction(val label: String, val keys: ByteArray) {
+/** ボタン 1 つ。[label] は表示名のリソース ID（トップレベルの val からは引けないため）。 */
+private data class TmuxAction(@StringRes val label: Int, val keys: ByteArray) {
   override fun equals(other: Any?): Boolean = other is TmuxAction && label == other.label
   override fun hashCode(): Int = label.hashCode()
 }
 
-private fun actionWithPrefix(label: String, vararg after: Byte): TmuxAction =
+private fun actionWithPrefix(@StringRes label: Int, vararg after: Byte): TmuxAction =
     TmuxAction(label, byteArrayOf(TMUX_PREFIX) + after)
 
 private val WINDOW_ACTIONS =
     listOf(
-        actionWithPrefix("新規 window", 'c'.code.toByte()),
-        actionWithPrefix("次の window", 'n'.code.toByte()),
-        actionWithPrefix("前の window", 'p'.code.toByte()),
-        actionWithPrefix("window 一覧", 'w'.code.toByte()),
-        actionWithPrefix("window 名変更", ','.code.toByte()),
-        actionWithPrefix("window 閉じる", '&'.code.toByte()),
+        actionWithPrefix(R.string.tmux_new_window, 'c'.code.toByte()),
+        actionWithPrefix(R.string.tmux_next_window, 'n'.code.toByte()),
+        actionWithPrefix(R.string.tmux_prev_window, 'p'.code.toByte()),
+        actionWithPrefix(R.string.tmux_list_windows, 'w'.code.toByte()),
+        actionWithPrefix(R.string.tmux_rename_window, ','.code.toByte()),
+        actionWithPrefix(R.string.tmux_close_window, '&'.code.toByte()),
     )
 
 private val PANE_ACTIONS =
     listOf(
-        actionWithPrefix("縦分割 %", '%'.code.toByte()),
-        actionWithPrefix("横分割 \"", '"'.code.toByte()),
-        actionWithPrefix("次の pane (o)", 'o'.code.toByte()),
-        actionWithPrefix("pane ズーム (z)", 'z'.code.toByte()),
-        actionWithPrefix("pane 番号 (q)", 'q'.code.toByte()),
-        actionWithPrefix("pane 閉じる (x)", 'x'.code.toByte()),
+        actionWithPrefix(R.string.tmux_split_vertical, '%'.code.toByte()),
+        actionWithPrefix(R.string.tmux_split_horizontal, '"'.code.toByte()),
+        actionWithPrefix(R.string.tmux_next_pane, 'o'.code.toByte()),
+        actionWithPrefix(R.string.tmux_zoom_pane, 'z'.code.toByte()),
+        actionWithPrefix(R.string.tmux_number_panes, 'q'.code.toByte()),
+        actionWithPrefix(R.string.tmux_close_pane, 'x'.code.toByte()),
     )
 
-/** pane 方向ジャンプ：prefix + 矢印。tmux の左右上下分割で隣の pane に移動する。 */
-private val PANE_DIRECTIONS: List<TmuxAction> =
+/**
+ * 記号だけのボタン。矢印や番号は翻訳しないので、リソースではなく文字列を直接持つ。
+ */
+private data class TmuxKey(val label: String, val keys: ByteArray) {
+  override fun equals(other: Any?): Boolean = other is TmuxKey && label == other.label
+
+  override fun hashCode(): Int = label.hashCode()
+}
+
+/**
+ * pane 方向ジャンプ：prefix + 矢印。tmux の左右上下分割で隣の pane に移動する。
+ *
+ * 矢印キーは ESC [ A の 3 バイトで、先頭の ESC が要る。これが抜けていたので
+ * 送っていたのは prefix + `[` + `A`、つまり tmux のコピーモードに入る操作だった。
+ */
+private val PANE_DIRECTIONS: List<TmuxKey> =
     listOf(
-        TmuxAction("pane ↑", byteArrayOf(TMUX_PREFIX) + "[A".toByteArray(Charsets.US_ASCII)),
-        TmuxAction("pane ↓", byteArrayOf(TMUX_PREFIX) + "[B".toByteArray(Charsets.US_ASCII)),
-        TmuxAction("pane ←", byteArrayOf(TMUX_PREFIX) + "[D".toByteArray(Charsets.US_ASCII)),
-        TmuxAction("pane →", byteArrayOf(TMUX_PREFIX) + "[C".toByteArray(Charsets.US_ASCII)),
+        TmuxKey("pane \u2191", byteArrayOf(TMUX_PREFIX) + "\u001B[A".toByteArray(Charsets.US_ASCII)),
+        TmuxKey("pane \u2193", byteArrayOf(TMUX_PREFIX) + "\u001B[B".toByteArray(Charsets.US_ASCII)),
+        TmuxKey("pane \u2190", byteArrayOf(TMUX_PREFIX) + "\u001B[D".toByteArray(Charsets.US_ASCII)),
+        TmuxKey("pane \u2192", byteArrayOf(TMUX_PREFIX) + "\u001B[C".toByteArray(Charsets.US_ASCII)),
     )
 
 private val SESSION_ACTIONS =
     listOf(
-        actionWithPrefix("detach", 'd'.code.toByte()),
-        actionWithPrefix("session 一覧", 's'.code.toByte()),
-        actionWithPrefix("session 名変更", '$'.code.toByte()),
-        actionWithPrefix("copy mode", '['.code.toByte()),
-        actionWithPrefix("ペースト", ']'.code.toByte()),
+        actionWithPrefix(R.string.tmux_detach, 'd'.code.toByte()),
+        actionWithPrefix(R.string.tmux_list_sessions, 's'.code.toByte()),
+        actionWithPrefix(R.string.tmux_rename_session, '$'.code.toByte()),
+        actionWithPrefix(R.string.tmux_copy_mode, '['.code.toByte()),
+        actionWithPrefix(R.string.tmux_paste, ']'.code.toByte()),
         // ネスト tmux（ローカル tmux → SSH 先の tmux 等）で内側の tmux に prefix を届ける。
         // 外側の prefix を消費させ、次の Ctrl-B を素通ししたい時に使う。
-        TmuxAction("内 tmux へ prefix", byteArrayOf(TMUX_PREFIX, TMUX_PREFIX)),
+        TmuxAction(R.string.tmux_inner_prefix, byteArrayOf(TMUX_PREFIX, TMUX_PREFIX)),
     )
 
 /** window 番号ジャンプ：0..9 */
-private val NUMBER_ACTIONS: List<TmuxAction> =
-    (0..9).map { n ->
-      TmuxAction("w$n", byteArrayOf(TMUX_PREFIX, ('0'.code + n).toByte()))
-    }
+private val NUMBER_ACTIONS: List<TmuxKey> =
+    (0..9).map { n -> TmuxKey("w$n", byteArrayOf(TMUX_PREFIX, ('0'.code + n).toByte())) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -131,13 +145,13 @@ fun TmuxPanel(
   ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
       Text(
-          text = "tmux ダッシュボード",
+          text = stringResource(R.string.tmux_dashboard),
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.primary,
           modifier = Modifier.padding(vertical = 8.dp),
       )
       Text(
-          text = "prefix = Ctrl-B。ボタンで prefix 付きショートカットを送出します。",
+          text = stringResource(R.string.tmux_prefix_hint),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(bottom = 12.dp),
@@ -150,7 +164,7 @@ fun TmuxPanel(
       HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
       ActionGroup("pane", PANE_ACTIONS, onSend)
       Text(
-          text = "pane 移動（prefix + 矢印）",
+          text = stringResource(R.string.tmux_pane_move),
           style = MaterialTheme.typography.labelLarge,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(vertical = 4.dp),
@@ -171,7 +185,7 @@ fun TmuxPanel(
       ActionGroup("session / clipboard", SESSION_ACTIONS, onSend)
       HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
       Text(
-          text = "window 番号でジャンプ",
+          text = stringResource(R.string.tmux_jump),
           style = MaterialTheme.typography.labelLarge,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(vertical = 4.dp),
@@ -209,7 +223,7 @@ private fun ActionGroup(title: String, actions: List<TmuxAction>, onSend: (ByteA
   ) {
     items(actions) { a ->
       OutlinedButton(onClick = { onSend(a.keys) }, modifier = Modifier.fillMaxWidth()) {
-        Text(a.label, style = MaterialTheme.typography.labelMedium)
+        Text(stringResource(a.label), style = MaterialTheme.typography.labelMedium)
       }
     }
   }
