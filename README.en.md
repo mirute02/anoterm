@@ -24,6 +24,11 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 - **Automatic tmux attach** — set a session name on the host and the app sends
   `tmux new -A -s <name>` after connecting (`-A` creates it if absent), so work
   survives a dropped connection
+- **Window list (≡)** — every open SSH connection and the tmux behind it, as a
+  tree: connection, then session, then window. **One tap reaches any window
+  anywhere**, including one in another connection — the app moves to that tab,
+  switches which session that client is attached to, and selects the window.
+  The connections are read in parallel, only when the list is opened
 - **tmux switcher bar** — the server's tmux windows sit in a strip under the
   connection tabs, so **one tap reaches a window in the background** instead of
   repeating `prefix n`. When more than one session exists, the menu on the left

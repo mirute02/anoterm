@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
@@ -137,6 +138,8 @@ fun TerminalScreen(
   var showHelp by remember { mutableStateOf(false) }
   var showHistory by remember { mutableStateOf(false) }
   var showTmux by remember { mutableStateOf(false) }
+  var showTmuxTree by remember { mutableStateOf(false) }
+  var tmuxTree by remember { mutableStateOf<List<TmuxTreeConnection>?>(null) }
   var showInstallKey by remember { mutableStateOf(false) }
   // TOFU で初めて記録したホスト鍵。何を信頼したのかを利用者に見せるため。
   var firstSeenKey by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -394,6 +397,12 @@ fun TerminalScreen(
               }
             },
             actions = {
+              IconButton(onClick = { showTmuxTree = true }) {
+                Icon(
+                    Icons.Filled.Menu,
+                    contentDescription = stringResource(R.string.tmux_tree_open),
+                )
+              }
               IconButton(onClick = { showHistory = true }) {
                 Icon(Icons.Filled.History, contentDescription = stringResource(R.string.terminal_history))
               }
@@ -661,6 +670,45 @@ fun TerminalScreen(
       } else {
         LaunchedEffect(Unit) { showTmux = false }
       }
+    }
+    if (showTmuxTree) {
+      LaunchedEffect(showTmuxTree, activeTabs) {
+        tmuxTree = null
+        tmuxTree =
+            collectTmuxTree(
+                sortedTabs.mapNotNull { id ->
+                  val ch = app.sessionManager.get(id)?.channel as? SshChannel ?: return@mapNotNull null
+                  Triple(id, labelFor(id), ch)
+                },
+            )
+      }
+      TmuxTreeSheet(
+          connections = tmuxTree,
+          currentTabId = currentTabId,
+          onJump = { jump ->
+            showTmuxTree = false
+            coroutineScope.launch {
+              // 別の接続なら、まずその接続を前面に出す。ページを跨いだ後で
+              // tmux を触らないと、切り替えた結果が見えないまま終わる。
+              val page = sortedTabs.indexOf(jump.tabId)
+              if (page >= 0 && page != pagerState.currentPage) {
+                pagerState.animateScrollToPage(page)
+              }
+              val bundle = app.sessionManager.get(jump.tabId)
+              val ch = bundle?.channel as? SshChannel ?: return@launch
+              val snapshot = tmuxTree?.firstOrNull { it.tabId == jump.tabId }?.snapshot
+              // アタッチ先が違うならクライアントごと動かす。select-window だけでは
+              // そのセッションのカレントが変わるだけで、見えている画面は変わらない。
+              if (snapshot?.attached != jump.window.session) {
+                snapshot?.clientTty?.let { tty ->
+                  TmuxController.switchClient(ch, tty, jump.window.session)
+                }
+              }
+              TmuxController.selectWindow(ch, jump.window)
+            }
+          },
+          onDismiss = { showTmuxTree = false },
+      )
     }
     if (showMemo) {
       MemoSheet(

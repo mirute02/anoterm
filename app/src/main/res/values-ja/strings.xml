@@ -319,4 +319,10 @@
     <string name="tmux_close_pane_confirm">このペインを閉じますか? 実行中のものは止まります。</string>
     <string name="tmux_no_window">tmux セッションにアタッチしていません。</string>
     <string name="tmux_failed">tmux に拒否されました。</string>
+    <string name="tmux_tree_title">ウィンドウ一覧</string>
+    <string name="tmux_tree_empty">接続がありません。</string>
+    <string name="tmux_tree_no_tmux">tmux なし</string>
+    <string name="tmux_tree_attached">表示中</string>
+    <string name="tmux_tree_open">ウィンドウ一覧を開く</string>
+    <string name="tmux_tree_loading">接続を読み込み中\u2026</string>
 </resources>

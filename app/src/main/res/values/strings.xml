@@ -331,4 +331,10 @@
     <string name="tmux_close_pane_confirm">Close this pane? Anything running in it stops.</string>
     <string name="tmux_no_window">Not attached to a tmux session.</string>
     <string name="tmux_failed">tmux refused that.</string>
+    <string name="tmux_tree_title">Windows</string>
+    <string name="tmux_tree_empty">Nothing is connected.</string>
+    <string name="tmux_tree_no_tmux">no tmux</string>
+    <string name="tmux_tree_attached">attached</string>
+    <string name="tmux_tree_open">Open the window list</string>
+    <string name="tmux_tree_loading">Reading the connections\u2026</string>
 </resources>
