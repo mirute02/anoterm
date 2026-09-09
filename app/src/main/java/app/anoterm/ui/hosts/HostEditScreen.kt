@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.annotation.StringRes
 import app.anoterm.R
 import app.anoterm.AnotermApp
 import app.anoterm.data.db.AuthMethod
@@ -97,11 +98,7 @@ fun HostEditScreen(
             if (validation.isFailure &&
                 validation.exceptionOrNull()?.message?.contains("passphrase", ignoreCase = true) != true) {
               keyInvalidMessage =
-                  "このファイルは AnoTerm で読めない形式です。\n\n" +
-                      "対応形式: OpenSSH v1 (-----BEGIN OPENSSH PRIVATE KEY-----) または " +
-                      "PKCS8 RSA。\n\n" +
-                      "`ssh-keygen -t ed25519 -f newkey` などで作り直してから" +
-                      "インポートし直してください。"
+                  ctx.getString(R.string.host_key_unreadable)
               return@launch
             }
             vm.setKey(bytes, name)
@@ -120,7 +117,7 @@ fun HostEditScreen(
             },
             actions = {
               if (hostId != null) {
-                TextButton(onClick = { showDeleteConfirm = true }) { Text("削除") }
+                TextButton(onClick = { showDeleteConfirm = true }) { Text(stringResource(R.string.action_delete)) }
               }
             },
         )
@@ -203,7 +200,7 @@ fun HostEditScreen(
 
       if (state.preserveSecret && state.originalAuth == state.auth) {
         Text(
-            "保存済みの認証情報を使用中（変更しない場合はそのまま保存）",
+            stringResource(R.string.host_secret_kept),
             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -222,7 +219,7 @@ fun HostEditScreen(
                 label = {
                   Text(
                       if (state.preserveSecret && state.originalAuth == AuthMethod.PASSWORD)
-                          "パスワードを変更する場合のみ入力"
+                          stringResource(R.string.host_password_change_only)
                       else stringResource(R.string.host_password),
                   )
                 },
@@ -234,7 +231,7 @@ fun HostEditScreen(
         AuthMethod.PRIVATE_KEY -> {
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { showSavedKeyPicker = true }) {
-              Text("保存済みから選ぶ")
+              Text(stringResource(R.string.host_pick_saved_key))
             }
             OutlinedButton(onClick = { keyPicker.launch(arrayOf("*/*")) }) {
               Text(state.keyFileName ?: stringResource(R.string.host_key_import))
@@ -253,8 +250,8 @@ fun HostEditScreen(
           // ここに出さないと Settings → SSH 鍵ヘルプ まで 2 画面潜る必要があり、
           // 初心者は鍵の用意もできないまま詰む。
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onOpenKeyGen) { Text("鍵を新規作成") }
-            TextButton(onClick = onOpenKeyHelp) { Text("サーバへの登録方法") }
+            TextButton(onClick = onOpenKeyGen) { Text(stringResource(R.string.host_new_key)) }
+            TextButton(onClick = onOpenKeyHelp) { Text(stringResource(R.string.host_key_help)) }
           }
         }
       }
@@ -265,7 +262,7 @@ fun HostEditScreen(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
       ) {
-        Text("tmux 統合（接続時に自動 attach）")
+        Text(stringResource(R.string.host_use_tmux))
         Switch(
             checked = state.useTmux,
             onCheckedChange = { v -> vm.update { it.copy(useTmux = v) } },
@@ -277,7 +274,7 @@ fun HostEditScreen(
             onValueChange = { v ->
               vm.update { it.copy(tmuxSession = v.filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '-' }) }
             },
-            label = { Text("tmux セッション名") },
+            label = { Text(stringResource(R.string.host_tmux_session)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -293,9 +290,9 @@ fun HostEditScreen(
       // 不足している入力を具体的に示す。
       if (!state.isValid() && !state.isBusy) {
         val hint = validationHint(state)
-        if (hint.isNotEmpty()) {
+        if (hint != null) {
           Text(
-              hint,
+              stringResource(hint),
               color = androidx.compose.material3.MaterialTheme.colorScheme.error,
               style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
           )
@@ -307,7 +304,7 @@ fun HostEditScreen(
       ConfirmDialog(
           title = stringResource(R.string.hosts_delete_confirm_title),
           message = stringResource(R.string.hosts_delete_confirm_message),
-          confirmLabel = "削除",
+          confirmLabel = stringResource(R.string.action_delete),
           onConfirm = {
             showDeleteConfirm = false
             vm.deleteSelf(onDone)
@@ -321,25 +318,28 @@ fun HostEditScreen(
     state.duplicateHost?.let { dup ->
       androidx.compose.material3.AlertDialog(
           onDismissRequest = { vm.dismissDuplicate() },
-          title = { Text("同じホストが既にあります") },
+          title = { Text(stringResource(R.string.host_duplicate_title)) },
           text = {
             Text(
-                "「${dup.label}」(${dup.username}@${dup.address}:${dup.port}) は登録済みです。"
-                    + "既存のホストを上書きしますか?\n\n"
-                    + "上書きすると入力中の認証情報（${if (dup.auth.name == "PASSWORD") "パスワード" else "秘密鍵"} → "
-                    + "${if (state.auth.name == "PASSWORD") "パスワード" else "秘密鍵"}）に置き換わります。",
+                stringResource(
+                    R.string.host_duplicate_body,
+                    dup.label,
+                    "${dup.username}@${dup.address}:${dup.port}",
+                    stringResource(authNameOf(dup.auth.name)),
+                    stringResource(authNameOf(state.auth.name)),
+                ),
             )
           },
           confirmButton = {
             androidx.compose.material3.TextButton(
                 onClick = { vm.confirmOverwrite(onDone) },
             ) {
-              Text("上書き")
+              Text(stringResource(R.string.host_overwrite))
             }
           },
           dismissButton = {
             androidx.compose.material3.TextButton(onClick = { vm.dismissDuplicate() }) {
-              Text("キャンセル")
+              Text(stringResource(R.string.action_cancel))
             }
           },
       )
@@ -364,10 +364,7 @@ fun HostEditScreen(
                     }
                 if (validation.isFailure) {
                   keyInvalidMessage =
-                      "「${entity.label}」は AnoTerm で読めない形式です。" +
-                          "古いバージョンで作成された Ed25519 鍵の可能性があります。\n\n" +
-                          "『SSH 鍵を作成』から新しい鍵を作り直し、サーバの authorized_keys に" +
-                          "再登録してから使ってください。"
+                      ctx.getString(R.string.host_saved_key_unreadable, entity.label)
                   showSavedKeyPicker = false
                   return@launch
                 }
@@ -383,11 +380,11 @@ fun HostEditScreen(
     keyInvalidMessage?.let { msg ->
       androidx.compose.material3.AlertDialog(
           onDismissRequest = { keyInvalidMessage = null },
-          title = { Text("この鍵は使えません") },
+          title = { Text(stringResource(R.string.host_key_unusable_title)) },
           text = { Text(msg) },
           confirmButton = {
             androidx.compose.material3.TextButton(onClick = { keyInvalidMessage = null }) {
-              Text("閉じる")
+              Text(stringResource(R.string.action_close))
             }
           },
       )
@@ -407,12 +404,12 @@ private fun SavedKeyPickerSheet(
   ModalBottomSheet(onDismissRequest = onDismiss) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
       androidx.compose.material3.Text(
-          "保存済みの SSH 鍵から選ぶ",
+          stringResource(R.string.host_pick_from_saved),
           style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
       )
       if (keys.isEmpty()) {
         androidx.compose.material3.Text(
-            "まだ鍵が保存されていません。設定 → SSH 鍵を作成 から作成してください。",
+            stringResource(R.string.host_no_saved_keys),
             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(vertical = 16.dp),
         )
@@ -431,17 +428,28 @@ private fun SavedKeyPickerSheet(
   }
 }
 
-/** 保存ボタンが disabled の理由を日本語で返す。ユーザが「押せない→戻る」で詰まるのを防ぐ。 */
-private fun validationHint(s: HostEditUiState): String {
-  if (s.label.isBlank()) return "ラベルを入力してください"
-  if (s.address.isBlank()) return "ホスト名 / IP を入力してください"
-  if (s.username.isBlank()) return "ユーザー名を入力してください"
+/**
+ * 保存ボタンが押せない理由。足りていなければ文言のリソース ID、揃っていれば null。
+ *
+ * 「押せない → 理由が分からない → 戻る」で詰まるのを防ぐための表示なので、
+ * どの入力が足りないかを具体的に示す。
+ */
+@StringRes
+private fun validationHint(s: HostEditUiState): Int? {
+  if (s.label.isBlank()) return R.string.hint_label
+  if (s.address.isBlank()) return R.string.hint_address
+  if (s.username.isBlank()) return R.string.hint_username
   val port = s.port.toIntOrNull()
-  if (port == null || port !in 1..65535) return "ポートは 1〜65535 の数値にしてください"
+  if (port == null || port !in 1..65535) return R.string.hint_port
   // 既存 secret を流用するなら credentials の再入力は不要
-  if (s.preserveSecret && s.auth == s.originalAuth) return ""
+  if (s.preserveSecret && s.auth == s.originalAuth) return null
   return when (s.auth) {
-    AuthMethod.PASSWORD -> "パスワードを入力してください（保存ボタンが有効になります）"
-    AuthMethod.PRIVATE_KEY -> "秘密鍵ファイルを選択してください（インポート / 保存済みから選ぶ）"
+    AuthMethod.PASSWORD -> R.string.hint_password
+    AuthMethod.PRIVATE_KEY -> R.string.hint_private_key
   }
 }
+
+/** 認証方法の表示名。上書き確認で「何から何に変わるか」を示すのに使う。 */
+@StringRes
+private fun authNameOf(name: String): Int =
+    if (name == "PASSWORD") R.string.auth_password else R.string.auth_private_key

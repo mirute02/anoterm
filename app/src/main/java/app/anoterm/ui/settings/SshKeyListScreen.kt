@@ -47,6 +47,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import app.anoterm.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -84,7 +86,7 @@ fun SshKeyListScreen(
   Scaffold(
       topBar = {
         TopAppBar(
-            title = { Text("SSH 鍵") },
+            title = { Text(stringResource(R.string.settings_ssh_keys)) },
             navigationIcon = {
               IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -94,7 +96,7 @@ fun SshKeyListScreen(
               IconButton(onClick = onOpenHelp) {
                 Icon(
                     Icons.AutoMirrored.Filled.HelpOutline,
-                    contentDescription = "使い方",
+                    contentDescription = stringResource(R.string.keys_help),
                 )
               }
             },
@@ -102,7 +104,7 @@ fun SshKeyListScreen(
       },
       floatingActionButton = {
         FloatingActionButton(onClick = onCreateNew) {
-          Icon(Icons.Filled.VpnKey, contentDescription = "新規作成")
+          Icon(Icons.Filled.VpnKey, contentDescription = stringResource(R.string.keys_create))
         }
       },
   ) { inner ->
@@ -112,9 +114,9 @@ fun SshKeyListScreen(
           verticalArrangement = Arrangement.spacedBy(12.dp),
           horizontalAlignment = Alignment.CenterHorizontally,
       ) {
-        Text("保存済みの鍵はありません", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.keys_empty), style = MaterialTheme.typography.titleMedium)
         Text(
-            "右下の鍵アイコンから Ed25519 / RSA 4096 を作成できます。",
+            stringResource(R.string.keys_empty_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -144,25 +146,25 @@ fun SshKeyListScreen(
                         val cm =
                             ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         cm.setPrimaryClip(ClipData.newPlainText("ssh public key", k.publicSsh))
-                        Toast.makeText(ctx, "公開鍵をコピーしました", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, ctx.getString(R.string.keygen_copied), Toast.LENGTH_SHORT).show()
                       },
                   ) {
-                    Icon(Icons.Filled.ContentCopy, contentDescription = "公開鍵をコピー")
+                    Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.keys_copy_public))
                   }
                   IconButton(onClick = { registerTarget = k }) {
                     Icon(
                         Icons.Filled.CloudUpload,
-                        contentDescription = "サーバに登録",
+                        contentDescription = stringResource(R.string.keys_install),
                         tint = MaterialTheme.colorScheme.primary,
                     )
                   }
                   IconButton(onClick = { renameTarget = k }) {
-                    Icon(Icons.Filled.Edit, contentDescription = "名前変更")
+                    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.keys_rename))
                   }
                   IconButton(onClick = { deleteTarget = k }) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "削除",
+                        contentDescription = stringResource(R.string.action_delete),
                         tint = MaterialTheme.colorScheme.error,
                     )
                   }
@@ -199,10 +201,10 @@ fun SshKeyListScreen(
           onPick = { host ->
             val cmd = buildAuthorizedKeysCommand(key.publicSsh.trim())
             val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("authorized_keys 登録コマンド", cmd))
+            cm.setPrimaryClip(ClipData.newPlainText(ctx.getString(R.string.keys_clip_label), cmd))
             Toast.makeText(
                     ctx,
-                    "登録コマンドをコピー。接続後、長押しでペースト → Enter",
+                    ctx.getString(R.string.keys_command_copied),
                     Toast.LENGTH_LONG,
                 )
                 .show()
@@ -215,11 +217,10 @@ fun SshKeyListScreen(
     deleteTarget?.let { target ->
       AlertDialog(
           onDismissRequest = { deleteTarget = null },
-          title = { Text("鍵を削除しますか?") },
+          title = { Text(stringResource(R.string.keys_delete_title)) },
           text = {
             Text(
-                "「${target.label}」を削除します。この鍵で接続中のホストは、host 側にコピーされた"
-                    + "複製を使っているため動作は続きます。ただし同じ鍵から別ホストを作れなくなります。",
+                stringResource(R.string.keys_delete_body, target.label),
             )
           },
           confirmButton = {
@@ -233,11 +234,11 @@ fun SshKeyListScreen(
                   deleteTarget = null
                 },
             ) {
-              Text("削除", color = MaterialTheme.colorScheme.error)
+              Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
             }
           },
           dismissButton = {
-            TextButton(onClick = { deleteTarget = null }) { Text("キャンセル") }
+            TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.action_cancel)) }
           },
       )
     }
@@ -253,12 +254,12 @@ private fun RenameDialog(
   var value by remember { mutableStateOf(current) }
   AlertDialog(
       onDismissRequest = onDismiss,
-      title = { Text("鍵の名前を変更") },
+      title = { Text(stringResource(R.string.keys_rename_title)) },
       text = {
         OutlinedTextField(
             value = value,
             onValueChange = { value = it },
-            label = { Text("新しい名前") },
+            label = { Text(stringResource(R.string.keys_new_name)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -268,10 +269,10 @@ private fun RenameDialog(
             onClick = { if (value.isNotBlank()) onConfirm(value.trim()) },
             enabled = value.isNotBlank() && value != current,
         ) {
-          Text("変更")
+          Text(stringResource(R.string.action_rename))
         }
       },
-      dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
   )
 }
 
@@ -307,20 +308,22 @@ private fun HostPickerSheet(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
       Text(
-          "どのホストに登録する?",
+          stringResource(R.string.keys_pick_host),
           style = MaterialTheme.typography.titleMedium,
           modifier = Modifier.padding(bottom = 4.dp),
       )
       Text(
-          "このフローは「パスワード認証で繋がる」ホスト前提です。"
-              + "秘密鍵ホストを選ぶと接続自体ができず登録に進めません。",
+          stringResource(R.string.keys_pick_host_note),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(bottom = 8.dp),
       )
       if (hosts.isEmpty()) {
-        Text("ホストが未登録です。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        TextButton(onClick = onCreateHost) { Text("ホスト一覧から追加") }
+        Text(
+            stringResource(R.string.keys_no_hosts),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onCreateHost) { Text(stringResource(R.string.keys_add_host)) }
       } else {
         hosts.forEach { h ->
           ListItem(
@@ -349,19 +352,14 @@ private fun HostPickerSheet(
   keyAuthWarning?.let { h ->
     AlertDialog(
         onDismissRequest = { keyAuthWarning = null },
-        title = { Text("秘密鍵認証のホストです") },
+        title = { Text(stringResource(R.string.keys_host_is_key_auth_title)) },
         text = {
           Text(
-              "「${h.label}」は既に秘密鍵認証に設定されています。"
-                  + "鍵登録フローは最初にパスワード認証で接続する必要があるため、このままでは進めません。\n\n"
-                  + "対処:\n"
-                  + "1. ホスト一覧で「${h.label}」の 🖉 を開き、認証方法を「パスワード」に戻して保存\n"
-                  + "2. このフローをやり直す\n"
-                  + "3. 鍵登録が終わったら再度 🖉 から「秘密鍵」へ切り替え",
+              stringResource(R.string.keys_host_is_key_auth_body, h.label),
           )
         },
         confirmButton = {
-          TextButton(onClick = { keyAuthWarning = null }) { Text("閉じる") }
+          TextButton(onClick = { keyAuthWarning = null }) { Text(stringResource(R.string.action_close)) }
         },
     )
   }
