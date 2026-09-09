@@ -76,12 +76,8 @@
     <string name="settings_lock_grace_5m">5 minutes</string>
     <string name="settings_secure_screen_title">Block screenshots</string>
     <string name="settings_secure_screen_summary">Also hides the terminal in the recent-apps thumbnail.</string>
-    <string name="tmux_windows">Windows</string>
-    <string name="tmux_loading">Reading tmux\u2026</string>
     <string name="tmux_unavailable">tmux is not available: %1$s</string>
-    <string name="tmux_no_windows">No windows open.</string>
     <string name="tmux_switch_failed">Could not switch window.</string>
-    <string name="tmux_refresh">Refresh</string>
     <string name="install_key_title">Add a public key to %1$s</string>
     <string name="install_key_explanation">Uses the session you already have open to append the selected key to <![CDATA[<code>~/.ssh/authorized_keys</code>]]> on the host. Afterwards switch the host\'s authentication to Private key and you are in without a password.</string>
     <string name="install_key_none">No keys to install. Create one under Settings \u2192 SSH keys.</string>

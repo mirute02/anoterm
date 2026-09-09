@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -79,7 +80,30 @@ fun TmuxBar(
     }
   }
 
-  val snapshot = (listing as? TmuxListing.Ok)?.snapshot ?: return
+  var switchFailed by remember { mutableStateOf(false) }
+
+  when (val current = listing) {
+    null -> return
+    is TmuxListing.Unavailable -> {
+      // ホスト設定で tmux を有効にしているのに使えない、という状況。バーを黙って
+      // 消すと「自動 attach が効いていない」ことに気づけないので理由を出す。
+      Text(
+          text = stringResource(R.string.tmux_unavailable, current.reason),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier =
+              modifier
+                  .fillMaxWidth()
+                  .background(MaterialTheme.colorScheme.surfaceVariant)
+                  .padding(horizontal = 8.dp, vertical = 4.dp),
+      )
+      return
+    }
+    is TmuxListing.Ok -> Unit
+  }
+  val snapshot = (listing as TmuxListing.Ok).snapshot
   val windows = snapshot.attachedWindows
   // 切り替える先が無いなら場所を取らせない。SSH タブのバーと同じ考え方。
   if (windows.size <= 1 && snapshot.sessions.size <= 1) return
@@ -124,12 +148,20 @@ fun TmuxBar(
       }
     }
 
+    if (switchFailed) {
+      Text(
+          text = stringResource(R.string.tmux_switch_failed),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.error,
+      )
+    }
+
     windows.forEach { w ->
       FilterChip(
           selected = w.active,
           onClick = {
             scope.launch {
-              TmuxController.selectWindow(channel, w)
+              switchFailed = !TmuxController.selectWindow(channel, w)
               reloadNonce++
             }
           },

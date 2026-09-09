@@ -65,12 +65,8 @@
     <string name="settings_lock_grace_5m">5 分</string>
     <string name="settings_secure_screen_title">スクリーンショットを禁止</string>
     <string name="settings_secure_screen_summary">「最近使ったアプリ」のサムネイルにも端末画面が出なくなります。</string>
-    <string name="tmux_windows">ウィンドウ</string>
-    <string name="tmux_loading">tmux を読み込み中\u2026</string>
     <string name="tmux_unavailable">tmux を利用できません: %1$s</string>
-    <string name="tmux_no_windows">開いているウィンドウがありません。</string>
     <string name="tmux_switch_failed">ウィンドウを切り替えられませんでした。</string>
-    <string name="tmux_refresh">更新</string>
     <string name="install_key_title">公開鍵を %1$s に登録</string>
     <string name="install_key_explanation">接続中のセッションを使って、選んだ鍵の公開鍵を接続先の <![CDATA[<code>~/.ssh/authorized_keys</code>]]> に追記します。登録後、ホスト設定の認証方法を「秘密鍵」に変えると次回から鍵で入れます。</string>
     <string name="install_key_none">登録できる鍵がありません。設定 \u2192 SSH 鍵 から作成してください。</string>
