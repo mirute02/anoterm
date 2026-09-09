@@ -3,7 +3,6 @@
 
     <!-- Navigation -->
     <string name="nav_hosts">Hosts</string>
-    <string name="nav_terminal">Terminal</string>
     <string name="nav_settings">Settings</string>
 
     <!-- Host list -->
@@ -26,17 +25,9 @@
     <string name="host_key_import">Import key file</string>
     <string name="host_key_passphrase">Key passphrase</string>
     <string name="host_save">Save</string>
-    <string name="host_cancel">Cancel</string>
-    <string name="host_connect">Connect</string>
 
     <!-- Terminal -->
-    <string name="terminal_new_tab">New tab</string>
-    <string name="terminal_close_tab">Close tab</string>
-    <string name="terminal_disconnect">Disconnect</string>
-    <string name="terminal_paste">Paste</string>
     <string name="terminal_copy">Copy</string>
-    <string name="terminal_select_all">Select all</string>
-    <string name="terminal_font_size">Font size</string>
 
     <!-- Keyboard toolbar -->
     <string name="kbd_esc">Esc</string>
@@ -59,16 +50,10 @@
     <string name="settings_theme">Terminal theme</string>
     <string name="settings_font_size">Font size</string>
     <string name="settings_language">Language</string>
-    <string name="settings_language_en">English</string>
-    <string name="settings_language_ja">日本語</string>
     <string name="settings_line_ending">Enter sends</string>
-    <string name="settings_line_ending_cr">CR (\\r)</string>
-    <string name="settings_line_ending_lf">LF (\\n)</string>
-    <string name="settings_line_ending_crlf">CR LF (\\r\\n)</string>
     <string name="settings_security">Security</string>
     <string name="settings_biometric_lock">Biometric app lock</string>
     <string name="settings_known_hosts">Known hosts</string>
-    <string name="settings_about">About</string>
 
     <!-- App lock -->
     <string name="lock_title">AnoTerm is locked</string>
@@ -78,8 +63,6 @@
 
     <!-- Connection states -->
     <string name="conn_connecting">Connecting…</string>
-    <string name="conn_connected">Connected</string>
-    <string name="conn_disconnected">Disconnected</string>
     <string name="conn_failed">Connection failed: %1$s</string>
 
     <!-- Loopback (debug) -->
@@ -213,7 +196,7 @@
     <string name="tmux_list_windows">List windows</string>
     <string name="tmux_rename_window">Rename window</string>
     <string name="tmux_close_window">Close window</string>
-    <string name="tmux_split_vertical">Split vertically %</string>
+    <string name="tmux_split_vertical" formatted="false">Split vertically %</string>
     <string name="tmux_split_horizontal">Split horizontally \"</string>
     <string name="tmux_next_pane">Next pane (o)</string>
     <string name="tmux_zoom_pane">Zoom pane (z)</string>
@@ -269,4 +252,85 @@
     <string name="keys_add_host">Add one from the host list</string>
     <string name="keys_host_is_key_auth_title">That host already uses key authentication</string>
     <string name="keys_host_is_key_auth_body">\u201c%1$s\u201d is already set to private-key authentication. Installing a key has to start from a password connection, so this cannot go ahead.\n\nWhat to do:\n1. Open \u201c%1$s\u201d from the host list, set authentication back to Password, and save\n2. Run this flow again\n3. Switch it back to Private key once the key is installed</string>
+    <string name="help_new_window">New window</string>
+    <string name="help_next_prev_window">Next / previous window</string>
+    <string name="help_window_by_number">Switch by window number</string>
+    <string name="help_rename_window">Rename the window</string>
+    <string name="help_close_window">Close the window</string>
+    <string name="help_list_windows">List the windows</string>
+    <string name="help_split_v">Split vertically</string>
+    <string name="help_split_h">Split horizontally</string>
+    <string name="help_next_pane">Next pane</string>
+    <string name="help_move_pane">Move between panes</string>
+    <string name="help_zoom_pane">Toggle pane zoom</string>
+    <string name="help_close_pane">Close the pane</string>
+    <string name="help_number_panes">Show pane numbers</string>
+    <string name="help_swap_panes">Swap panes</string>
+    <string name="help_detach">Detach (leaving it to reconnect to)</string>
+    <string name="help_list_sessions">List the sessions</string>
+    <string name="help_rename_session">Rename the session</string>
+    <string name="help_prev_next_session">Previous / next session</string>
+    <string name="help_copy_mode">Enter copy mode (arrows scroll)</string>
+    <string name="help_copy_select">Select, then copy, in copy mode</string>
+    <string name="help_paste">Paste</string>
+    <string name="help_leave_copy_mode">Leave copy mode</string>
+    <string name="help_line_start_end">Start / end of line</string>
+    <string name="help_kill_before_after">Delete before / after the cursor</string>
+    <string name="help_kill_word">Delete a word</string>
+    <string name="help_history_search">Incremental history search</string>
+    <string name="help_interrupt">Interrupt the running command</string>
+    <string name="help_eof">EOF / log out</string>
+    <string name="help_clear">Clear the screen</string>
+    <string name="help_suspend">Suspend (bg/fg resumes it)</string>
+    <string name="kh_title">Using SSH keys</string>
+    <string name="kh_what_title">What an SSH key is</string>
+    <string name="kh_what_body">An SSH key is a pair: a private key and a public key. The private one never leaves your device; only the public one goes on the server. Unlike a password, it cannot be guessed by trying repeatedly.</string>
+    <string name="kh_create_title">Creating a key in AnoTerm (recommended)</string>
+    <string name="kh_create_body">Settings \u2192 Create an SSH key, then:</string>
+    <string name="kh_create_1">1. Choose the type (Ed25519 unless you need RSA 4096 for an older server)</string>
+    <string name="kh_create_2">2. Enter a comment, such as an email address</string>
+    <string name="kh_create_3">3. The passphrase may be empty. Setting one protects the key if the device is taken</string>
+    <string name="kh_create_4">4. Create. The private key is stored encrypted here, and the public key is shown to copy</string>
+    <string name="kh_create_5">5. Add that public key to ~/.ssh/authorized_keys on the server (below)</string>
+    <string name="kh_import_title">Importing a key made elsewhere</string>
+    <string name="kh_import_body">If you already have a private key, or prefer another tool.</string>
+    <string name="kh_import_unix">~/.ssh/id_ed25519 is the private key. Import that one.</string>
+    <string name="kh_import_ps">In PowerShell:</string>
+    <string name="kh_import_putty">Or generate one in PuTTYgen, export it in OpenSSH format, and import that.</string>
+    <string name="kh_install_title">Installing the public key on a server</string>
+    <string name="kh_install_prereq">Installing a public key assumes you can already get into the machine somehow. Usually one of:\n\u2022 SSH with a password (an existing server, shared hosting)\n\u2022 A cloud console (EC2 Instance Connect, GCP serial console, a VPS control panel)\n\u2022 Direct access to a physical or virtual console (a home server, a VM)</string>
+    <string name="kh_shortest_title">The shortest path in AnoTerm</string>
+    <string name="kh_shortest_note">\u26a0 This only works on a host you can still reach with a password. A host already set to key authentication (the \u201ckey\u201d badge) cannot connect, so there is nothing to install over.\n\nIf you have already switched it, set it back to Password in the host editor first.</string>
+    <string name="kh_shortest_1">1. Add the server from the host screen with password authentication</string>
+    <string name="kh_shortest_2">   (if it does not exist yet, or shows the \u201ckey\u201d badge, do this first)</string>
+    <string name="kh_shortest_3">2. Connect and log in with the password</string>
+    <string name="kh_shortest_4">3. Tap the key icon on the terminal and pick the key to install</string>
+    <string name="kh_shortest_5">4. It will not install twice, so tapping again is harmless</string>
+    <string name="kh_shortest_6">5. Back on the host screen, edit it, set authentication to Private key, choose the same key, save</string>
+    <string name="kh_shortest_7">6. From then on it connects with the key and no password</string>
+    <string name="kh_sshd_note">Note: the server needs PubkeyAuthentication yes in /etc/ssh/sshd_config. Most distributions enable it by default, so try it before changing anything.</string>
+    <string name="kh_pick_key">Choose which public key</string>
+    <string name="kh_one_key">The command below carries the public key of \u201c%1$s\u201d.</string>
+    <string name="kh_no_keys">No keys saved yet. In the command below, replace \"ssh-ed25519 AAAA... your_email@example.com\" with your own public key. Create one under Settings \u2192 Create an SSH key and this page will show the command with the real key in it.</string>
+    <string name="kh_manual_title">Installing it by hand</string>
+    <string name="kh_manual_body">If you would rather type it yourself, log in and paste this:</string>
+    <string name="kh_manual_note">Public keys do not normally contain a single quote. If one does and the command fails, append it some other way than echo.</string>
+    <string name="kh_cloud_title">AWS EC2 / GCP / Azure</string>
+    <string name="kh_cloud_1">Paste the public key into the key-pair field when creating the instance,</string>
+    <string name="kh_cloud_2">or add it later from the console.</string>
+    <string name="kh_forge_title">GitHub / GitLab</string>
+    <string name="kh_forge_body">Settings \u2192 SSH and GPG keys \u2192 New SSH key, and paste the public key.</string>
+    <string name="kh_copyid_title">ssh-copy-id</string>
+    <string name="kh_copyid_body">From a computer, `ssh-copy-id user@host` does this. The key icon in AnoTerm does the same thing over the connection you already have, which is what to use when the phone is all you have.</string>
+    <string name="kh_passphrase_title">About passphrases</string>
+    <string name="kh_passphrase_body">A passphrase encrypts the private key file itself, so someone who takes the device still cannot use the key. Worth setting on a phone. Combined with the app lock, you need not type it every time.</string>
+    <string name="kh_lost_title">If you lose the key</string>
+    <string name="kh_lost_body">A private key cannot be recovered. If the device is lost or wiped, remove that public key from ~/.ssh/authorized_keys on the server, make a new key, and install that one.</string>
+    <string name="kh_lost_backup">Which is why a server that matters should keep a second way in: a password, a second key, or console access.</string>
+    <string name="kh_formats_title">Key formats</string>
+    <string name="kh_fmt_ed25519">**Ed25519**: modern, short, strong, widely supported. Use this.</string>
+    <string name="kh_fmt_rsa">**RSA 4096**: works on old servers too. Longer.</string>
+    <string name="kh_fmt_ecdsa">**ECDSA**: rarely needed, except where a policy asks for it.</string>
+    <string name="kh_fmt_dsa">**DSA**: obsolete, do not use</string>
+    <string name="kh_fmt_pem">**OpenSSH and PEM**: AnoTerm reads both. New keys are written in OpenSSH format.</string>
 </resources>

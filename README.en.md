@@ -39,15 +39,15 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 
 ## Language
 
-**The UI is largely Japanese.** `strings.xml` defaults to English and a Japanese
-translation exists, but roughly 300 strings across 20 screens are written
-directly in Kotlin in Japanese and bypass the resource system — settings, key
-management, help sheets and the foreground-service notification among them.
+English and Japanese. It follows the device setting by default and can be
+changed in Settings without restarting the app.
 
-Terminal output itself is unaffected: that comes from the remote host. What is
-Japanese is the app's own chrome. If you read Japanese this is a non-issue; if
-you do not, expect to navigate by icon and position. Extracting those strings
-into resources is welcome as a contribution.
+Every string lives in `strings.xml`; none are left in Kotlin.
+`tools/check-strings.py` runs in CI and rejects a duplicated name, a name
+present in one language and not the other, format arguments that differ between
+the two, and names nothing refers to.
+
+Terminal output is unaffected either way: that comes from the remote host.
 
 ## Requirements
 

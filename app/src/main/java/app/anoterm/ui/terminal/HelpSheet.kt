@@ -16,14 +16,21 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.annotation.StringRes
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import app.anoterm.R
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 
-private data class Shortcut(val keys: String, val desc: String)
+/**
+ * ショートカット 1 行。[keys] は打鍵そのものなので翻訳しない。
+ * [desc] は説明文なのでリソース ID で持つ（この一覧はトップレベルの val）。
+ */
+private data class Shortcut(val keys: String, @StringRes val desc: Int)
 
 private data class Section(val title: String, val entries: List<Shortcut>)
 
@@ -33,56 +40,56 @@ private val SECTIONS =
         Section(
             "tmux: prefix = Ctrl-B",
             listOf(
-                Shortcut("prefix c", "新しい window"),
-                Shortcut("prefix n / p", "次 / 前 の window"),
-                Shortcut("prefix 0..9", "window 番号で切替"),
-                Shortcut("prefix ,", "window 名を変更"),
-                Shortcut("prefix &", "window を閉じる"),
-                Shortcut("prefix w", "window 一覧"),
+                Shortcut("prefix c", R.string.help_new_window),
+                Shortcut("prefix n / p", R.string.help_next_prev_window),
+                Shortcut("prefix 0..9", R.string.help_window_by_number),
+                Shortcut("prefix ,", R.string.help_rename_window),
+                Shortcut("prefix &", R.string.help_close_window),
+                Shortcut("prefix w", R.string.help_list_windows),
             ),
         ),
         Section(
             "tmux: pane",
             listOf(
-                Shortcut("prefix %", "縦分割"),
-                Shortcut("prefix \"", "横分割"),
-                Shortcut("prefix o", "次の pane"),
-                Shortcut("prefix 矢印", "pane 移動"),
-                Shortcut("prefix z", "pane ズーム切替"),
-                Shortcut("prefix x", "pane を閉じる"),
-                Shortcut("prefix q", "pane 番号表示"),
-                Shortcut("prefix {} / }", "pane 入替"),
+                Shortcut("prefix %", R.string.help_split_v),
+                Shortcut("prefix \"", R.string.help_split_h),
+                Shortcut("prefix o", R.string.help_next_pane),
+                Shortcut("prefix \u2190\u2191\u2193\u2192", R.string.help_move_pane),
+                Shortcut("prefix z", R.string.help_zoom_pane),
+                Shortcut("prefix x", R.string.help_close_pane),
+                Shortcut("prefix q", R.string.help_number_panes),
+                Shortcut("prefix {} / }", R.string.help_swap_panes),
             ),
         ),
         Section(
             "tmux: session",
             listOf(
-                Shortcut("prefix d", "detach（再接続可能に）"),
-                Shortcut("prefix s", "session 一覧"),
-                Shortcut("prefix $", "session 名変更"),
-                Shortcut("prefix ( / )", "前後の session"),
+                Shortcut("prefix d", R.string.help_detach),
+                Shortcut("prefix s", R.string.help_list_sessions),
+                Shortcut("prefix $", R.string.help_rename_session),
+                Shortcut("prefix ( / )", R.string.help_prev_next_session),
             ),
         ),
         Section(
             "tmux: copy / scroll",
             listOf(
-                Shortcut("prefix [", "copy mode に入る（矢印でスクロール）"),
-                Shortcut("space → enter", "copy mode で選択→コピー"),
-                Shortcut("prefix ]", "ペースト"),
-                Shortcut("q", "copy mode から抜ける"),
+                Shortcut("prefix [", R.string.help_copy_mode),
+                Shortcut("space → enter", R.string.help_copy_select),
+                Shortcut("prefix ]", R.string.help_paste),
+                Shortcut("q", R.string.help_leave_copy_mode),
             ),
         ),
         Section(
             "shell / readline",
             listOf(
-                Shortcut("Ctrl-A / Ctrl-E", "行頭 / 行末"),
-                Shortcut("Ctrl-U / Ctrl-K", "カーソルより前 / 後を削除"),
-                Shortcut("Ctrl-W", "単語削除"),
-                Shortcut("Ctrl-R", "履歴インクリメンタル検索"),
-                Shortcut("Ctrl-C", "実行中コマンド中断"),
-                Shortcut("Ctrl-D", "EOF / ログアウト"),
-                Shortcut("Ctrl-L", "画面クリア"),
-                Shortcut("Ctrl-Z", "サスペンド（bg/fg で再開）"),
+                Shortcut("Ctrl-A / Ctrl-E", R.string.help_line_start_end),
+                Shortcut("Ctrl-U / Ctrl-K", R.string.help_kill_before_after),
+                Shortcut("Ctrl-W", R.string.help_kill_word),
+                Shortcut("Ctrl-R", R.string.help_history_search),
+                Shortcut("Ctrl-C", R.string.help_interrupt),
+                Shortcut("Ctrl-D", R.string.help_eof),
+                Shortcut("Ctrl-L", R.string.help_clear),
+                Shortcut("Ctrl-Z", R.string.help_suspend),
             ),
         ),
     )
@@ -126,7 +133,7 @@ fun HelpSheet(onDismiss: () -> Unit) {
                   color = MaterialTheme.colorScheme.primary,
               )
               Text(
-                  text = sc.desc,
+                  text = stringResource(sc.desc),
                   style = MaterialTheme.typography.bodyMedium,
                   color = MaterialTheme.colorScheme.onSurface,
               )

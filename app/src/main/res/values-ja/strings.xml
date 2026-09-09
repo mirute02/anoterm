@@ -2,7 +2,6 @@
     <string name="app_name">AnoTerm</string>
 
     <string name="nav_hosts">ホスト</string>
-    <string name="nav_terminal">ターミナル</string>
     <string name="nav_settings">設定</string>
 
     <string name="hosts_empty_title">ホストが登録されていません</string>
@@ -23,16 +22,8 @@
     <string name="host_key_import">鍵ファイルを読み込む</string>
     <string name="host_key_passphrase">鍵パスフレーズ</string>
     <string name="host_save">保存</string>
-    <string name="host_cancel">キャンセル</string>
-    <string name="host_connect">接続</string>
 
-    <string name="terminal_new_tab">新規タブ</string>
-    <string name="terminal_close_tab">タブを閉じる</string>
-    <string name="terminal_disconnect">切断</string>
-    <string name="terminal_paste">貼り付け</string>
     <string name="terminal_copy">コピー</string>
-    <string name="terminal_select_all">全選択</string>
-    <string name="terminal_font_size">フォントサイズ</string>
 
     <string name="kbd_esc">Esc</string>
     <string name="kbd_tab">Tab</string>
@@ -51,16 +42,10 @@
     <string name="settings_theme">ターミナルテーマ</string>
     <string name="settings_font_size">フォントサイズ</string>
     <string name="settings_language">言語</string>
-    <string name="settings_language_en">English</string>
-    <string name="settings_language_ja">日本語</string>
     <string name="settings_line_ending">Enter 時に送る改行</string>
-    <string name="settings_line_ending_cr">CR (\\r)</string>
-    <string name="settings_line_ending_lf">LF (\\n)</string>
-    <string name="settings_line_ending_crlf">CR LF (\\r\\n)</string>
     <string name="settings_security">セキュリティ</string>
     <string name="settings_biometric_lock">生体認証でロック</string>
     <string name="settings_known_hosts">信頼済みホスト</string>
-    <string name="settings_about">このアプリについて</string>
 
     <string name="lock_title">AnoTerm はロック中です</string>
     <string name="lock_unlock">ロック解除</string>
@@ -68,8 +53,6 @@
     <string name="lock_biometric_subtitle">保存されたホストを表示するために本人確認を行います。</string>
 
     <string name="conn_connecting">接続中…</string>
-    <string name="conn_connected">接続済み</string>
-    <string name="conn_disconnected">切断済み</string>
     <string name="conn_failed">接続に失敗しました: %1$s</string>
 
     <string name="loopback_host_label">ローカルエコー (デバッグ)</string>
@@ -201,7 +184,7 @@
     <string name="tmux_list_windows">window 一覧</string>
     <string name="tmux_rename_window">window 名変更</string>
     <string name="tmux_close_window">window 閉じる</string>
-    <string name="tmux_split_vertical">縦分割 %</string>
+    <string name="tmux_split_vertical" formatted="false">縦分割 %</string>
     <string name="tmux_split_horizontal">横分割 \"</string>
     <string name="tmux_next_pane">次の pane (o)</string>
     <string name="tmux_zoom_pane">pane ズーム (z)</string>
@@ -256,5 +239,86 @@
     <string name="keys_no_hosts">ホストが未登録です。</string>
     <string name="keys_add_host">ホスト一覧から追加</string>
     <string name="keys_host_is_key_auth_title">秘密鍵認証のホストです</string>
-    <string name="keys_host_is_key_auth_body">「%1$s」は既に秘密鍵認証に設定されています。鍵登録フローは最初にパスワード認証で接続する必要があるため、このままでは進めません。\n\n対処:\n1. ホスト一覧で「%1$s」の \ud83d\udd89 を開き、認証方法を「パスワード」に戻して保存\n2. このフローをやり直す\n3. 鍵登録が終わったら再度 \ud83d\udd89 から「秘密鍵」へ切り替え</string>
+    <string name="keys_host_is_key_auth_body">「%1$s」は既に秘密鍵認証に設定されています。鍵登録フローは最初にパスワード認証で接続する必要があるため、このままでは進めません。\n\n対処:\n1. ホスト一覧で「%1$s」の 🖉 を開き、認証方法を「パスワード」に戻して保存\n2. このフローをやり直す\n3. 鍵登録が終わったら再度 🖉 から「秘密鍵」へ切り替え</string>
+    <string name="help_new_window">新しい window</string>
+    <string name="help_next_prev_window">次 / 前 の window</string>
+    <string name="help_window_by_number">window 番号で切替</string>
+    <string name="help_rename_window">window 名を変更</string>
+    <string name="help_close_window">window を閉じる</string>
+    <string name="help_list_windows">window 一覧</string>
+    <string name="help_split_v">縦分割</string>
+    <string name="help_split_h">横分割</string>
+    <string name="help_next_pane">次の pane</string>
+    <string name="help_move_pane">pane 移動</string>
+    <string name="help_zoom_pane">pane ズーム切替</string>
+    <string name="help_close_pane">pane を閉じる</string>
+    <string name="help_number_panes">pane 番号表示</string>
+    <string name="help_swap_panes">pane 入替</string>
+    <string name="help_detach">detach（再接続可能に）</string>
+    <string name="help_list_sessions">session 一覧</string>
+    <string name="help_rename_session">session 名変更</string>
+    <string name="help_prev_next_session">前後の session</string>
+    <string name="help_copy_mode">copy mode に入る（矢印でスクロール）</string>
+    <string name="help_copy_select">copy mode で選択→コピー</string>
+    <string name="help_paste">ペースト</string>
+    <string name="help_leave_copy_mode">copy mode から抜ける</string>
+    <string name="help_line_start_end">行頭 / 行末</string>
+    <string name="help_kill_before_after">カーソルより前 / 後を削除</string>
+    <string name="help_kill_word">単語削除</string>
+    <string name="help_history_search">履歴インクリメンタル検索</string>
+    <string name="help_interrupt">実行中コマンド中断</string>
+    <string name="help_eof">EOF / ログアウト</string>
+    <string name="help_clear">画面クリア</string>
+    <string name="help_suspend">サスペンド（bg/fg で再開）</string>
+    <string name="kh_title">SSH 鍵の使い方</string>
+    <string name="kh_what_title">そもそも SSH 鍵とは</string>
+    <string name="kh_what_body">SSH 鍵は「秘密鍵」と「公開鍵」のペアで、パスワードの代わりに本人確認をするための仕組みです。秘密鍵は手元の端末にだけ置き、公開鍵だけをサーバに登録します。パスワードと違って総当たり攻撃に強く、より安全です。</string>
+    <string name="kh_create_title">AnoTerm で鍵を作る（推奨）</string>
+    <string name="kh_create_body">設定 \u2192 「SSH 鍵を作成」から以下の手順で作れます。</string>
+    <string name="kh_create_1">1. 鍵種類を選ぶ（Ed25519 推奨。RSA 4096 は互換性優先の場合）</string>
+    <string name="kh_create_2">2. コメント（メールアドレス等）を入力</string>
+    <string name="kh_create_3">3. passphrase は空でも可。設定すると鍵盗難時の保険になる</string>
+    <string name="kh_create_4">4. 「作成」\u2192 秘密鍵は端末内に暗号化保存、公開鍵がコピーできる画面に</string>
+    <string name="kh_create_5">5. その公開鍵をサーバの ~/.ssh/authorized_keys に追記する（詳細は下）</string>
+    <string name="kh_import_title">他のツールで作って AnoTerm に読み込む</string>
+    <string name="kh_import_body">既に手元に秘密鍵がある、もしくは別ツールで作りたい場合。</string>
+    <string name="kh_import_unix">~/.ssh/id_ed25519 が秘密鍵。これを AnoTerm の「鍵をインポート」で読み込みます。</string>
+    <string name="kh_import_ps">PowerShell で:</string>
+    <string name="kh_import_putty">または PuTTYgen で生成し、OpenSSH 形式で export してインポート。</string>
+    <string name="kh_install_title">公開鍵をサーバに登録する</string>
+    <string name="kh_install_prereq">公開鍵を登録するには、まず「何らかの方法でサーバに入れる状態」が前提です。典型的には次のいずれか:\n\u2022 パスワード認証でひとまず SSH ログインできる（既存サーバ・共有レンタルサーバ等）\n\u2022 クラウドのコンソール（AWS EC2 Connect, GCP シリアル, さくら VPS コンパネ等）\n\u2022 物理/仮想コンソールに直接アクセスできる（自宅サーバ・VM）</string>
+    <string name="kh_shortest_title">AnoTerm での最短手順</string>
+    <string name="kh_shortest_note">\u26a0 前提: このフローはホストが「パスワード認証で繋がる」状態でないと成立しません。秘密鍵認証のホスト (「key」バッジ) を選ぶと、そもそも接続できないので登録に進めません。\n\n既に秘密鍵認証にしてしまっている場合は、先にホスト編集で「パスワード」に戻してください。</string>
+    <string name="kh_shortest_1">1. ホスト画面の + から対象サーバを **パスワード認証で** 登録</string>
+    <string name="kh_shortest_2">   （まだホストが無い、または「key」バッジの場合は先にこの状態に）</string>
+    <string name="kh_shortest_3">2. 接続してパスワードでログイン</string>
+    <string name="kh_shortest_4">3. 端末画面の鍵アイコンをタップし、登録したい鍵を選ぶ</string>
+    <string name="kh_shortest_5">4. 二重登録はされないので、迷ったら押し直してよい</string>
+    <string name="kh_shortest_6">5. ホスト画面に戻り 🖉 \u2192 認証方法を「秘密鍵」\u2192 保存済みから同じ鍵を選んで保存</string>
+    <string name="kh_shortest_7">6. 次回以降はパスワード無しで鍵認証で入れる</string>
+    <string name="kh_sshd_note">\u203b サーバ側で /etc/ssh/sshd_config の PubkeyAuthentication が yes か要確認。デフォルトで有効なディストリが多いのでまずは試してみる。</string>
+    <string name="kh_pick_key">使う公開鍵を選ぶ</string>
+    <string name="kh_one_key">「%1$s」の公開鍵をコマンドに埋め込みました。</string>
+    <string name="kh_no_keys">保存済みの鍵がまだありません。下の手順のコマンドでは \"ssh-ed25519 AAAA... your_email@example.com\" をあなたの公開鍵に置き換えてください。設定 \u2192 「SSH 鍵を作成」から鍵を作れば、ここに実際の公開鍵を差し込んだコマンドが表示されます。</string>
+    <string name="kh_manual_title">手動で登録する場合（参考）</string>
+    <string name="kh_manual_body">上の最短手順を使わず直接打ち込む場合、サーバにログイン後これを貼り付け:</string>
+    <string name="kh_manual_note">\u203b クオート内に \' (single quote) が含まれる公開鍵は通常ありません。万一エラーが出た場合は echo の部分を別の方法に置き換えてください。</string>
+    <string name="kh_cloud_title">AWS EC2 / GCP / Azure</string>
+    <string name="kh_cloud_1">インスタンス作成時の「キーペア追加」欄に公開鍵をペースト、</string>
+    <string name="kh_cloud_2">もしくはコンソールから後付け可能。</string>
+    <string name="kh_forge_title">GitHub / GitLab</string>
+    <string name="kh_forge_body">Settings \u2192 SSH and GPG keys \u2192 New SSH key に公開鍵をペースト。</string>
+    <string name="kh_copyid_title">ssh-copy-id（上級者向け）</string>
+    <string name="kh_copyid_body">PC から `ssh-copy-id user@host` で登録できます。AnoTerm の鍵アイコンがやっているのと同じことで、端末しか無い場合はそちらを使ってください。</string>
+    <string name="kh_passphrase_title">passphrase について</string>
+    <string name="kh_passphrase_body">passphrase は秘密鍵ファイル自体を暗号化するパスワード。端末を盗まれても passphrase を知らない人は鍵を使えないため、モバイル端末では設定を推奨。AnoTerm では Android の画面ロックと組み合わせることで、毎回 passphrase を打つ必要はない運用も可能。</string>
+    <string name="kh_lost_title">鍵を失ったら</string>
+    <string name="kh_lost_body">秘密鍵は復旧不能です。端末紛失・初期化した場合はサーバ側で該当公開鍵を ~/.ssh/authorized_keys から削除し、新しい鍵を作り直して登録し直してください。</string>
+    <string name="kh_lost_backup">このため、重要なサーバではバックアップとして別経路（パスワード認証・別の鍵 2 つ目・コンソール接続）を残しておくのが安全です。</string>
+    <string name="kh_formats_title">鍵の形式について（詳細）</string>
+    <string name="kh_fmt_ed25519">**Ed25519**: 最新・短い・十分安全。対応サーバが多い。推奨。</string>
+    <string name="kh_fmt_rsa">**RSA 4096**: 古いサーバでも確実に通る。鍵が長い。</string>
+    <string name="kh_fmt_ecdsa">**ECDSA**: あまり使わない。特定の会社ポリシーで必要な場合のみ。</string>
+    <string name="kh_fmt_dsa">**DSA**: 非推奨・使わない</string>
+    <string name="kh_fmt_pem">**OpenSSH 形式 / PEM 形式**: AnoTerm は両方読める。生成時は OpenSSH 形式がデフォルト。</string>
 </resources>
