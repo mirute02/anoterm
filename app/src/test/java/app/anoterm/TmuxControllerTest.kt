@@ -11,8 +11,16 @@ class TmuxControllerTest {
 
   private val ttyVar = TmuxController.ttyVarFor("host:12")
 
-  private fun window(session: String, index: String, active: String, panes: String, name: String) =
-      listOf("W", session, index, active, panes, name).joinToString(TmuxController.SEP)
+  private fun window(
+      session: String,
+      index: String,
+      active: String,
+      panes: String,
+      name: String,
+      activity: String = "100",
+      command: String = "bash",
+  ) = listOf("W", session, index, active, panes, activity, command, name)
+      .joinToString(TmuxController.SEP)
 
   private fun client(tty: String, session: String) =
       listOf("C", tty, session).joinToString(TmuxController.SEP)
@@ -38,6 +46,16 @@ class TmuxControllerTest {
     assertTrue(s.windows[0].active)
     assertEquals(2, s.windows[0].panes)
     assertEquals(1, s.windows[1].index)
+  }
+
+  @Test
+  fun `the running command and activity time are read`() {
+    // window_activity_flag は monitor-activity が on のときしか立たない。既定は off なので
+    // 時刻の方を読む。pane_current_command は claude と codex の見分けに使う。
+    val out = window("s", "0", "0", "1", "agent", activity = "1788967832", command = "claude")
+    val w = TmuxController.parseSnapshot(out, ttyVar).windows.single()
+    assertEquals(1788967832L, w.activity)
+    assertEquals("claude", w.command)
   }
 
   @Test

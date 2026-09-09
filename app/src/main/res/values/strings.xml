@@ -337,4 +337,5 @@
     <string name="tmux_tree_attached">attached</string>
     <string name="tmux_tree_open">Open the window list</string>
     <string name="tmux_tree_loading">Reading the connections\u2026</string>
+    <string name="tmux_activity">new output</string>
 </resources>

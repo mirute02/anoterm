@@ -8,6 +8,16 @@ data class TmuxWindow(
     val index: Int,
     val active: Boolean,
     val panes: Int,
+    /**
+     * 最後に何か起きた時刻（tmux の epoch 秒）。
+     *
+     * `window_activity_flag` ではなくこれを見る。フラグは `monitor-activity` が on の
+     * ときしか立たず、既定は off。利用者の `.tmux.conf` を書き換えずに「背面で動きが
+     * あった」を知るには、この値が前回より進んだかどうかを見るしかない。
+     */
+    val activity: Long,
+    /** アクティブなペインで動いているコマンド（`bash`, `claude`, `vim` など）。 */
+    val command: String,
     val name: String,
 ) {
   /** `select-window -t` に渡す形。`=` は前方一致ではなく完全一致を指示する。 */
@@ -93,6 +103,8 @@ object TmuxController {
                               "#{window_index}",
                               "#{window_active}",
                               "#{window_panes}",
+                              "#{window_activity}",
+                              "#{pane_current_command}",
                               // 名前は最後。区切りが壊れたときに巻き込まれる範囲を狭くする。
                               "#{window_name}",
                           )
@@ -132,7 +144,7 @@ object TmuxController {
       val parts = line.split(SEP)
       when {
         parts.size == 3 && parts[0] == CLIENT_TAG -> clientSessionByTty[parts[1]] = parts[2]
-        parts.size == 6 && parts[0] == WINDOW_TAG -> {
+        parts.size == 8 && parts[0] == WINDOW_TAG -> {
           val index = parts[2].toIntOrNull() ?: continue
           windows +=
               TmuxWindow(
@@ -140,7 +152,9 @@ object TmuxController {
                   index = index,
                   active = parts[3] == "1",
                   panes = parts[4].toIntOrNull() ?: 1,
-                  name = parts[5],
+                  activity = parts[5].toLongOrNull() ?: 0L,
+                  command = parts[6],
+                  name = parts[7],
               )
         }
       }

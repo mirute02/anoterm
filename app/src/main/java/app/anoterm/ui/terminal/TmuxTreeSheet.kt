@@ -41,6 +41,7 @@ fun TmuxTreeSheet(
     connections: List<TmuxTreeConnection>?,
     /** いま前面にある接続。ここだけ「表示中」を出す。 */
     currentTabId: String,
+    activity: TmuxActivityTracker,
     onJump: (TmuxJump) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -84,6 +85,7 @@ fun TmuxTreeSheet(
                     WindowRow(
                         window = w,
                         here = conn.tabId == currentTabId && w.active,
+                        dirty = activity.isDirty(conn.tabId, w),
                         onClick = { onJump(TmuxJump(conn.tabId, w)) },
                     )
                   }
@@ -134,7 +136,12 @@ private fun SessionHeader(session: String, attached: Boolean) {
 }
 
 @Composable
-private fun WindowRow(window: TmuxWindow, here: Boolean, onClick: () -> Unit) {
+private fun WindowRow(
+    window: TmuxWindow,
+    here: Boolean,
+    dirty: Boolean,
+    onClick: () -> Unit,
+) {
   val background =
       if (here) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
   Row(
@@ -152,6 +159,23 @@ private fun WindowRow(window: TmuxWindow, here: Boolean, onClick: () -> Unit) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Text(text = window.name, style = MaterialTheme.typography.bodyMedium)
+    // 中で何が動いているか。claude と codex を並べて立てているとき、
+    // ウィンドウ名だけではどちらがどちらか分からない。
+    if (window.command.isNotBlank() && window.command != window.name) {
+      Text(
+          text = window.command,
+          fontFamily = FontFamily.Monospace,
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.primary,
+      )
+    }
+    if (dirty) {
+      Text(
+          text = stringResource(R.string.tmux_activity),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.error,
+      )
+    }
     if (window.panes > 1) {
       Text(
           text = "(" + window.panes + ")",

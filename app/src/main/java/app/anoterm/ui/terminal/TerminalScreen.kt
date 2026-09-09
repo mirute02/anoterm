@@ -140,6 +140,8 @@ fun TerminalScreen(
   var showTmux by remember { mutableStateOf(false) }
   var showTmuxTree by remember { mutableStateOf(false) }
   var tmuxTree by remember { mutableStateOf<List<TmuxTreeConnection>?>(null) }
+  // バーとツリーで既読状態を共有する。別々に持つと、バーで見た更新がツリーに残る。
+  val tmuxActivity = rememberTmuxActivityTracker()
   var showInstallKey by remember { mutableStateOf(false) }
   // TOFU で初めて記録したホスト鍵。何を信頼したのかを利用者に見せるため。
   var firstSeenKey by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -474,7 +476,12 @@ fun TerminalScreen(
       val tmuxChannel = tmuxBundle?.channel as? SshChannel
       val tmuxSessionName = tabTmuxSessions[currentTabId]
       if (tmuxChannel != null && tmuxSessionName != null) {
-        TmuxBar(channel = tmuxChannel, ttyVar = TmuxController.ttyVarFor(currentTabId))
+        TmuxBar(
+            channel = tmuxChannel,
+            ttyVar = TmuxController.ttyVarFor(currentTabId),
+            tabId = currentTabId,
+            activity = tmuxActivity,
+        )
       }
       when (val s = state) {
         is TabScreenState.Loading, is TabScreenState.Connecting ->
@@ -685,8 +692,10 @@ fun TerminalScreen(
       TmuxTreeSheet(
           connections = tmuxTree,
           currentTabId = currentTabId,
+          activity = tmuxActivity,
           onJump = { jump ->
             showTmuxTree = false
+            tmuxActivity.markSeen(jump.tabId, jump.window)
             coroutineScope.launch {
               // 別の接続なら、まずその接続を前面に出す。ページを跨いだ後で
               // tmux を触らないと、切り替えた結果が見えないまま終わる。

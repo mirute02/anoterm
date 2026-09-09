@@ -56,6 +56,8 @@ fun TmuxBar(
     channel: SshChannel,
     /** クライアント特定用の環境変数名。[TmuxController.ttyVarFor] が作る。 */
     ttyVar: String,
+    tabId: String,
+    activity: TmuxActivityTracker,
     modifier: Modifier = Modifier,
 ) {
   val scope = rememberCoroutineScope()
@@ -69,7 +71,9 @@ fun TmuxBar(
   LaunchedEffect(channel, reloadNonce, lifecycleOwner) {
     lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
       while (true) {
-        listing = TmuxController.snapshot(channel, ttyVar)
+        val next = TmuxController.snapshot(channel, ttyVar)
+        listing = next
+        if (next is TmuxListing.Ok) activity.observe(tabId, next.snapshot.windows)
         delay(POLL_INTERVAL_MS)
       }
     }
@@ -150,15 +154,23 @@ fun TmuxBar(
     }
 
     windows.forEach { w ->
+      val dirty = activity.isDirty(tabId, w)
       FilterChip(
           selected = w.active,
           onClick = {
+            activity.markSeen(tabId, w)
             scope.launch {
               switchFailed = !TmuxController.selectWindow(channel, w)
               reloadNonce++
             }
           },
-          label = { Text(chipLabel(w), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelMedium) },
+          label = {
+            Text(
+                chipLabel(w, dirty),
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.labelMedium,
+            )
+          },
           modifier = Modifier.height(32.dp),
       )
     }
@@ -168,7 +180,9 @@ fun TmuxBar(
 /** 開いている間だけ引き直す。端末側で新しいウィンドウを作られても一覧が古びない。 */
 private const val POLL_INTERVAL_MS = 10_000L
 
-private fun chipLabel(w: TmuxWindow): String {
+private fun chipLabel(w: TmuxWindow, dirty: Boolean): String {
   val panes = if (w.panes > 1) " (" + w.panes + ")" else ""
-  return "" + w.index + " " + w.name + panes
+  // 更新があったウィンドウには印を付ける。色だけで示すと、色覚や輝度設定に左右される。
+  val mark = if (dirty) "\u25cf " else ""
+  return mark + w.index + " " + w.name + panes
 }

@@ -325,4 +325,5 @@
     <string name="tmux_tree_attached">表示中</string>
     <string name="tmux_tree_open">ウィンドウ一覧を開く</string>
     <string name="tmux_tree_loading">接続を読み込み中\u2026</string>
+    <string name="tmux_activity">更新あり</string>
 </resources>
