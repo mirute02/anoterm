@@ -31,6 +31,7 @@ fun TerminalHost(
     relaxedImePrivacyForClipboard: Boolean = false,
     onTapTarget: (TapTarget) -> Unit = {},
     onScrollPosition: (Int) -> Unit = {},
+    onFontSizeChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
     viewBinding: (TerminalView) -> Unit = {},
 ) {
@@ -47,6 +48,7 @@ fun TerminalHost(
           it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
           it.onTapTarget = onTapTarget
           it.onScrollPositionChanged = onScrollPosition
+          it.onFontSizeChanged = onFontSizeChanged
           viewRef.view = it
           viewBinding(it)
         }
@@ -61,6 +63,7 @@ fun TerminalHost(
         it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
         it.onTapTarget = onTapTarget
         it.onScrollPositionChanged = onScrollPosition
+        it.onFontSizeChanged = onFontSizeChanged
         viewRef.view = it
         viewBinding(it)
       },

@@ -92,6 +92,18 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   // ピンチズームで変化するフォントサイズ（dp 単位で保持 → px に都度変換）
   private var fontSizeDp: Float = 14f
 
+  /**
+   * ピンチで決まった大きさを設定へ書き戻すための通知。
+   *
+   * これが無いと、ピンチはこの View の中だけの値で終わる。設定は元の値のままなので、
+   * 次に再コンポーズが起きた瞬間 (ブラウザを開く、タブが増える、設定を触る…) に
+   * `setFontSizeSp` が古い値で呼ばれ、縮めたはずの文字が元に戻る。
+   *
+   * 指を離した時だけ呼ぶ。ピンチ中は 1 フレームごとに値が動くので、その都度
+   * SharedPreferences へ書くと書き込みが溜まる。
+   */
+  var onFontSizeChanged: ((Float) -> Unit)? = null
+
   private val scaleDetector =
       ScaleGestureDetector(
           context,
@@ -105,6 +117,10 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
                 invalidate()
               }
               return true
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+              onFontSizeChanged?.invoke(fontSizeDp)
             }
           },
       )

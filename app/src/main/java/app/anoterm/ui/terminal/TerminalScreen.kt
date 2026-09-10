@@ -731,6 +731,7 @@ fun TerminalScreen(
                   relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
                   onTapTarget = { target -> handleTapTarget(currentTabId, target) },
                 onScrollPosition = { n -> linesBack = n },
+                onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
                   modifier = Modifier.fillMaxSize(),
                   viewBinding = { v -> terminalViews[currentTabId] = v },
               )
@@ -752,6 +753,7 @@ fun TerminalScreen(
                       relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
                       onTapTarget = { target -> handleTapTarget(pageTabId, target) },
                     onScrollPosition = { n -> if (pageTabId == currentTabId) linesBack = n },
+                    onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
                       modifier = Modifier.fillMaxSize(),
                       viewBinding = { v -> terminalViews[pageTabId] = v },
                   )
