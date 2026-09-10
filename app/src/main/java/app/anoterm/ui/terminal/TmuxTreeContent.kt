@@ -41,8 +41,6 @@ fun TmuxTreeContent(
     /** いま前面にある接続。ここだけ「表示中」を出す。 */
     currentTabId: String,
     activity: TmuxActivityTracker,
-    /** 向こうの Claude Code の権限モード。読めていなければ null。 */
-    permissionMode: String? = null,
     onJump: (TmuxJump) -> Unit,
 ) {
   Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -59,10 +57,8 @@ fun TmuxTreeContent(
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.primary,
       )
-      // 版と、向こうの権限モード。パッドの点灯だけだと「何色が何」を覚える必要があるので、
-      // 読める場所を 1 つ持っておく。
       Text(
-          text = listOfNotNull(permissionMode, BuildConfig.VERSION_NAME).joinToString(" · "),
+          text = BuildConfig.VERSION_NAME,
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )

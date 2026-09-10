@@ -82,7 +82,6 @@ import app.anoterm.BuildConfig
 import app.anoterm.R
 import androidx.annotation.StringRes
 import app.anoterm.AnotermApp
-import app.anoterm.ssh.ClaudeMode
 import app.anoterm.ssh.LoopbackChannel
 import app.anoterm.ssh.ReconnectSpec
 import app.anoterm.ssh.SessionBundle
@@ -94,7 +93,6 @@ import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.terminal.compose.TerminalHost
 import app.anoterm.terminal.view.TerminalView
 import app.anoterm.util.Logger
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 sealed interface TabScreenState {
@@ -169,10 +167,6 @@ fun TerminalScreen(
   var showMemo by remember { mutableStateOf(false) }
   var showDisconnectConfirm by remember { mutableStateOf(false) }
   var showOverflow by remember { mutableStateOf(false) }
-
-  // 向こうの Claude Code の権限モード。読めなければ null のまま（嘘は表示しない）。
-  var permissionMode by remember { mutableStateOf<String?>(null) }
-  var permissionNonce by remember { mutableStateOf(0) }
 
   // 履歴の検索。開いている間だけ端末の上に一行出る。
   var searchOpen by remember { mutableStateOf(false) }
@@ -430,15 +424,6 @@ fun TerminalScreen(
 
   val composeView = LocalView.current
 
-  // 権限モードは、タブを移ったときと ⇧Tab を送った直後だけ読み直す。常時見張ると
-  // 接続ごとに exec が増える一方、この値はそんなに動かない。
-  LaunchedEffect(currentTabId, permissionNonce) {
-    permissionMode = null
-    val ch = app.sessionManager.get(currentTabId)?.channel as? SshChannel ?: return@LaunchedEffect
-    if (permissionNonce > 0) delay(400) // Claude Code が記録を書くのを待つ
-    permissionMode = ClaudeMode.read(ch, tabTmuxSessions[currentTabId])
-  }
-
   // 接続を移ったら検索は畳む。探していたのは前の画面の中身で、移った先には無い。
   // 塗りも前の画面に残ったままになる。
   LaunchedEffect(currentTabId) {
@@ -477,7 +462,6 @@ fun TerminalScreen(
               connections = tmuxTree,
               currentTabId = currentTabId,
               activity = tmuxActivity,
-              permissionMode = permissionMode,
               onJump = { jump ->
                 coroutineScope.launch { drawerState.close() }
                 tmuxActivity.markSeen(jump.tabId, jump.window)
@@ -889,11 +873,6 @@ fun TerminalScreen(
               FloatingReplyPad(
                   onSend = sendBytes,
                   onShowKeyboard = showKeyboard,
-                  permissionMode = permissionMode,
-                  onCyclePermissionMode = {
-                    sendBytes(ESC_BACKTAB)
-                    permissionNonce++
-                  },
                   position = replyPadX to replyPadY,
                   onMove = { x, y -> app.prefs.setReplyPadPosition(x, y) },
                   modifier = Modifier.fillMaxSize(),

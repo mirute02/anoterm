@@ -21,7 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -31,7 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import app.anoterm.R
-import app.anoterm.ssh.ClaudeMode
 import kotlin.math.roundToInt
 
 /**
@@ -55,9 +53,6 @@ import kotlin.math.roundToInt
 fun FloatingReplyPad(
     onSend: (ByteArray) -> Unit,
     onShowKeyboard: () -> Unit,
-    /** 向こうの Claude Code の権限モード。読めていなければ null。 */
-    permissionMode: String?,
-    onCyclePermissionMode: () -> Unit,
     position: Pair<Float, Float>,
     onMove: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
@@ -94,33 +89,16 @@ fun FloatingReplyPad(
       // Claude Code の権限モードを回す Shift+Tab。承認を聞かれるのはキーボードを閉じて
       // 読んでいる時なので、そこから 1 タップで届くのが筋。
       //
-      // 色で今どちら側にいるかを示す。
-      //   消灯 (surfaceVariant) : 聞かれる。あるいはモードが読めていない
-      //   点灯 (primary)        : 聞かずに進む
-      //   警告色 (error)        : 何も確認しない (bypassPermissions)
-      // 読めていないときに「聞かれない」と光らせてはいけない。嘘を吐くくらいなら消しておく。
-      val auto = ClaudeMode.isAutoApproving(permissionMode)
-      val unchecked = ClaudeMode.isUnchecked(permissionMode)
-      UtilityButton(
-          alignment = Alignment.TopEnd,
-          onClick = onCyclePermissionMode,
-          color =
-              when {
-                unchecked -> MaterialTheme.colorScheme.errorContainer
-                auto -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.surfaceVariant
-              },
-      ) {
+      // 今どのモードかを色で示すのは一度作って取り消した。モードは Claude Code の
+      // セッション記録から読めるが、どの記録がこのウィンドウのものかは tmux のペインの
+      // 現在地からの当て推量で、同じディレクトリに複数立てていると取り違える。
+      // 「承認が自動かどうか」で嘘を吐く表示は、表示が無いより悪い。
+      UtilityButton(Alignment.TopEnd, { onSend(ESC_BACKTAB) }) {
         Text(
             text = "⇧⇥",
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.labelLarge,
-            color =
-                when {
-                  unchecked -> MaterialTheme.colorScheme.onErrorContainer
-                  auto -> MaterialTheme.colorScheme.onPrimary
-                  else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
 
@@ -158,14 +136,13 @@ fun FloatingReplyPad(
 private fun androidx.compose.foundation.layout.BoxScope.UtilityButton(
     alignment: Alignment,
     onClick: () -> Unit,
-    color: Color = Color.Unspecified,
     content: @Composable () -> Unit,
 ) {
   Surface(
       onClick = onClick,
       modifier = Modifier.align(alignment).size(UTILITY_BUTTON_SIZE),
       shape = CircleShape,
-      color = if (color == Color.Unspecified) MaterialTheme.colorScheme.surfaceVariant else color,
+      color = MaterialTheme.colorScheme.surfaceVariant,
       shadowElevation = 3.dp,
   ) {
     Box(contentAlignment = Alignment.Center) { content() }
