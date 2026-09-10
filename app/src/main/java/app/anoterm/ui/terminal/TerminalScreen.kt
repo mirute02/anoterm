@@ -77,6 +77,7 @@ import app.anoterm.ssh.SessionBundle
 import app.anoterm.ssh.SshChannel
 import app.anoterm.ssh.TmuxController
 import app.anoterm.terminal.ConnectionState
+import app.anoterm.terminal.TapTarget
 import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.terminal.compose.TerminalHost
 import app.anoterm.terminal.view.TerminalView
@@ -129,6 +130,8 @@ fun TerminalScreen(
   val fontSizeSp by app.prefs.fontSizeSp.collectAsStateWithLifecycle()
   val lineSpacing by app.prefs.lineSpacing.collectAsStateWithLifecycle()
   val replyPadEnabled by app.prefs.replyPadEnabled.collectAsStateWithLifecycle()
+  val splitVertical by app.prefs.splitVertical.collectAsStateWithLifecycle()
+  val splitRatio by app.prefs.splitRatio.collectAsStateWithLifecycle()
   val replyPadX by app.prefs.replyPadX.collectAsStateWithLifecycle()
   val replyPadY by app.prefs.replyPadY.collectAsStateWithLifecycle()
   val lineEnding by app.prefs.lineEnding.collectAsStateWithLifecycle()
@@ -155,6 +158,17 @@ fun TerminalScreen(
   // 端末に出たパスが押されたとき、どのタブのどのファイルを開くか。
   // タブを跨いで開くことはないが、ページャで隣のタブが生きているので取り違えないよう対にして持つ。
   var imageRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+  /** 開いているページ。(タブ, URL)。null なら分割していない。 */
+  var browserRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+  // 押された物の行き先はここ 1 か所で決める。View 側は「何が押されたか」しか知らない。
+  val handleTapTarget: (String, TapTarget) -> Unit = { tabId, target ->
+    when (target) {
+      is TapTarget.Image -> imageRequest = tabId to target.path
+      is TapTarget.Url -> browserRequest = tabId to target.url
+    }
+  }
   var retryNonce by remember { mutableStateOf(0) }
   // カスタムショートカットバーはデフォルトで非表示。下部のツールバー右端の apps アイコンで切替。
   var showShortcutBar by remember { mutableStateOf(false) }
@@ -608,7 +622,37 @@ fun TerminalScreen(
           // その分だけ縮む → リモートシェルの入力行（cursor 行）がツールバーの直上、
           // つまり IME の上に見える。ターミナルが縮むので SIGWINCH は飛ぶが、
           // adjustNothing + Compose 内のレイアウト変化だけなので一度で settle する。
-          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+          // ページを開いている間だけ 2 面になる。開いていなければ SplitPane は
+          // 仕切りごと消えて、端末が全部を使う。
+          val browserTabId = browserRequest?.first
+          val browserUrl = browserRequest?.second
+          val browserChannel =
+              browserTabId
+                  ?.takeIf { it == currentTabId }
+                  ?.let { app.sessionManager.get(it)?.channel as? SshChannel }
+          val browserPane: (@Composable () -> Unit)? =
+              if (browserChannel != null && browserUrl != null) {
+                {
+                  BrowserPane(
+                      channel = browserChannel,
+                      url = browserUrl,
+                      vertical = splitVertical,
+                      onToggleOrientation = { app.prefs.setSplitVertical(!splitVertical) },
+                      onClose = { browserRequest = null },
+                  )
+                }
+              } else {
+                null
+              }
+
+          SplitPane(
+              vertical = splitVertical,
+              ratio = splitRatio,
+              onRatioSettled = { app.prefs.setSplitRatio(it) },
+              modifier = Modifier.weight(1f).fillMaxWidth(),
+              second = browserPane,
+          ) {
+          Box(modifier = Modifier.fillMaxSize()) {
           if (sortedTabs.size <= 1) {
             TerminalHost(
                 controller = s.bundle.controller,
@@ -617,7 +661,7 @@ fun TerminalScreen(
                 lineSpacing = lineSpacing,
                 lineEnding = lineEnding,
                 relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
-                onImagePathTapped = { path -> imageRequest = currentTabId to path },
+                onTapTarget = { target -> handleTapTarget(currentTabId, target) },
                 modifier = Modifier.fillMaxSize(),
                 viewBinding = { v -> terminalViews[currentTabId] = v },
             )
@@ -637,7 +681,7 @@ fun TerminalScreen(
                     lineSpacing = lineSpacing,
                     lineEnding = lineEnding,
                     relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
-                    onImagePathTapped = { path -> imageRequest = pageTabId to path },
+                    onTapTarget = { target -> handleTapTarget(pageTabId, target) },
                     modifier = Modifier.fillMaxSize(),
                     viewBinding = { v -> terminalViews[pageTabId] = v },
                 )
@@ -656,6 +700,7 @@ fun TerminalScreen(
                 onMove = { x, y -> app.prefs.setReplyPadPosition(x, y) },
                 modifier = Modifier.fillMaxSize(),
             )
+          }
           }
           }
           // 補助キーは「打っている間」だけの物なので、キーボードが閉じている間は

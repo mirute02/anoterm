@@ -1,17 +1,19 @@
 package app.anoterm
 
-import app.anoterm.terminal.PathScan
-import app.anoterm.terminal.PathSpan
+import app.anoterm.terminal.ScreenScan
+import app.anoterm.terminal.TapSpan
+import app.anoterm.terminal.TapTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class PathScanTest {
+class ScreenScanTest {
 
+  /** 画像として拾えたパスだけを返す補助。URL は別のテストで見る。 */
   private fun at(lines: List<String>, cols: Int, row: Int, col: Int) =
-      PathScan.imagePathAt(lines, cols, row, col)
+      (ScreenScan.targetAt(lines, cols, row, col) as? TapTarget.Image)?.path
 
   @Test
   fun findsAPathUnderTheFinger() {
@@ -36,11 +38,41 @@ class PathScanTest {
   }
 
   @Test
-  fun refusesRelativePaths() {
-    // 別セッションで読むので、相対パスの基準が違う。開けるふりをしないこと。
-    assertFalse(PathScan.isImagePath("docs/shot.png"))
-    assertTrue(PathScan.isImagePath("/docs/shot.png"))
-    assertTrue(PathScan.isImagePath("~/docs/shot.png"))
+  fun acceptsRelativePathsAndSaysTheyNeedARoot() {
+    // 押して開かないより、押せば開くほうがよい。基準は読む側が決める。
+    assertTrue(ScreenScan.isImagePath("docs/shot.png"))
+    assertTrue(ScreenScan.isRelative("docs/shot.png"))
+    assertFalse(ScreenScan.isRelative("/docs/shot.png"))
+    assertFalse(ScreenScan.isRelative("~/docs/shot.png"))
+  }
+
+  @Test
+  fun leavesUrlsToTheBrowser() {
+    val lines = listOf("  Local:   http://localhost:5173/ ready")
+    val target = ScreenScan.targetAt(lines, 80, 0, 20)
+    assertEquals(TapTarget.Url("http://localhost:5173/"), target)
+    // 末尾が .png でも、URL なら画像として読みには行かない。
+    assertFalse(ScreenScan.isImagePath("http://example.com/a.png"))
+  }
+
+  @Test
+  fun refusesUrlsWithNonsensePorts() {
+    assertFalse(ScreenScan.isUrl("http://host:abc/"))
+    assertTrue(ScreenScan.isUrl("http://host:8080/"))
+    assertFalse(ScreenScan.isUrl("ftp://host/a"))
+  }
+
+  @Test
+  fun takesTheWholeQuotedNameSoSpacesSurvive() {
+    // 空白入りの名前は、空白で語を切る限り絶対に拾えない。囲ってあるならそれが境界。
+    val lines = listOf("wrote \"/tmp/my shot.png\" ok")
+    assertEquals("/tmp/my shot.png", at(lines, 80, 0, 12))
+  }
+
+  @Test
+  fun stripsTheFileScheme() {
+    val lines = listOf("see file:///tmp/a.png now")
+    assertEquals("/tmp/a.png", at(lines, 80, 0, 12))
   }
 
   @Test
@@ -65,18 +97,18 @@ class PathScanTest {
   fun marksEveryPathOnTheScreen() {
     val lines = listOf("a /tmp/1.png b", "/tmp/2.png")
     assertEquals(
-        listOf(PathSpan(0, 2, 11), PathSpan(1, 0, 9)),
-        PathScan.imagePathSpans(lines, 80),
+        listOf(TapSpan(0, 2, 11), TapSpan(1, 0, 9)),
+        ScreenScan.tapSpans(lines, 80),
     )
   }
 
   @Test
   fun quotesForTheShellWithoutLettingAnythingEscape() {
-    assertEquals("'/tmp/a.png'", PathScan.shellWord("/tmp/a.png"))
+    assertEquals("'/tmp/a.png'", ScreenScan.shellWord("/tmp/a.png"))
     // 単引用符入りのファイル名でコマンドが割れない。
-    assertEquals("'/tmp/it'\\''s.png'", PathScan.shellWord("/tmp/it's.png"))
+    assertEquals("'/tmp/it'\\''s.png'", ScreenScan.shellWord("/tmp/it's.png"))
     // ~ はシェルに展開させる必要があるので引用符の外に出す。
-    assertEquals("\"\$HOME\"/'a.png'", PathScan.shellWord("~/a.png"))
+    assertEquals("\"\$HOME\"/'a.png'", ScreenScan.shellWord("~/a.png"))
   }
 }
 

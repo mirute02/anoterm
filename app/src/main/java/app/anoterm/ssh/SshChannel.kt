@@ -55,6 +55,15 @@ class SshChannel private constructor(
   override fun isAlive(): Boolean = ssh.isConnected && shell.isOpen
 
   /**
+   * この接続の中を通す穴を開ける。向こう側から見えるアドレスをそのまま渡すこと。
+   *
+   * 対話シェルとは無関係に張られるので、利用者の作業を邪魔しない。使い終わったら
+   * [LocalForward.close] を呼ぶ。接続そのものが閉じれば道連れに死ぬ。
+   */
+  suspend fun openLocalForward(remoteHost: String, remotePort: Int): LocalForward =
+      LocalForward.open(ssh, remoteHost, remotePort)
+
+  /**
    * 対話シェルとは別のセッションでコマンドを1つ実行し、終了ステータスと出力を返す。
    *
    * 端末に見せているシェルへ流し込むと、利用者の作業に混ざり、出力の切り出しも

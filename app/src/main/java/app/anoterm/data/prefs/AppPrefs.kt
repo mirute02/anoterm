@@ -57,6 +57,14 @@ class AppPrefs(context: Context) {
   private val _replyPadEnabled = MutableStateFlow(readReplyPadEnabled())
   val replyPadEnabled: StateFlow<Boolean> = _replyPadEnabled.asStateFlow()
 
+  /** ブラウザを開いたときの並べ方。true = 上下、false = 左右。 */
+  private val _splitVertical = MutableStateFlow(sp.getBoolean(KEY_SPLIT_VERTICAL, true))
+  val splitVertical: StateFlow<Boolean> = _splitVertical.asStateFlow()
+
+  /** 端末側の取り分。仕切りを動かすと変わる。 */
+  private val _splitRatio = MutableStateFlow(readSplitRatio())
+  val splitRatio: StateFlow<Float> = _splitRatio.asStateFlow()
+
   private val _lineEnding = MutableStateFlow(readLineEnding())
   val lineEnding: StateFlow<LineEnding> = _lineEnding.asStateFlow()
 
@@ -136,6 +144,17 @@ class AppPrefs(context: Context) {
         .apply()
     _replyPadX.value = x.coerceIn(0f, 1f)
     _replyPadY.value = y.coerceIn(0f, 1f)
+  }
+
+  fun setSplitVertical(vertical: Boolean) {
+    sp.edit().putBoolean(KEY_SPLIT_VERTICAL, vertical).apply()
+    _splitVertical.value = vertical
+  }
+
+  fun setSplitRatio(ratio: Float) {
+    val clamped = ratio.coerceIn(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO)
+    sp.edit().putFloat(KEY_SPLIT_RATIO, clamped).apply()
+    _splitRatio.value = clamped
   }
 
   fun setReplyPadEnabled(enabled: Boolean) {
@@ -266,6 +285,9 @@ class AppPrefs(context: Context) {
 
   private fun readReplyPadEnabled(): Boolean = sp.getBoolean(KEY_REPLY_PAD_ENABLED, true)
 
+  private fun readSplitRatio(): Float =
+      sp.getFloat(KEY_SPLIT_RATIO, DEFAULT_SPLIT_RATIO).coerceIn(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO)
+
   private fun readHideTmuxStatus(): Boolean = sp.getBoolean(KEY_HIDE_TMUX_STATUS, false)
 
   private fun readLineSpacing(): Float =
@@ -330,6 +352,14 @@ class AppPrefs(context: Context) {
     private const val KEY_REPLY_PAD_X = "reply_pad_x"
     private const val KEY_REPLY_PAD_Y = "reply_pad_y"
     private const val KEY_REPLY_PAD_ENABLED = "reply_pad_enabled"
+    private const val KEY_SPLIT_VERTICAL = "split_vertical"
+    private const val KEY_SPLIT_RATIO = "split_ratio"
+
+    /** 端末側を少し広く取る。指示を打つ側が狭いと結局どちらも使えない。 */
+    const val DEFAULT_SPLIT_RATIO = 0.55f
+    /** どちらかが消えてしまわない範囲。0 の weight は Compose が受け付けない。 */
+    const val MIN_SPLIT_RATIO = 0.2f
+    const val MAX_SPLIT_RATIO = 0.8f
     private const val KEY_LOCK_GRACE_SECONDS = "lock_grace_seconds"
     private const val KEY_SECURE_SCREEN = "secure_screen"
 

@@ -28,8 +28,9 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import app.anoterm.BuildConfig
 import app.anoterm.data.prefs.LineEnding
-import app.anoterm.terminal.PathScan
-import app.anoterm.terminal.PathSpan
+import app.anoterm.terminal.ScreenScan
+import app.anoterm.terminal.TapSpan
+import app.anoterm.terminal.TapTarget
 import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.theme.TerminalPalette
 import app.anoterm.R
@@ -112,12 +113,12 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   private var scrollAccumPx: Float = 0f
 
   /**
-   * 端末に出ている画像パスが押されたときの通知。UI 層が中身を取りに行く。
-   * View 自身は SSH を知らないので、ここでは「どのパスが押されたか」だけを伝える。
+   * 端末に出ているパスや URL が押されたときの通知。UI 層が中身を取りに行く。
+   * View 自身は SSH を知らないので、ここでは「何が押されたか」だけを伝える。
    */
-  var onImagePathTapped: ((String) -> Unit)? = null
+  var onTapTarget: ((TapTarget) -> Unit)? = null
 
-  private var cachedSpans: List<PathSpan>? = null
+  private var cachedSpans: List<TapSpan>? = null
   private var cachedSpansKey: Triple<Long, Int, Int>? = null
 
   private val scrollGestureDetector =
@@ -170,13 +171,13 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               // パスの上を押したなら、そこはパスを開く場所。位置より優先する。
               // 直前の出力は画面の下に出るので、パスと「下 1/4 でキーボード」は必ずぶつかる。
               // どちらか一方に決めるなら、狙って押した物のほうを採るのが素直。
-              val path = imagePathAtPixel(e.x, e.y)
-              if (path != null) {
+              val target = tapTargetAtPixel(e.x, e.y)
+              if (target != null) {
                 performHapticFeedback(
                     HapticFeedbackConstants.KEYBOARD_TAP,
                     HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
                 )
-                onImagePathTapped?.invoke(path)
+                onTapTarget?.invoke(target)
                 return true
               }
               // 下 1/4 タップのみ IME 起動、他は no-op（スクロールしたい時は swipe）。
@@ -491,14 +492,14 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
    * 毎フレーム全行を走査すると無駄なので、画面が書き換わるかスクロールするまで使い回す。
    * `generation` は buffer が変わるたびに進むカウンタ。
    */
-  private fun pathSpans(): List<PathSpan> {
+  private fun pathSpans(): List<TapSpan> {
     val emu = controller?.emulator ?: return emptyList()
     val generation = synchronized(emu) { emu.buffer.generation }
     val key = Triple(generation, scrollOffset, emu.cols)
     val cached = cachedSpans
     if (cached != null && cachedSpansKey == key) return cached
     val lines = visibleLines()
-    val spans = PathScan.imagePathSpans(lines, emu.cols)
+    val spans = ScreenScan.tapSpans(lines, emu.cols)
     cachedSpansKey = key
     cachedSpans = spans
     return spans
@@ -777,11 +778,23 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     return CellPos(row.coerceAtMost(rows - 1), col.coerceAtMost(cols - 1))
   }
 
-  /** 指の座標にある画像パス。無ければ null。 */
-  private fun imagePathAtPixel(x: Float, y: Float): String? {
+  /**
+   * 指の座標にある「押せるもの」。無ければ null。
+   *
+   * 1 行の高さは指より小さいので、真上に当てるのは難しい。左右に 1 桁だけ見て回る。
+   * 上下には広げない。隣の行にも別のパスが並んでいることがあり、そこまで拾うと
+   * 押していないほうが開く。
+   */
+  private fun tapTargetAtPixel(x: Float, y: Float): TapTarget? {
     val pos = cellAtPixel(x, y) ?: return null
     val emu = controller?.emulator ?: return null
-    return PathScan.imagePathAt(visibleLines(), emu.cols, pos.row, pos.col)
+    val lines = visibleLines()
+    for (dc in intArrayOf(0, -1, 1)) {
+      val col = pos.col + dc
+      if (col < 0) continue
+      ScreenScan.targetAt(lines, emu.cols, pos.row, col)?.let { return it }
+    }
+    return null
   }
 
   private fun beginSelection(pos: CellPos) {
@@ -1037,6 +1050,10 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     // emulator monitor 下でまとめて読む（コピー文字列の一瞬の乱れを防ぐ）。
     return synchronized(emu) {
     val buffer = emu.buffer
+    // 画面の行番号をそのまま grid の行として読んではいけない。履歴を遡っている間、
+    // 見えている上の行は scrollback から来ている。描画と同じ振り分けを通さないと、
+    // 選んだ場所と違う文字がコピーされる。
+    val offset = scrollOffset.coerceAtMost(buffer.rows + buffer.scrollbackSize)
     val sb = StringBuilder()
     for (r in r1..r2) {
       val startCol = if (r == r1) c1 else 0
@@ -1044,7 +1061,8 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
       val lineStart = sb.length
       var c = startCol
       while (c <= endCol) {
-        val cell = buffer.cellAt(r, c)
+        val cell = visibleCellAt(buffer, offset, r, c)
+        if (cell == null) { c++; continue }
         if (cell.continuation) { c++; continue }
         if (cell.codePoint == 0) sb.append(' ')
         else sb.appendCodePoint(cell.codePoint)

@@ -10,7 +10,7 @@ import androidx.core.content.res.ResourcesCompat
 import app.anoterm.R
 import app.anoterm.terminal.emulator.AnsiColor
 import app.anoterm.terminal.emulator.TerminalBuffer
-import app.anoterm.terminal.PathSpan
+import app.anoterm.terminal.TapSpan
 import app.anoterm.terminal.emulator.TerminalEmulator
 import app.anoterm.theme.TerminalPalette
 
@@ -121,7 +121,7 @@ class TerminalRenderer(
       scrollOffset: Int = 0,
       selectionStart: CellPos? = null,
       selectionEnd: CellPos? = null,
-      pathSpans: List<PathSpan> = emptyList(),
+      pathSpans: List<TapSpan> = emptyList(),
   ) {
     val cw = cellWidth
     val ch = cellHeight

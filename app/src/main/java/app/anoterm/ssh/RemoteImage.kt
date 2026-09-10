@@ -5,7 +5,7 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.annotation.StringRes
 import app.anoterm.R
-import app.anoterm.terminal.PathScan
+import app.anoterm.terminal.ScreenScan
 import app.anoterm.util.Logger
 
 /** 画像を読めなかった理由。分岐に使う値と、人に見せる文字列は分けておく。 */
@@ -55,7 +55,7 @@ object RemoteImage {
       }
 
   private suspend fun readOrThrow(channel: SshChannel, path: String): RemoteImageResult {
-    val word = PathScan.shellWord(path)
+    val word = ScreenScan.shellWord(path)
 
     // 先に大きさを見る。数十 MB を base64 で引っ張ってから諦めるのでは遅すぎる。
     // `wc -c < f` はどの環境にもある。`stat` は GNU と BSD で書式が違う。

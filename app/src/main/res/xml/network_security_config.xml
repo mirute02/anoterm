@@ -9,4 +9,12 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    <!--
+      SSH の中を通した先だけ平文を許す。転送の出口は必ず自分の 127.0.0.1 で、そこから先は
+      SSH の暗号の中を通る。平文が端末の外に出るわけではない。`localhost` は入れていない。
+      入り口を 1 つに絞っておけば、意図しない宛先が紛れても素通りしない。
+    -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
 </network-security-config>

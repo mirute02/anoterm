@@ -10,6 +10,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import app.anoterm.data.prefs.LineEnding
+import app.anoterm.terminal.TapTarget
 import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.terminal.view.TerminalView
 import app.anoterm.theme.TerminalPalette
@@ -28,7 +29,7 @@ fun TerminalHost(
     lineSpacing: Float,
     lineEnding: LineEnding,
     relaxedImePrivacyForClipboard: Boolean = false,
-    onImagePathTapped: (String) -> Unit = {},
+    onTapTarget: (TapTarget) -> Unit = {},
     modifier: Modifier = Modifier,
     viewBinding: (TerminalView) -> Unit = {},
 ) {
@@ -43,7 +44,7 @@ fun TerminalHost(
           it.setLineSpacing(lineSpacing)
           it.setLineEnding(lineEnding)
           it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
-          it.onImagePathTapped = onImagePathTapped
+          it.onTapTarget = onTapTarget
           viewRef.view = it
           viewBinding(it)
         }
@@ -56,7 +57,7 @@ fun TerminalHost(
         it.setLineSpacing(lineSpacing)
         it.setLineEnding(lineEnding)
         it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
-        it.onImagePathTapped = onImagePathTapped
+        it.onTapTarget = onTapTarget
         viewRef.view = it
         viewBinding(it)
       },
