@@ -1369,7 +1369,10 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
    */
   fun takeInputFocus() {
     if (!isFocused) {
-      requestFocusFromTouch()
+      // requestFocusFromTouch() は使わない。あれは「指で触ったので focus が移った」と
+      // 名乗るもので、[onCheckIsTextEditor] が true のこの view では、システムが
+      // 気を利かせて IME をせり上げてくる条件そのものになる。
+      // isFocusableInTouchMode が立っているので、素の requestFocus() で足りる。
       requestFocus()
     }
     restartInputOnly()
