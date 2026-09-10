@@ -23,6 +23,8 @@ data class TmuxTreeConnection(
     val unavailableReason: String? = null,
     /** tmux は答えたのにウィンドウが 0 件だったときの内訳。行数と、解釈できた行数。 */
     val emptyDetail: Pair<Int, Int>? = null,
+    /** 1 行も読めなかったときに、実際に返っていた物の見本。 */
+    val emptySample: String? = null,
 ) {
   /** セッション名 → そのウィンドウ。表示順は tmux が返した順。 */
   val sessions: List<Pair<String, List<TmuxWindow>>>
@@ -60,6 +62,7 @@ suspend fun collectTmuxTree(
                   ok
                       ?.takeIf { it.snapshot.windows.isEmpty() }
                       ?.let { it.totalLines to it.understoodLines },
+              emptySample = ok?.sample,
           )
         }
       }

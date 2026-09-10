@@ -57,6 +57,8 @@ sealed interface TmuxListing {
       val snapshot: TmuxSnapshot,
       val totalLines: Int = 0,
       val understoodLines: Int = 0,
+      /** 解釈できなかったときに何が返っていたのか。区切りの数と、先頭行そのもの。 */
+      val sample: String? = null,
   ) : TmuxListing
 
   /** tmux が入っていない、サーバーが動いていない、など。[reason] はそのまま画面に出す。 */
@@ -235,7 +237,28 @@ object TmuxController {
       // ための判断）。捨てたこと自体は残しておかないと、一覧が欠ける理由が追えない。
       Logger.w("Tmux", "dropped ${total - understood} unparsable line(s)")
     }
-    return TmuxListing.Ok(snapshot, totalLines = total, understoodLines = understood)
+    // 1 行も読めなかったときだけ、返ってきた物の見本を持たせる。区切り文字が届いて
+    // いないのか、そもそも tmux 以外の何か（ログインシェルの挨拶など）が混ざって
+    // いるのかは、実物を見ないと決められない。
+    val sample =
+        if (snapshot.windows.isEmpty() && understood == 0) {
+          val first = result.stdout.lineSequence().firstOrNull { it.isNotBlank() }?.trimEnd('\r')
+          val withSep = result.stdout.lineSequence().count { it.contains(SEP) }
+          val shown =
+              first
+                  ?.map { if (it == SEP[0]) '·' else if (it.isISOControl()) '?' else it }
+                  ?.joinToString("")
+                  ?.take(60)
+          "区切り${first?.count { it == SEP[0] } ?: 0}個/含む行${withSep} " + (shown ?: "")
+        } else {
+          null
+        }
+    return TmuxListing.Ok(
+        snapshot,
+        totalLines = total,
+        understoodLines = understood,
+        sample = sample,
+    )
   }
 
   /**

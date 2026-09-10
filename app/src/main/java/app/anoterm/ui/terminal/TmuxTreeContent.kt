@@ -128,7 +128,8 @@ private fun ConnectionHeader(conn: TmuxTreeConnection) {
           text =
               conn.unavailableReason
                   ?: conn.emptyDetail?.let { (total, understood) ->
-                    stringResource(R.string.tmux_tree_no_windows, total, understood)
+                    stringResource(R.string.tmux_tree_no_windows, total, understood) +
+                        (conn.emptySample?.let { "\n" + it } ?: "")
                   }
                   ?: stringResource(R.string.tmux_tree_no_tmux),
           style = MaterialTheme.typography.labelSmall,
