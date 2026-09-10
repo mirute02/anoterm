@@ -21,6 +21,8 @@ data class TmuxTreeConnection(
      * `TmuxController.snapshot` はリモートが返した一行をそのまま持たせてくれている。
      */
     val unavailableReason: String? = null,
+    /** tmux は答えたのにウィンドウが 0 件だったときの内訳。行数と、解釈できた行数。 */
+    val emptyDetail: Pair<Int, Int>? = null,
 ) {
   /** セッション名 → そのウィンドウ。表示順は tmux が返した順。 */
   val sessions: List<Pair<String, List<TmuxWindow>>>
@@ -48,11 +50,16 @@ suspend fun collectTmuxTree(
       .map { (tabId, label, channel) ->
         async {
           val listing = TmuxController.snapshot(channel, TmuxController.ttyVarFor(tabId))
+          val ok = listing as? TmuxListing.Ok
           TmuxTreeConnection(
               tabId = tabId,
               label = label,
-              snapshot = (listing as? TmuxListing.Ok)?.snapshot,
+              snapshot = ok?.snapshot,
               unavailableReason = (listing as? TmuxListing.Unavailable)?.reason,
+              emptyDetail =
+                  ok
+                      ?.takeIf { it.snapshot.windows.isEmpty() }
+                      ?.let { it.totalLines to it.understoodLines },
           )
         }
       }

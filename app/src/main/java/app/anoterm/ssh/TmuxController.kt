@@ -46,7 +46,18 @@ data class TmuxSnapshot(
 
 /** 状態取得の結果。 */
 sealed interface TmuxListing {
-  data class Ok(val snapshot: TmuxSnapshot) : TmuxListing
+  /**
+   * [totalLines] は返ってきた行数、[understoodLines] はそのうち解釈できた行数。
+   *
+   * ウィンドウが 0 件だったとき、「tmux が本当に何も持っていない」のか
+   * 「返っては来たがこちらが読めなかった」のかを、この 2 つの数で切り分ける。
+   * 数を見せずに「tmux なし」とだけ出していた頃は、どちらなのか永久に分からなかった。
+   */
+  data class Ok(
+      val snapshot: TmuxSnapshot,
+      val totalLines: Int = 0,
+      val understoodLines: Int = 0,
+  ) : TmuxListing
 
   /** tmux が入っていない、サーバーが動いていない、など。[reason] はそのまま画面に出す。 */
   data class Unavailable(val reason: String) : TmuxListing
@@ -224,7 +235,7 @@ object TmuxController {
       // ための判断）。捨てたこと自体は残しておかないと、一覧が欠ける理由が追えない。
       Logger.w("Tmux", "dropped ${total - understood} unparsable line(s)")
     }
-    return TmuxListing.Ok(snapshot)
+    return TmuxListing.Ok(snapshot, totalLines = total, understoodLines = understood)
   }
 
   /**

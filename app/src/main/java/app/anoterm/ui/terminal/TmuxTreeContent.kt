@@ -14,10 +14,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import app.anoterm.BuildConfig
 import app.anoterm.R
 import app.anoterm.ssh.TmuxWindow
 
@@ -42,12 +44,25 @@ fun TmuxTreeContent(
     onJump: (TmuxJump) -> Unit,
 ) {
   Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-    Text(
-        text = stringResource(R.string.tmux_tree_title),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(vertical = 8.dp),
-    )
+    // 版を出しておく。手元の端末に何が入っているのか確かめる手段が無いと、
+    // 「直したはずのものが直っていない」ときに、入っていないのか効いていないのかが
+    // 切り分けられない。抽斗は一番よく開く場所なので、ここに置く。
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+          text = stringResource(R.string.tmux_tree_title),
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.primary,
+      )
+      Text(
+          text = BuildConfig.VERSION_NAME,
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
 
     when {
       connections == null ->
@@ -104,8 +119,18 @@ private fun ConnectionHeader(conn: TmuxTreeConnection) {
       // 理由が取れているならそれを出す。「tmux なし」とだけ出していた頃は、
       // 入っていないのか、起動していないのか、PATH に無いのかが区別できず、
       // 直しに行く先が分からなかった。文言はリモートが返した一行そのまま。
+      // 3 つの場合を混ぜない。混ぜていたせいで「tmux なし」としか出ず、
+      // どれに当たっているのか分からなかった。
+      //   ・理由が返っている  → その一行をそのまま (入っていない / サーバー未起動 / PATH に無い)
+      //   ・応答はあったが 0 件 → tmux は動いているが、この接続から見えるウィンドウが無い
+      //   ・それ以外          → 従来の文言
       Text(
-          text = conn.unavailableReason ?: stringResource(R.string.tmux_tree_no_tmux),
+          text =
+              conn.unavailableReason
+                  ?: conn.emptyDetail?.let { (total, understood) ->
+                    stringResource(R.string.tmux_tree_no_windows, total, understood)
+                  }
+                  ?: stringResource(R.string.tmux_tree_no_tmux),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )

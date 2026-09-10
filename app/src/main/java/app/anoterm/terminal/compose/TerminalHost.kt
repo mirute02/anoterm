@@ -27,6 +27,7 @@ fun TerminalHost(
     palette: TerminalPalette,
     fontSizeSp: Float,
     lineSpacing: Float,
+    leftInsetDp: Float = 0f,
     lineEnding: LineEnding,
     relaxedImePrivacyForClipboard: Boolean = false,
     onTapTarget: (TapTarget) -> Unit = {},
@@ -44,6 +45,7 @@ fun TerminalHost(
           it.setPalette(palette)
           it.setFontSizeSp(fontSizeSp)
           it.setLineSpacing(lineSpacing)
+          it.setLeftInsetDp(leftInsetDp)
           it.setLineEnding(lineEnding)
           it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
           it.onTapTarget = onTapTarget
@@ -59,6 +61,7 @@ fun TerminalHost(
         it.setFontSizeSp(fontSizeSp)
         // 設定で行間を変えても反映されなかったのは、ここに無かったから。
         it.setLineSpacing(lineSpacing)
+        it.setLeftInsetDp(leftInsetDp)
         it.setLineEnding(lineEnding)
         it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
         it.onTapTarget = onTapTarget

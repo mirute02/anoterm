@@ -496,12 +496,12 @@ fun TerminalScreen(
         // 左右ぶんだけ避ければ向きが変わっても勝手に付いてくる。上下は Scaffold と
         // navigationBarsPadding が既に見ている。
         //
-        // leftMargin はそれとは別の、単に端が詰まって見えるのが嫌な人のための調整。
+        // 左の余白は端末の中だけに掛ける (TerminalHost の leftInsetDp)。ここで padding を
+        // 掛けると画面全体が寄り、余白の帯が端末の背景から外れて別の色の段差になる。
         modifier =
             Modifier.windowInsetsPadding(
-                    WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
-                )
-                .padding(start = leftMarginDp.dp),
+                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
+            ),
         topBar = {
           TopAppBar(
               title = {
@@ -808,6 +808,7 @@ fun TerminalScreen(
                   palette = theme.toPalette(),
                   fontSizeSp = fontSizeSp,
                   lineSpacing = lineSpacing,
+                  leftInsetDp = leftMarginDp,
                   lineEnding = lineEnding,
                   relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
                   onTapTarget = { target -> handleTapTarget(currentTabId, target) },
@@ -830,6 +831,7 @@ fun TerminalScreen(
                       palette = theme.toPalette(),
                       fontSizeSp = fontSizeSp,
                       lineSpacing = lineSpacing,
+                      leftInsetDp = leftMarginDp,
                       lineEnding = lineEnding,
                       relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
                       onTapTarget = { target -> handleTapTarget(pageTabId, target) },

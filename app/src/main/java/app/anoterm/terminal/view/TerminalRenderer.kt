@@ -42,6 +42,9 @@ class TerminalRenderer(
   private val bgPaint = Paint()
   private val linkPaint = android.graphics.Paint()
   private val highlightPaint = android.graphics.Paint()
+
+  /** 文字を描き始める左端。背景は端まで塗るので、ここに段差は出ない。 */
+  var leftInsetPx: Float = 0f
   private val underlinePaint = Paint()
   private val cursorPaint = Paint().apply { style = Paint.Style.FILL }
   private val selectionPaint = Paint()
@@ -137,6 +140,13 @@ class TerminalRenderer(
     val clearH = maxOf(viewPixelHeight, ch * buffer.rows)
     bgPaint.color = bgDefault
     canvas.drawRect(0f, 0f, clearW, clearH, bgPaint)
+
+    // 左の余白は「描き始めをずらす」ことで作る。View 側に padding を掛けると、
+    // 余白の帯だけ端末の背景から外れて別の色になり、わざとらしい段差ができる。
+    // 背景は上で端まで塗り切ったあと、中身だけを平行移動する。
+    val restoreTo = canvas.save()
+    canvas.translate(leftInsetPx, 0f)
+    try {
 
     val effectiveOffset = scrollOffset.coerceAtMost(buffer.rows + buffer.scrollbackSize)
 
@@ -286,6 +296,9 @@ class TerminalRenderer(
 
     if (selEnabled && selectionStart != null && selectionEnd != null) {
       drawSelectionHandles(canvas, selectionStart, selectionEnd, cw, ch, clearW, clearH)
+    }
+    } finally {
+      canvas.restoreToCount(restoreTo)
     }
   }
 

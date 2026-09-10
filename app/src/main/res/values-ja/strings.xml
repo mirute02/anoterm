@@ -381,6 +381,7 @@
     <string name="tmux_tree_title">ウィンドウ一覧</string>
     <string name="tmux_tree_empty">接続がありません。</string>
     <string name="tmux_tree_no_tmux">tmux なし</string>
+    <string name="tmux_tree_no_windows">tmux は答えたがウィンドウ 0 件 (%1$d 行返り、うち %2$d 行を解釈)</string>
     <string name="tmux_tree_attached">表示中</string>
     <string name="tmux_tree_open">ウィンドウ一覧を開く</string>
     <string name="tmux_tree_loading">接続を読み込み中\u2026</string>

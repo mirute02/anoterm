@@ -376,6 +376,22 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     invalidate()
   }
 
+  /**
+   * 文字を描き始める左端 (dp)。内側カメラや、単に端が詰まって見えるとき用。
+   *
+   * View に padding を掛けるのではなく、描画そのものをずらす。padding だと余白の帯が
+   * 端末の背景から外れて別の色になり、わざとらしい段差ができる。ここでずらせば
+   * 背景は端まで端末の色のまま、文字だけが右へ寄る。
+   */
+  fun setLeftInsetDp(dp: Float) {
+    val px = dipToPx(dp)
+    if (renderer.leftInsetPx == px) return
+    renderer.leftInsetPx = px
+    // 使える幅が減るので桁数が変わる。リモートにも伝える必要がある。
+    reflowToViewport()
+    invalidate()
+  }
+
   fun setLineEnding(le: LineEnding) {
     this.lineEnding = le
   }
@@ -461,7 +477,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight
     if (cw <= 0f || ch <= 0f) return
-    val cols = (width / cw).toInt().coerceAtLeast(1)
+    val cols = ((width - renderer.leftInsetPx) / cw).toInt().coerceAtLeast(1)
     val rows = (height / ch).toInt().coerceAtLeast(1)
     controller?.resize(rows, cols)
   }
@@ -798,7 +814,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight
-    val x = cw * ctl.emulator.cursorCol
+    val x = renderer.leftInsetPx + cw * ctl.emulator.cursorCol
     val y = ch * ctl.emulator.cursorRow
     val m = Matrix()
     val loc = IntArray(2)
@@ -918,7 +934,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight
     if (cw <= 0f || ch <= 0f) return false
-    val col = (e.x / cw).toInt().coerceAtLeast(0) + 1 // 1-based
+    val col = ((e.x - renderer.leftInsetPx) / cw).toInt().coerceAtLeast(0) + 1 // 1-based
     val row = (e.y / ch).toInt().coerceAtLeast(0) + 1
     if (emu.mouseSgrMode) {
       // SGR は終端の M/m で押下と解放を区別する。ボタン番号は同じ 0 のまま。
@@ -956,7 +972,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight
     if (cw <= 0f || ch <= 0f) return false
-    val col = (e.x / cw).toInt().coerceAtLeast(0) + 1 // 1-based
+    val col = ((e.x - renderer.leftInsetPx) / cw).toInt().coerceAtLeast(0) + 1 // 1-based
     val row = (e.y / ch).toInt().coerceAtLeast(0) + 1
     val count = kotlin.math.abs(positiveLines)
     val button = if (positiveLines > 0) 64 else 65
@@ -996,7 +1012,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight
     if (cw <= 0f || ch <= 0f) return null
-    val col = (x / cw).toInt().coerceAtLeast(0)
+    val col = ((x - renderer.leftInsetPx) / cw).toInt().coerceAtLeast(0)
     val row = (y / ch).toInt().coerceAtLeast(0)
     val ctl = controller ?: return null
     val rows = ctl.emulator.rows
@@ -1121,7 +1137,9 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   private fun endpointHandleDistanceSq(x: Float, y: Float, pos: CellPos, isStart: Boolean): Float {
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight
-    val anchorX = (if (isStart) pos.col * cw else (pos.col + 1) * cw).coerceIn(0f, width.toFloat())
+    val anchorX =
+        (renderer.leftInsetPx + if (isStart) pos.col * cw else (pos.col + 1) * cw)
+            .coerceIn(0f, width.toFloat())
     val anchorY = ((pos.row + 1) * ch).coerceIn(0f, height.toFloat())
     val dx = x - anchorX
     val dy = y - anchorY
