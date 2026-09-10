@@ -97,24 +97,57 @@ class TerminalBuffer(
   /**
    * `rowOffset` は「旧 buffer のどの行を new 行 0 として扱うか」。
    * 縮小時に cursor を画面内に残したい TerminalEmulator 側で算出して渡す。
+   *
+   * 戻り値は scrollback の増減行数（正 = 積んだ、負 = 引き戻した）。画面の高さが変わっても
+   * 読んでいる行が上下に飛ばないよう、表示位置をこのぶんずらすために返している。
    */
   // VT 受信は Dispatchers.Default コルーチンから、resize は UI スレッドから呼ばれるため、
   // grid/rows/cols を同時に変更するメソッドは全部 @Synchronized で直列化する。
   // これを怠ると ArrayIndexOutOfBoundsException でアプリが落ちる。
   @Synchronized
-  fun resize(newRows: Int, newCols: Int, rowOffset: Int = 0) {
-    if (newRows == rows && newCols == cols) return
+  fun resize(newRows: Int, newCols: Int, rowOffset: Int = 0): Int {
+    if (newRows == rows && newCols == cols) return 0
     // cols 不変なら scrollback は触らない。IME アニメの毎フレームで rows だけ動く
     // ときに 2000 行全 copy していたのが frame drop の主因だった。
     val colsChanged = newCols != cols
+
+    // 縮むときに画面から溢れる上端の行は、捨てずに scrollback へ送る。
+    // 捨てていた頃は、キーボードが出た瞬間に読んでいた行が消えていた。
+    val pushed =
+        if (scrollbackEnabled && rowOffset > 0) {
+          val n = minOf(rowOffset, rows)
+          for (r in 0 until n) scrollback.addLast(grid[r])
+          while (scrollback.size > maxScrollback) scrollback.removeFirst()
+          n
+        } else {
+          0
+        }
+
+    // 広がるときはその逆をやる。scrollback の末尾から引き戻して上に足す。
+    // 空行で埋めると「キーボードを閉じたら下に空白が生えて、本文が上へ飛んだ」に見える。
+    val pulled =
+        if (scrollbackEnabled && rowOffset == 0 && newRows > rows) {
+          minOf(newRows - rows, scrollback.size)
+        } else {
+          0
+        }
+
     val newGrid = makeGrid(newRows, newCols)
     val copyCols = minOf(cols, newCols)
     for (r in 0 until newRows) {
-      val srcR = rowOffset + r
-      if (srcR in 0 until rows) {
-        for (c in 0 until copyCols) newGrid[r][c].copyFrom(grid[srcR][c])
+      // 上に足した pulled 行は scrollback から、それ以降は旧 grid から取る。
+      val src: Array<Cell>? =
+          if (r < pulled) {
+            scrollback.elementAtOrNull(scrollback.size - pulled + r)
+          } else {
+            val srcR = rowOffset + (r - pulled)
+            if (srcR in 0 until rows) grid[srcR] else null
+          }
+      if (src != null) {
+        for (c in 0 until minOf(copyCols, src.size)) newGrid[r][c].copyFrom(src[c])
       }
     }
+    repeat(pulled) { scrollback.removeLast() }
     grid = newGrid
     rows = newRows
     cols = newCols
@@ -131,6 +164,8 @@ class TerminalBuffer(
       scrollback.addAll(repaired)
     }
     bump()
+    // scrollback が何行増減したか。呼び出し側が「見ている行」を追従させるのに使う。
+    return pushed - pulled
   }
 
   /**

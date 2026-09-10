@@ -120,23 +120,33 @@ class TerminalEmulator(
    * grid 入れ替えと put が競合して「gradlew が g a l w に見える」ような中抜け描画になる。
    */
   @Synchronized
-  fun resize(newRows: Int, newCols: Int) {
-    if (newRows == buffer.rows && newCols == buffer.cols) return
+  /**
+   * 戻り値は「表示中のバッファで scrollback が何行増減したか」（正 = 積んだ、負 = 引き戻した）。
+   * 画面の高さが変わっても読んでいる行が動かないよう、View 側がスクロール位置をこのぶんずらす。
+   */
+  fun resize(newRows: Int, newCols: Int): Int {
+    if (newRows == buffer.rows && newCols == buffer.cols) return 0
     // 縮小時はカーソルを画面内に収めるため、旧行のうち cursor を含む下側を保持する。
-    // 拡大時は旧行を上から並べ、下に空行が増える。
+    // 溢れた上側は捨てずに scrollback へ回り、拡大時はそこから引き戻される。
     val rowOffset =
         if (newRows >= buffer.rows) 0
         else (cursorRow - (newRows - 1)).coerceIn(0, buffer.rows - newRows)
     // プライマリ・代替両方をリサイズ（非アクティブでも寸法は揃えておく、切替後の表示崩れ防止）
-    primaryBuffer.resize(newRows, newCols, if (buffer === primaryBuffer) rowOffset else 0)
-    alternateBuffer.resize(newRows, newCols, if (buffer === alternateBuffer) rowOffset else 0)
-    cursorRow = (cursorRow - rowOffset).coerceIn(0, buffer.rows - 1)
+    val primaryShift =
+        primaryBuffer.resize(newRows, newCols, if (buffer === primaryBuffer) rowOffset else 0)
+    val alternateShift =
+        alternateBuffer.resize(newRows, newCols, if (buffer === alternateBuffer) rowOffset else 0)
+    val shift = if (buffer === primaryBuffer) primaryShift else alternateShift
+    // scrollback から引き戻したぶんは、grid の中身が下へずれるのでカーソルも一緒に下げる。
+    val pulled = maxOf(0, -shift)
+    cursorRow = (cursorRow - rowOffset + pulled).coerceIn(0, buffer.rows - 1)
     cursorCol = cursorCol.coerceIn(0, buffer.cols - 1)
     pendingWrap = false
     // resize で rows が変わるので scroll 領域を全画面に戻す。tmux 等は SIGWINCH で
     // 改めて DECSTBM を送り直すので、一旦リセットしておくのが安全。
     scrollTop = 0
     scrollBottom = buffer.rows - 1
+    return shift
   }
 
   /**

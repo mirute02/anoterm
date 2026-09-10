@@ -140,13 +140,12 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               parent?.requestDisallowInterceptTouchEvent(true)
             }
 
-            // シングルタップの領域分割 (タップ位置で動作が変わる):
-            //   ・上 3/8 (0 - 0.375h)  : 半画面分 scrollback 上方向 (過去へ)
-            //   ・中間 (0.375 - 0.75h) : 半画面分 scrollback 下方向 (現在へ)
-            //   ・下 1/4 (0.75 - 1.0h) : IME 起動
-            // `onSingleTapConfirmed` はダブルタップ待機後に発火するので、ダブルタップで
-            // 誤爆しない。~300ms の遅延は意図したもの（スクロール量は cell 数で指定、
-            // 縦セルの半分ぶん動かす）。
+            // シングルタップが効くのは画面下 1/4 だけ。そこを叩くとキーボードが出る。
+            // 残りの領域は何もしない。以前は上 3/8 と中間で半画面ずつスクロールさせて
+            // いたが、読んでいる最中に触れただけで画面が飛ぶのが嫌われて外した
+            // (スクロールしたい時はスワイプ)。
+            // `onSingleTapConfirmed` はダブルタップ待機後に発火するので、ダブルタップと
+            // 競合しない。~300ms の遅延は意図したもの。
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
               // 選択中の単タップは ActionMode で Copy メニュー出してるので基本 no-op。
               // もし ActionMode が出てなければ新規選択解除として扱う (保険)。
@@ -221,23 +220,29 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     isClickable = true
   }
 
+  // 以下の setter は AndroidView の update ブロックから呼ばれる。update は再コンポーズの
+  // たびに走るので、値が変わっていないのに reflow / invalidate すると、IME アニメーション中は
+  // 毎フレーム PTY へ SIGWINCH が飛び、リモートの tmux / TUI が全画面を描き直す。
+  // 「同じ値なら何もしない」を全 setter の入口で守ること。
   fun bind(controller: TerminalSessionController) {
-    val controllerChanged = this.controller !== controller
+    if (this.controller === controller) return
+    this.controller?.onScrollbackShift = null
     this.controller = controller
-    if (controllerChanged) {
-      composingState.clear()
-      ctrlArmed = false
-    }
+    controller.onScrollbackShift = ::shiftScrollOffset
+    composingState.clear()
+    ctrlArmed = false
     reflowToViewport()
     requestTerminalRedraw()
   }
 
   fun setPalette(palette: TerminalPalette) {
+    if (renderer.palette == palette) return
     renderer.palette = palette
     invalidate()
   }
 
   fun setFontSizeSp(sp: Float) {
+    if (fontSizeDp == sp) return
     fontSizeDp = sp
     renderer.updateFontSize(dipToPx(sp))
     reflowToViewport()
@@ -394,6 +399,22 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
       scrollOffset = newOffset
       invalidate()
     }
+  }
+
+  /**
+   * resize で scrollback が [delta] 行動いたぶん、見ている位置を追従させる。
+   *
+   * 画面が縮むと上端の行が scrollback へ送られ、広がると引き戻される。scrollOffset は
+   * 「scrollback の下から何行目を画面上端に出すか」なので、これを直さないと同じ数字が
+   * 別の行を指すことになり、キーボードを出し入れするたびに本文が上下に飛ぶ。
+   *
+   * 底を追っているとき (offset == 0) は動かさない。そこはカーソル行を見ていたい場面で、
+   * 上端を固定すると今度はプロンプトが画面外へ出ていく。
+   */
+  private fun shiftScrollOffset(delta: Int) {
+    if (scrollOffset == 0) return
+    scrollOffset = (scrollOffset + delta).coerceAtLeast(0)
+    invalidate()
   }
 
   /** 最新位置（底）へ戻す。新出力到着時や入力時に呼ぶ。 */

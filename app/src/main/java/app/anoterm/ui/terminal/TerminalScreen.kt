@@ -2,9 +2,6 @@ package app.anoterm.ui.terminal
 
 import android.content.Context
 import android.view.inputmethod.InputMethodManager
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -33,10 +29,14 @@ import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.VpnKey
@@ -151,6 +151,7 @@ fun TerminalScreen(
   var firstSeenKey by remember { mutableStateOf<Pair<String, String>?>(null) }
   var showMemo by remember { mutableStateOf(false) }
   var showDisconnectConfirm by remember { mutableStateOf(false) }
+  var showOverflow by remember { mutableStateOf(false) }
   var retryNonce by remember { mutableStateOf(0) }
   // カスタムショートカットバーはデフォルトで非表示。下部のツールバー右端の apps アイコンで切替。
   var showShortcutBar by remember { mutableStateOf(false) }
@@ -399,42 +400,103 @@ fun TerminalScreen(
                 )
               }
             },
+            // ハンバーガーは左上に置く。Android で「一覧を開く」はここにある物という
+            // 前提があり、右端に置くと毎回探すことになる。戻る矢印はこの位置を譲って
+            // 消した。行き先はメニューの中にあり、システムの戻る操作もそのまま効く。
             navigationIcon = {
-              IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-              }
-            },
-            actions = {
               IconButton(onClick = { showTmuxTree = true }) {
                 Icon(
                     Icons.Filled.Menu,
                     contentDescription = stringResource(R.string.tmux_tree_open),
                 )
               }
-              IconButton(onClick = { showHistory = true }) {
-                Icon(Icons.Filled.History, contentDescription = stringResource(R.string.terminal_history))
-              }
-              // tmux ダッシュボードは Phase 2 以降の機能 (control mode 未完成)。
-              // 一般ユーザには未使用機能が紛れて見えるのでノイズ、debug + 開発者モード時のみ出す。
-              if (BuildConfig.DEBUG && developerMode) {
-                IconButton(onClick = { showTmux = true }) {
-                  Icon(Icons.Filled.Dashboard, contentDescription = "tmux")
-                }
-              }
-              IconButton(onClick = { showInstallKey = true }) {
-                Icon(Icons.Filled.VpnKey, contentDescription = stringResource(R.string.terminal_install_key))
-              }
-              IconButton(onClick = { showMemo = true }) {
-                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = stringResource(R.string.terminal_memo))
-              }
-              IconButton(onClick = { showHelp = true }) {
-                Icon(Icons.Filled.HelpOutline, contentDescription = stringResource(R.string.terminal_help))
-              }
-              IconButton(onClick = { showDisconnectConfirm = true }) {
+            },
+            // 右は「その他」1 つに畳む。以前はアイコンが 6〜7 個並び、狭い画面では
+            // 接続名を押し潰したうえ、どれが何かは押すまで分からなかった。
+            // 名前が読めるメニュー 1 枚のほうが、常に見えている絵文字の列より速い。
+            actions = {
+              IconButton(onClick = { showOverflow = true }) {
                 Icon(
-                    Icons.Filled.PowerSettingsNew,
-                    contentDescription = stringResource(R.string.host_disconnect),
-                    tint = MaterialTheme.colorScheme.error,
+                    Icons.Filled.MoreVert,
+                    contentDescription = stringResource(R.string.terminal_menu),
+                )
+              }
+              DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.terminal_history)) },
+                    leadingIcon = { Icon(Icons.Filled.History, contentDescription = null) },
+                    onClick = {
+                      showOverflow = false
+                      showHistory = true
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.terminal_install_key)) },
+                    leadingIcon = { Icon(Icons.Filled.VpnKey, contentDescription = null) },
+                    onClick = {
+                      showOverflow = false
+                      showInstallKey = true
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.terminal_memo)) },
+                    leadingIcon = {
+                      Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null)
+                    },
+                    onClick = {
+                      showOverflow = false
+                      showMemo = true
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.terminal_help)) },
+                    leadingIcon = { Icon(Icons.Filled.HelpOutline, contentDescription = null) },
+                    onClick = {
+                      showOverflow = false
+                      showHelp = true
+                    },
+                )
+                // tmux ダッシュボードは Phase 2 以降の機能 (control mode 未完成)。
+                // 一般ユーザには未使用機能が紛れて見えるのでノイズ、debug + 開発者モード時のみ出す。
+                if (BuildConfig.DEBUG && developerMode) {
+                  DropdownMenuItem(
+                      text = { Text("tmux") },
+                      leadingIcon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
+                      onClick = {
+                        showOverflow = false
+                        showTmux = true
+                      },
+                  )
+                }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.terminal_back_to_hosts)) },
+                    leadingIcon = {
+                      Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    },
+                    onClick = {
+                      showOverflow = false
+                      onBack()
+                    },
+                )
+                DropdownMenuItem(
+                    text = {
+                      Text(
+                          stringResource(R.string.host_disconnect),
+                          color = MaterialTheme.colorScheme.error,
+                      )
+                    },
+                    leadingIcon = {
+                      Icon(
+                          Icons.Filled.PowerSettingsNew,
+                          contentDescription = null,
+                          tint = MaterialTheme.colorScheme.error,
+                      )
+                    },
+                    onClick = {
+                      showOverflow = false
+                      showDisconnectConfirm = true
+                    },
                 )
               }
             },
@@ -452,18 +514,11 @@ fun TerminalScreen(
                 .padding(inner)
                 .navigationBarsPadding(),
     ) {
-      // タブ数の変化（1→2 や 2→1）で TabBar が「ヒュッと出て消える」flicker に見えないよう、
-      // AnimatedVisibility で高さと不透明度を滑らかに変える。
-      // 表示自体は「2 タブ以上」の従来条件のまま。
-      androidx.compose.animation.AnimatedVisibility(
-          visible = sortedTabs.size > 1,
-          enter =
-              androidx.compose.animation.expandVertically() +
-                  androidx.compose.animation.fadeIn(),
-          exit =
-              androidx.compose.animation.shrinkVertically() +
-                  androidx.compose.animation.fadeOut(),
-      ) {
+      // タブ数が 1→2 や 2→1 に変わったときの見せ方は snap。以前は AnimatedVisibility で
+      // 高さを滑らかに変えていたが、伸び縮みの全フレームでターミナルの高さが動き、
+      // 本文がバーに押されて上下に流れる。滑らかに動くこと自体がガタつきとして読まれる。
+      // 一度で決まるほうが、目で追っている行が動かない。
+      if (sortedTabs.size > 1) {
         TabBar(
             tabs = sortedTabs,
             activeTabId = currentTabId,
@@ -524,10 +579,26 @@ fun TerminalScreen(
             currentView?.scrollToBottom()
             app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
           }
-          // IME 可視状態を WindowInsets の ime bottom で判定。
-          val imeBottomPx =
-              WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
-          val imeVisible = imeBottomPx > 0
+          // IME の可視判定に `WindowInsets.ime` を使ってはいけない。あれは開閉アニメーションの
+          // 補間値で、コンポジションから読むと全フレームで再コンポーズが走る。再コンポーズは
+          // AndroidView の update を回し、そこから reflow → resize → SIGWINCH に繋がる。
+          // これがキーボード開閉のたびに画面がガタつく実体だった。最終値の
+          // `imeAnimationTarget` を見れば、開閉ごとに 1 回だけ true/false が入れ替わる。
+          val density = androidx.compose.ui.platform.LocalDensity.current
+          val imeTarget = WindowInsets.imeAnimationTarget
+          val imeVisible by
+              remember(imeTarget, density) { derivedStateOf { imeTarget.getBottom(density) > 0 } }
+
+          // キーボードを開く経路はここ 1 本。TerminalView に focus を渡してから
+          // soft input を要求する。focus が取れていないと IME は開かない。
+          val showKeyboard: () -> Unit = {
+            currentView?.let { v ->
+              v.requestFocus()
+              val imm =
+                  context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+              imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
+            }
+          }
           // Termius 風のレイアウト: ターミナルが weight(1f) で残余を占め、ツールバーは
           // そのすぐ下に Column の子として並ぶ。ツールバーに `imePadding` を付けると
           // IME 表示時にその下に IME 高さ分の余白が入り、結果としてターミナルが
@@ -575,17 +646,26 @@ fun TerminalScreen(
           if (replyPadEnabled && !imeVisible) {
             FloatingReplyPad(
                 onSend = sendBytes,
+                onShowKeyboard = showKeyboard,
                 position = replyPadX to replyPadY,
                 onMove = { x, y -> app.prefs.setReplyPadPosition(x, y) },
                 modifier = Modifier.fillMaxSize(),
             )
           }
           }
+          // 補助キーは「打っている間」だけの物なので、キーボードが閉じている間は
+          // 一切出さない。Esc も矢印も Ctrl も、読んでいる時には押さない。常設すると
+          // 縦 70dp 前後を無条件に食い、狭い画面では本文の 3〜4 行分に相当する。
+          //
+          // キーボードを呼び戻す道は 2 つ残してある。画面下 1/4 のシングルタップと、
+          // 浮いている返答パッドのキーボードボタン。どちらも指の届く場所にある。
+          //
           // ツールバー + ショートカットバーはターミナル直下に固定し、IME が出れば
           // その上に押し上げる。`imePadding()` はアニメ補間値を読むので毎フレーム
           // 再レイアウトが走り terminal 側の SIGWINCH も連発される。代わりに
           // `imeAnimationTarget` (最終値) を windowInsetsPadding で当てることで、
           // 開閉開始時点で position を snap させる — Termius がカクカク見えない理由。
+          if (imeVisible) {
           Column(
               modifier =
                   Modifier.fillMaxWidth()
@@ -595,8 +675,7 @@ fun TerminalScreen(
             // AnimatedVisibility だと expand/shrink 中に毎フレーム terminal が縮み、
             // PTY resize → feed/draw が連発して「ショートカット展開がカクつく」。
             // snap 表示にすれば layout は 1 回で決まる。
-            // パッドが出ている間は同じキーを二重に置かない。1 行ぶん端末に返す。
-            if (imeVisible || !replyPadEnabled) ReplyKeyBar(onSend = sendBytes)
+            ReplyKeyBar(onSend = sendBytes)
             if (showShortcutBar) {
               CustomShortcutBar(
                   shortcuts = customShortcuts,
@@ -614,22 +693,18 @@ fun TerminalScreen(
                 },
                 onToggleShortcutBar = { showShortcutBar = !showShortcutBar },
                 onToggleKeyboard = {
-                  val imm =
-                      context.getSystemService(Context.INPUT_METHOD_SERVICE)
-                          as? InputMethodManager
                   if (imeVisible) {
+                    val imm =
+                        context.getSystemService(Context.INPUT_METHOD_SERVICE)
+                            as? InputMethodManager
                     imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
                   } else {
-                    // TerminalView に focus させてから soft input を要求する。
-                    // focus が取れないと IME は開かないので requestFocus を先に。
-                    currentView?.let { v ->
-                      v.requestFocus()
-                      imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
-                    }
+                    showKeyboard()
                   }
                 },
                 onSend = sendBytes,
             )
+          }
           }
         }
       }

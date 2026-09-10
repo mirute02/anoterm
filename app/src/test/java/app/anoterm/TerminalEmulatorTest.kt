@@ -26,6 +26,17 @@ class TerminalEmulatorTest {
   private fun feed(e: TerminalEmulator, s: String) =
       e.feed(s.toByteArray(Charsets.UTF_8))
 
+  /** scrollback の下から [fromBottom] 行目を文字列で読む。0 が画面直上の行。 */
+  private fun scrollbackLine(e: TerminalEmulator, fromBottom: Int): String {
+    val sb = StringBuilder()
+    for (c in 0 until e.buffer.cols) {
+      val cell = e.buffer.scrollbackCellAt(fromBottom, c) ?: break
+      if (cell.continuation) continue
+      if (cell.codePoint == 0) sb.append(' ') else sb.appendCodePoint(cell.codePoint)
+    }
+    return sb.toString().trimEnd()
+  }
+
   @Test
   fun plainAsciiIsWritten() {
     val (e, _) = emu()
@@ -148,5 +159,77 @@ class TerminalEmulatorTest {
     feed(e, "ab[6n")
     assertEquals(1, out.sent.size)
     assertEquals("[1;3R", out.sent[0].toString(Charsets.US_ASCII))
+  }
+
+  // --- resize で「読んでいる場所」が動かないこと ---
+  //
+  // キーボードの出し入れは端末の行数を上下させる。以前は縮む側で上端の行をそのまま
+  // 捨て、広がる側は空行で埋めていたので、開閉のたびに本文が飛び、開く前に見えていた
+  // 行は二度と戻らなかった。縮むときは scrollback へ送り、広がるときは引き戻す。
+
+  @Test
+  fun shrinkingPushesTheTopRowsIntoScrollback() {
+    val (e, _) = emu(rows = 5, cols = 20)
+    feed(e, "a\r\nb\r\nc\r\nd\r\ne")
+    assertEquals(4, e.cursorRow)
+
+    val shift = e.resize(3, 20)
+
+    // 溢れた 2 行は消えずに scrollback の底へ積まれる。
+    assertEquals(2, shift)
+    assertEquals(2, e.buffer.scrollbackSize)
+    assertEquals("b", scrollbackLine(e, 0))
+    assertEquals("a", scrollbackLine(e, 1))
+    // 画面にはカーソルを含む下側が残る。
+    assertEquals("c", e.buffer.rowAsString(0))
+    assertEquals("d", e.buffer.rowAsString(1))
+    assertEquals("e", e.buffer.rowAsString(2))
+    assertEquals(2, e.cursorRow)
+  }
+
+  @Test
+  fun growingPullsThoseRowsBackOut() {
+    val (e, _) = emu(rows = 5, cols = 20)
+    feed(e, "a\r\nb\r\nc\r\nd\r\ne")
+    e.resize(3, 20)
+
+    val shift = e.resize(5, 20)
+
+    // 空行が下に生えるのではなく、送った 2 行が上に戻る。開閉して元通り。
+    assertEquals(-2, shift)
+    assertEquals(0, e.buffer.scrollbackSize)
+    assertEquals("a", e.buffer.rowAsString(0))
+    assertEquals("b", e.buffer.rowAsString(1))
+    assertEquals("c", e.buffer.rowAsString(2))
+    assertEquals("d", e.buffer.rowAsString(3))
+    assertEquals("e", e.buffer.rowAsString(4))
+    assertEquals(4, e.cursorRow)
+  }
+
+  @Test
+  fun growingBeyondScrollbackJustAddsBlankRows() {
+    val (e, _) = emu(rows = 3, cols = 20)
+    feed(e, "a\r\nb\r\nc")
+
+    val shift = e.resize(5, 20)
+
+    // 引き戻せる履歴が無ければ従来どおり。上端は動かない。
+    assertEquals(0, shift)
+    assertEquals("a", e.buffer.rowAsString(0))
+    assertEquals("", e.buffer.rowAsString(4))
+    assertEquals(2, e.cursorRow)
+  }
+
+  @Test
+  fun alternateScreenNeverTouchesScrollback() {
+    val (e, _) = emu(rows = 5, cols = 20)
+    feed(e, "\u001B[?1049h")
+    feed(e, "a\r\nb\r\nc\r\nd\r\ne")
+
+    val shift = e.resize(3, 20)
+
+    // vim/tmux の作業画面は履歴を汚さない (VT100 仕様)。補正するものも無い。
+    assertEquals(0, shift)
+    assertEquals(0, e.buffer.scrollbackSize)
   }
 }

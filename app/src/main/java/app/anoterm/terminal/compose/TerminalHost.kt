@@ -39,7 +39,6 @@ fun TerminalHost(
           it.bind(controller)
           it.setPalette(palette)
           it.setFontSizeSp(fontSizeSp)
-        it.setLineSpacing(lineSpacing)
           it.setLineSpacing(lineSpacing)
           it.setLineEnding(lineEnding)
           it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
@@ -51,6 +50,8 @@ fun TerminalHost(
         it.bind(controller)
         it.setPalette(palette)
         it.setFontSizeSp(fontSizeSp)
+        // 設定で行間を変えても反映されなかったのは、ここに無かったから。
+        it.setLineSpacing(lineSpacing)
         it.setLineEnding(lineEnding)
         it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
         viewRef.view = it

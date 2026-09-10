@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -21,10 +24,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import app.anoterm.R
 import kotlin.math.roundToInt
 
 /**
@@ -39,10 +44,15 @@ import kotlin.math.roundToInt
  *
  * 移動は中央のつまみをドラッグする。ボタン自体をドラッグ移動にすると、
  * 「押したつもりが動いた」「動かしたつもりが送信された」が避けられない。
+ *
+ * 左上にキーボードボタンを 1 つ足してある。補助キー列を常設しなくなったぶん、
+ * 「打ちたくなった時に開く」入口がどこかに要る。画面下 1/4 のタップでも開くが、
+ * 指がすでにパッドの上にあるなら、そこから届くほうが速い。
  */
 @Composable
 fun FloatingReplyPad(
     onSend: (ByteArray) -> Unit,
+    onShowKeyboard: () -> Unit,
     position: Pair<Float, Float>,
     onMove: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
@@ -67,6 +77,24 @@ fun FloatingReplyPad(
       PadButton("1", Alignment.TopCenter) { onSend(replyBytes("1")) }
       PadButton("2", Alignment.BottomStart) { onSend(replyBytes("2")) }
       PadButton("3", Alignment.BottomEnd) { onSend(replyBytes("3")) }
+
+      // 三角形の空いている角。数字より一回り小さく、色も変えてある。
+      // 送信ボタンと同じ見た目にすると、プロンプトに答えるつもりで IME を開いてしまう。
+      Surface(
+          onClick = onShowKeyboard,
+          modifier = Modifier.align(Alignment.TopStart).size(KEYBOARD_BUTTON_SIZE),
+          shape = CircleShape,
+          color = MaterialTheme.colorScheme.surfaceVariant,
+          shadowElevation = 3.dp,
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Icon(
+              Icons.Filled.Keyboard,
+              contentDescription = stringResource(R.string.terminal_show_keyboard),
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
 
       // 中央のつまみ。ここだけがドラッグを受ける。
       Box(
@@ -127,4 +155,5 @@ private fun replyBytes(key: String): ByteArray = (key + "\r").toByteArray(Charse
 
 private val PAD_SIZE = 136.dp
 private val BUTTON_SIZE = 52.dp
+private val KEYBOARD_BUTTON_SIZE = 40.dp
 private val HANDLE_SIZE = 22.dp

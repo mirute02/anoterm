@@ -27,16 +27,59 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 
 /**
- * ショートカット 1 行。[keys] は打鍵そのものなので翻訳しない。
- * [desc] は説明文なのでリソース ID で持つ（この一覧はトップレベルの val）。
+ * 一覧の 1 行。左の欄は打鍵そのもの ([keys]) なので普通は翻訳しない。
+ * ただし画面の操作の節だけは左も日本語・英語で書き分ける必要があるので [keysRes] を使う。
+ * [desc] は常に説明文なのでリソース ID で持つ（この一覧はトップレベルの val）。
  */
-private data class Shortcut(val keys: String, @StringRes val desc: Int)
+// 引数の並びは既存の位置指定呼び出し (`Shortcut("prefix c", R.string.…)`) を壊さない順。
+private data class Shortcut(
+    val keys: String? = null,
+    @StringRes val desc: Int,
+    @StringRes val keysRes: Int? = null,
+)
 
-private data class Section(val title: String, val entries: List<Shortcut>)
+/** [title] は "tmux: prefix = Ctrl-B" のような技術的ラベル。訳す節は [titleRes] を使う。 */
+private data class Section(
+    val title: String? = null,
+    val entries: List<Shortcut>,
+    @StringRes val titleRes: Int? = null,
+)
 
 /** tmux + 端末で共通的に使うショートカットの一覧。prefix は Ctrl-B（デフォルト）を前提。 */
 private val SECTIONS =
     listOf(
+        // 最初に置くのは、これが唯一「アプリを触って初めて分かる」情報だから。
+        // tmux とシェルのキーバインドは他所でも調べられるが、この画面の触り方はここにしかない。
+        Section(
+            titleRes = R.string.help_section_gestures,
+            entries =
+                listOf(
+                    Shortcut(
+                        keysRes = R.string.help_g_tap_bottom,
+                        desc = R.string.help_g_tap_bottom_desc,
+                    ),
+                    Shortcut(keysRes = R.string.help_g_swipe, desc = R.string.help_g_swipe_desc),
+                    Shortcut(
+                        keysRes = R.string.help_g_double_tap,
+                        desc = R.string.help_g_double_tap_desc,
+                    ),
+                    Shortcut(
+                        keysRes = R.string.help_g_long_press,
+                        desc = R.string.help_g_long_press_desc,
+                    ),
+                    Shortcut(keysRes = R.string.help_g_pinch, desc = R.string.help_g_pinch_desc),
+                    Shortcut(
+                        keysRes = R.string.help_g_swipe_side,
+                        desc = R.string.help_g_swipe_side_desc,
+                    ),
+                    Shortcut(keysRes = R.string.help_g_pad, desc = R.string.help_g_pad_desc),
+                    Shortcut(keysRes = R.string.help_g_menu, desc = R.string.help_g_menu_desc),
+                    Shortcut(
+                        keysRes = R.string.help_g_keys_hidden,
+                        desc = R.string.help_g_keys_hidden_desc,
+                    ),
+                ),
+        ),
         Section(
             "tmux: prefix = Ctrl-B",
             listOf(
@@ -112,7 +155,7 @@ fun HelpSheet(onDismiss: () -> Unit) {
       items(SECTIONS) { section ->
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
           Text(
-              text = section.title,
+              text = section.titleRes?.let { stringResource(it) } ?: section.title.orEmpty(),
               style = MaterialTheme.typography.titleMedium,
               color = MaterialTheme.colorScheme.primary,
           )
@@ -123,7 +166,7 @@ fun HelpSheet(onDismiss: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
               Text(
-                  text = sc.keys,
+                  text = sc.keysRes?.let { stringResource(it) } ?: sc.keys.orEmpty(),
                   modifier =
                       Modifier.width(140.dp)
                           .clip(RoundedCornerShape(4.dp))
