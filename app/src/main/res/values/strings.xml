@@ -176,6 +176,12 @@
     <string name="terminal_install_key">Install a public key</string>
     <string name="terminal_memo">Notes</string>
     <string name="terminal_help">Help</string>
+    <string name="browser_open_outside">Open in the phone\'s browser</string>
+    <string name="settings_split">Terminal and page</string>
+    <string name="settings_split_orientation">How they are arranged</string>
+    <string name="settings_split_vertical">Stacked</string>
+    <string name="settings_split_horizontal">Side by side</string>
+    <string name="settings_split_ratio">Terminal to page: %1$d to %2$d</string>
     <string name="browser_reload">Reload</string>
     <string name="browser_flip">Flip the split</string>
     <string name="browser_close">Close the page</string>

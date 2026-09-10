@@ -57,6 +57,8 @@ fun SettingsScreen(
   val lineSpacing by prefs.lineSpacing.collectAsStateWithLifecycle()
   val hideTmuxStatus by prefs.hideTmuxStatus.collectAsStateWithLifecycle()
   val replyPad by prefs.replyPadEnabled.collectAsStateWithLifecycle()
+  val splitVertical by prefs.splitVertical.collectAsStateWithLifecycle()
+  val splitRatio by prefs.splitRatio.collectAsStateWithLifecycle()
   val bioLock by prefs.biometricLockEnabled.collectAsStateWithLifecycle()
   val lockGrace by prefs.lockGraceSeconds.collectAsStateWithLifecycle()
   val secureScreen by prefs.secureScreen.collectAsStateWithLifecycle()
@@ -226,6 +228,42 @@ fun SettingsScreen(
             Switch(checked = replyPad, onCheckedChange = { prefs.setReplyPadEnabled(it) })
           },
       )
+      HorizontalDivider()
+      // 仕切りは指でも動かせるが、狙った配分にぴったり合わせるのは難しい。
+      // 折りたたみを開いた時と閉じた時で好みが変わるので、ここでも決められるようにする。
+      Text(stringResource(R.string.settings_split), style = MaterialTheme.typography.titleMedium)
+      Text(
+          stringResource(R.string.settings_split_orientation),
+          style = MaterialTheme.typography.bodyMedium,
+      )
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = splitVertical,
+            onClick = { prefs.setSplitVertical(true) },
+            label = { Text(stringResource(R.string.settings_split_vertical)) },
+        )
+        FilterChip(
+            selected = !splitVertical,
+            onClick = { prefs.setSplitVertical(false) },
+            label = { Text(stringResource(R.string.settings_split_horizontal)) },
+        )
+      }
+      Text(
+          stringResource(
+              R.string.settings_split_ratio,
+              (splitRatio * 100).toInt(),
+              100 - (splitRatio * 100).toInt(),
+          ),
+      )
+      Slider(
+          value = splitRatio,
+          valueRange = AppPrefs.MIN_SPLIT_RATIO..AppPrefs.MAX_SPLIT_RATIO,
+          steps = 11,
+          onValueChange = { prefs.setSplitRatio(it) },
+          modifier = Modifier.fillMaxWidth(),
+      )
+      HorizontalDivider()
+
       ListItem(
           headlineContent = { Text(stringResource(R.string.host_hide_tmux_status)) },
           supportingContent = { Text(stringResource(R.string.host_hide_tmux_status_summary)) },

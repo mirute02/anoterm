@@ -1,6 +1,8 @@
 package app.anoterm.ui.terminal
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -31,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +67,7 @@ fun BrowserPane(
   var loadUrl by remember(channel, url) { mutableStateOf<String?>(null) }
   var failed by remember(channel, url) { mutableStateOf(false) }
   var webView by remember { mutableStateOf<WebView?>(null) }
+  val context = LocalContext.current
 
   LaunchedEffect(channel, url) {
     val target = ForwardTarget.of(url)
@@ -115,6 +120,29 @@ fun BrowserPane(
       )
       IconButton(onClick = { webView?.reload() }) {
         Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.browser_reload))
+      }
+      // 転送の出口は端末の 127.0.0.1 なので、この端末の他のアプリからも届く。
+      // 全画面で見たいときや、DevTools を使いたいときは外のブラウザに渡すほうが早い。
+      // 面は閉じない。閉じると穴も閉じて、渡した先が繋がらなくなる。
+      IconButton(
+          onClick = {
+            loadUrl?.let { u ->
+              runCatching {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK,
+                    ),
+                )
+              }
+                  .onFailure { Logger.w("BrowserPane", "no browser to hand $u to", it) }
+            }
+          },
+          enabled = loadUrl != null,
+      ) {
+        Icon(
+            Icons.AutoMirrored.Filled.OpenInNew,
+            contentDescription = stringResource(R.string.browser_open_outside),
+        )
       }
       IconButton(onClick = onToggleOrientation) {
         Icon(

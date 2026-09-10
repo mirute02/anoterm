@@ -39,6 +39,23 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
   **No prefix key is ever sent**: each one runs a `tmux` command on a separate
   session, so it works whatever has hold of Ctrl-B and whatever prefix you have
   bound
+- **Open an image** — a path on screen is underlined, and tapping it shows the
+  picture. Claude Code and Codex write a chart or a screenshot and print where
+  they put it, which on a phone is the end of the road. The file is read over a
+  second SSH session, so no `base64` lands in the shell you are working in.
+  A relative path is looked for where the tmux pane is. Pinch to zoom
+- **See the page beside the terminal** — an `http://` URL on screen is
+  underlined, and tapping it opens a browser pane next to the terminal.
+  **The traffic goes through this SSH connection**, so a dev server bound to
+  `localhost` is reachable without exposing it. The forward listens on 127.0.0.1
+  on the phone only; nobody else on the Wi-Fi can reach it. The split runs
+  stacked or side by side, and the bar between them sets the share. It can also
+  be handed to the phone's browser for a full screen
+- **Floating reply pad** — while the keyboard is away, 1/2/3 sit over the
+  terminal in a triangle, so answering an approval prompt does not mean opening
+  the IME and hiding what you are approving. Drag it wherever it suits your hand
+- **Auxiliary keys only while typing** — Esc, the arrows and Ctrl come and go
+  with the keyboard. The screen is too small to hold them while reading
 - **Host key verification (TOFU)** — the first key is recorded and a **changed
   key refuses the connection**. The fingerprint is shown on that first connect
   so you can check it against `ssh-keygen -lf` on the server
@@ -140,6 +157,11 @@ connection rather than warning and continuing**, and the limit that matters:
 if the device lock is broken, the credentials can be recovered.
 
 Privacy policy: [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md).
+
+## Changes
+
+[CHANGELOG.md](CHANGELOG.md) lists what changed in each version (in Japanese).
+APKs are on the [releases page](https://github.com/mirute02/wanoterm/releases).
 
 ## Licence
 
