@@ -14,12 +14,25 @@ enum class RemoteImageFailure(@StringRes val message: Int) {
   TOO_BIG(R.string.image_fail_too_big),
   UNREADABLE(R.string.image_fail_unreadable),
   NOT_AN_IMAGE(R.string.image_fail_not_an_image),
+  NOT_TEXT(R.string.image_fail_not_text),
 }
 
 sealed interface RemoteImageResult {
   data class Ok(val bitmap: Bitmap, val byteCount: Long) : RemoteImageResult
 
   data class Failed(val reason: RemoteImageFailure) : RemoteImageResult
+}
+
+sealed interface RemoteTextResult {
+  data class Ok(val text: String, val byteCount: Long) : RemoteTextResult
+
+  data class Failed(val reason: RemoteImageFailure) : RemoteTextResult
+}
+
+sealed interface RemoteBytesResult {
+  data class Ok(val bytes: ByteArray, val byteCount: Long) : RemoteBytesResult
+
+  data class Failed(val reason: RemoteImageFailure) : RemoteBytesResult
 }
 
 /**
@@ -40,6 +53,9 @@ object RemoteImage {
    * 実際にはこの 3 倍強のメモリが一時的に要る。スクリーンショットなら十分収まる大きさ。
    */
   const val MAX_BYTES = 5L * 1024 * 1024
+
+  /** 文章として開く上限。画面に出せる量には限りがある。 */
+  const val MAX_TEXT_BYTES = 1L * 1024 * 1024
 
   /** 長辺がこれを超える画像は間引いて読む。原寸で持つ意味が無いうえ OOM を招く。 */
   private const val MAX_DIMENSION = 2048
@@ -66,11 +82,29 @@ object RemoteImage {
       channel: SshChannel,
       path: String,
       tmuxSession: String?,
-  ): RemoteImageResult {
+  ): RemoteImageResult =
+      when (val r = readBytes(channel, path, tmuxSession, MAX_BYTES)) {
+        is RemoteBytesResult.Failed -> RemoteImageResult.Failed(r.reason)
+        is RemoteBytesResult.Ok ->
+            decodeSampled(r.bytes)?.let { RemoteImageResult.Ok(it, r.byteCount) }
+                ?: RemoteImageResult.Failed(RemoteImageFailure.NOT_AN_IMAGE)
+      }
+
+  /**
+   * 中身をそのまま持ってくる。画像も文章もここを通る。
+   *
+   * 読みに行く先が相対パスなら、tmux のペインの現在地から解決してから取りに行く。
+   */
+  suspend fun readBytes(
+      channel: SshChannel,
+      path: String,
+      tmuxSession: String?,
+      maxBytes: Long,
+  ): RemoteBytesResult {
     val absolute =
         if (ScreenScan.isRelative(path)) {
           resolve(channel, path, tmuxSession)
-              ?: return RemoteImageResult.Failed(RemoteImageFailure.NOT_FOUND)
+              ?: return RemoteBytesResult.Failed(RemoteImageFailure.NOT_FOUND)
         } else {
           path
         }
@@ -79,30 +113,59 @@ object RemoteImage {
     // 先に大きさを見る。数十 MB を base64 で引っ張ってから諦めるのでは遅すぎる。
     // `wc -c < f` はどの環境にもある。`stat` は GNU と BSD で書式が違う。
     val stat = channel.exec("test -f $word && wc -c < $word")
-    if (!stat.isSuccess) return RemoteImageResult.Failed(RemoteImageFailure.NOT_FOUND)
+    if (!stat.isSuccess) return RemoteBytesResult.Failed(RemoteImageFailure.NOT_FOUND)
     val size = stat.stdout.trim().toLongOrNull()
     if (size == null || size <= 0L) {
-      return RemoteImageResult.Failed(RemoteImageFailure.UNREADABLE)
+      return RemoteBytesResult.Failed(RemoteImageFailure.UNREADABLE)
     }
-    if (size > MAX_BYTES) return RemoteImageResult.Failed(RemoteImageFailure.TOO_BIG)
+    if (size > maxBytes) return RemoteBytesResult.Failed(RemoteImageFailure.TOO_BIG)
 
     // `-w0` は GNU coreutils だけの綴り。素の base64 を使い、改行はこちらで落とす。
     // 転送は回線任せなので、待ち時間は大きさから見積もる。
     val timeout = 15_000L + size / 10_000L
     val encoded = channel.exec("base64 -- $word", timeoutMs = timeout)
-    if (!encoded.isSuccess) return RemoteImageResult.Failed(RemoteImageFailure.UNREADABLE)
+    if (!encoded.isSuccess) return RemoteBytesResult.Failed(RemoteImageFailure.UNREADABLE)
 
-    val raw =
-        try {
-          Base64.decode(encoded.stdout.filterNot { it.isWhitespace() }, Base64.DEFAULT)
-        } catch (t: IllegalArgumentException) {
-          Logger.w("RemoteImage", "base64 decode failed", t)
-          return RemoteImageResult.Failed(RemoteImageFailure.UNREADABLE)
-        }
-
-    val bitmap = decodeSampled(raw) ?: return RemoteImageResult.Failed(RemoteImageFailure.NOT_AN_IMAGE)
-    return RemoteImageResult.Ok(bitmap, size)
+    return try {
+      RemoteBytesResult.Ok(
+          Base64.decode(encoded.stdout.filterNot { it.isWhitespace() }, Base64.DEFAULT),
+          size,
+      )
+    } catch (t: IllegalArgumentException) {
+      Logger.w("RemoteImage", "base64 decode failed", t)
+      RemoteBytesResult.Failed(RemoteImageFailure.UNREADABLE)
+    }
   }
+
+  /**
+   * 文章として読む。
+   *
+   * 上限は画像より小さくしてよい。画面に出せる量には限りがあるし、UTF-16 の String に
+   * 起こす時点でバイト数の倍を使う。
+   */
+  suspend fun readText(
+      channel: SshChannel,
+      path: String,
+      tmuxSession: String? = null,
+  ): RemoteTextResult =
+      try {
+        when (val r = readBytes(channel, path, tmuxSession, MAX_TEXT_BYTES)) {
+          is RemoteBytesResult.Failed -> RemoteTextResult.Failed(r.reason)
+          is RemoteBytesResult.Ok -> {
+            val text = String(r.bytes, Charsets.UTF_8)
+            // NUL が混ざっていれば、文章ではなく何かのバイナリ。文字化けを見せるより、
+            // 開けないと言うほうが親切。
+            if (text.contains('\u0000')) {
+              RemoteTextResult.Failed(RemoteImageFailure.NOT_TEXT)
+            } else {
+              RemoteTextResult.Ok(text, r.byteCount)
+            }
+          }
+        }
+      } catch (t: Throwable) {
+        Logger.w("RemoteImage", "read text failed for $path", t)
+        RemoteTextResult.Failed(RemoteImageFailure.UNREADABLE)
+      }
 
   /**
    * 相対パスを絶対パスに直す。見つからなければ null。

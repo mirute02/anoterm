@@ -176,6 +176,13 @@
     <string name="terminal_install_key">Install a public key</string>
     <string name="terminal_memo">Notes</string>
     <string name="terminal_help">Help</string>
+    <string name="search_hint">Find in the history</string>
+    <string name="search_none">none</string>
+    <string name="search_position">%1$d / %2$d</string>
+    <string name="search_prev">Previous match</string>
+    <string name="search_next">Next match</string>
+    <string name="search_close">Close the search</string>
+    <string name="terminal_search">Find</string>
     <string name="terminal_lines_back">%1$d lines back</string>
     <string name="browser_open_outside">Open in the phone\'s browser</string>
     <string name="settings_split">Terminal and page</string>
@@ -191,7 +198,9 @@
     <string name="image_fail_too_big">Too large to open here (over 5 MB).</string>
     <string name="image_fail_unreadable">Could not read the file.</string>
     <string name="image_fail_not_an_image">That is not an image this app can draw.</string>
+    <string name="image_fail_not_text">That file is not text.</string>
     <string name="image_loading">Reading it from the far end…</string>
+    <string name="text_lines">%1$d lines, %2$s</string>
     <string name="image_size">%1$s, %2$d x %3$d</string>
     <string name="help_section_gestures">Touch</string>
     <string name="help_g_tap_bottom">Tap the bottom quarter</string>
@@ -200,6 +209,10 @@
     <string name="help_g_tap_cursor_desc">Puts the cursor where you touched. Claude Code lets a mouse pick the spot in its input box, and this hands the tap straight to it. Works wherever the far end asked for mouse reporting — Claude Code, vim, tmux with mouse on.</string>
     <string name="help_g_tap_path">Tap an underlined path</string>
     <string name="help_g_tap_path_desc">Opens the image it points at, read straight off the far end. Pinch to zoom, double tap to fit.</string>
+    <string name="help_g_tap_text">Tap an underlined file</string>
+    <string name="help_g_tap_text_desc">Shows what is in it, read off the far end, with line numbers and no wrapping. For checking what was just written without leaving the terminal.</string>
+    <string name="help_g_find">Find, in the ⋮ menu</string>
+    <string name="help_g_find_desc">Searches everything that has scrolled past on this connection, not the shell\'s history or the files. Matches are painted; the arrows step between them.</string>
     <string name="help_g_tap_url">Tap an underlined URL</string>
     <string name="help_g_tap_url_desc">Opens the page beside the terminal, tunnelled through this SSH connection, so a server bound to localhost is reachable without exposing it. Drag the bar between them to change the share; the arrows flip between stacked and side by side.</string>
     <string name="help_g_swipe">Swipe up / down</string>

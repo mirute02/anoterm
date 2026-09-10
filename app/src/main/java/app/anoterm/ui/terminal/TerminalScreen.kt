@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -162,9 +163,18 @@ fun TerminalScreen(
   var showMemo by remember { mutableStateOf(false) }
   var showDisconnectConfirm by remember { mutableStateOf(false) }
   var showOverflow by remember { mutableStateOf(false) }
+
+  // 履歴の検索。開いている間だけ端末の上に一行出る。
+  var searchOpen by remember { mutableStateOf(false) }
+  var searchQuery by remember { mutableStateOf("") }
+  var searchCount by remember { mutableStateOf(0) }
+  var searchIndex by remember { mutableStateOf(0) }
   // 端末に出たパスが押されたとき、どのタブのどのファイルを開くか。
   // タブを跨いで開くことはないが、ページャで隣のタブが生きているので取り違えないよう対にして持つ。
   var imageRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+  /** 開いている文章。(タブ, パス)。 */
+  var textRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
 
   /** 開いているページ。(タブ, URL)。null なら分割していない。 */
   var browserRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -173,6 +183,7 @@ fun TerminalScreen(
   val handleTapTarget: (String, TapTarget) -> Unit = { tabId, target ->
     when (target) {
       is TapTarget.Image -> imageRequest = tabId to target.path
+      is TapTarget.Text -> textRequest = tabId to target.path
       is TapTarget.Url -> browserRequest = tabId to target.url
     }
   }
@@ -409,6 +420,15 @@ fun TerminalScreen(
 
   val composeView = LocalView.current
 
+  // 接続を移ったら検索は畳む。探していたのは前の画面の中身で、移った先には無い。
+  // 塗りも前の画面に残ったままになる。
+  LaunchedEffect(currentTabId) {
+    searchOpen = false
+    searchQuery = ""
+    searchCount = 0
+    searchIndex = 0
+  }
+
   // 抽斗を開けた時だけ全接続を並列に読む。開いていない間も引き直すと、
   // 見ていない一覧のために ssh セッションを毎回開くことになる。
   LaunchedEffect(drawerState.isOpen, activeTabs) {
@@ -502,6 +522,14 @@ fun TerminalScreen(
                   )
                 }
                 DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
+                  DropdownMenuItem(
+                      text = { Text(stringResource(R.string.terminal_search)) },
+                      leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                      onClick = {
+                        showOverflow = false
+                        searchOpen = true
+                      },
+                  )
                   DropdownMenuItem(
                       text = { Text(stringResource(R.string.terminal_history)) },
                       leadingIcon = { Icon(Icons.Filled.History, contentDescription = null) },
@@ -709,6 +737,41 @@ fun TerminalScreen(
                 } else {
                   null
                 }
+
+            if (searchOpen) {
+              val searchView = terminalViews[currentTabId]
+              TerminalSearchBar(
+                  query = searchQuery,
+                  onQueryChange = { q ->
+                    searchQuery = q
+                    searchCount = searchView?.setSearchQuery(q) ?: 0
+                    // 探している物はたいてい「さっき流れた」ものなので、新しい側から見せる。
+                    searchIndex = if (searchCount > 0) searchCount - 1 else 0
+                    if (searchCount > 0) searchView?.jumpToSearchMatch(searchIndex)
+                  },
+                  matchCount = searchCount,
+                  currentMatch = searchIndex,
+                  onPrevious = {
+                    if (searchCount > 0) {
+                      searchIndex = (searchIndex - 1 + searchCount) % searchCount
+                      searchView?.jumpToSearchMatch(searchIndex)
+                    }
+                  },
+                  onNext = {
+                    if (searchCount > 0) {
+                      searchIndex = (searchIndex + 1) % searchCount
+                      searchView?.jumpToSearchMatch(searchIndex)
+                    }
+                  },
+                  onClose = {
+                    searchOpen = false
+                    searchQuery = ""
+                    searchCount = 0
+                    searchIndex = 0
+                    searchView?.setSearchQuery(null)
+                  },
+              )
+            }
 
             SplitPane(
                 vertical = splitVertical,

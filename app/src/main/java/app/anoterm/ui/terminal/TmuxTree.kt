@@ -14,6 +14,13 @@ data class TmuxTreeConnection(
     val label: String,
     /** tmux が読めなかった接続は null。接続自体は生きているので行としては出す。 */
     val snapshot: TmuxSnapshot?,
+    /**
+     * 読めなかった理由。tmux が入っていない、サーバーが動いていない、PATH に無い、など。
+     *
+     * これを捨てて一律「tmux なし」と出していたせいで、原因が何ひとつ分からなかった。
+     * `TmuxController.snapshot` はリモートが返した一行をそのまま持たせてくれている。
+     */
+    val unavailableReason: String? = null,
 ) {
   /** セッション名 → そのウィンドウ。表示順は tmux が返した順。 */
   val sessions: List<Pair<String, List<TmuxWindow>>>
@@ -45,6 +52,7 @@ suspend fun collectTmuxTree(
               tabId = tabId,
               label = label,
               snapshot = (listing as? TmuxListing.Ok)?.snapshot,
+              unavailableReason = (listing as? TmuxListing.Unavailable)?.reason,
           )
         }
       }

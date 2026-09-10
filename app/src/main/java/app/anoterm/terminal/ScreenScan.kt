@@ -18,6 +18,22 @@ object ScreenScan {
   private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp", "gif", "bmp")
 
   /**
+   * 中身を文章として出せる拡張子。
+   *
+   * Claude Code が書いたものを確かめるのがこれの用途なので、書き換えられがちな
+   * ソースと設定と記録を並べている。拡張子で決め打ちにするのは、中身を見るために
+   * まず取ってくるという順序では遅すぎるため。
+   */
+  private val TEXT_EXTENSIONS =
+      setOf(
+          "kt", "kts", "java", "swift", "py", "rb", "go", "rs", "c", "h", "cc", "cpp", "hpp",
+          "ts", "tsx", "js", "jsx", "vue", "svelte", "php", "sh", "bash", "zsh", "fish",
+          "gradle", "properties", "toml", "yaml", "yml", "json", "xml", "html", "css", "scss",
+          "md", "markdown", "txt", "log", "csv", "tsv", "sql", "diff", "patch", "conf", "ini",
+          "cfg", "lock", "gitignore", "dockerfile", "makefile", "cmake", "proto", "graphql",
+      )
+
+  /**
    * 単語の切れ目。空白のほか、パスの隣に置かれがちで、かつパス自体には使わない記号。
    *
    * 括弧の開き側だけを入れているのは、閉じ側が「末尾の句読点」として別に落ちるため。
@@ -41,6 +57,7 @@ object ScreenScan {
     val cleaned = clean(word)
     return when {
       isImagePath(cleaned) -> TapTarget.Image(cleaned)
+      isTextPath(cleaned) -> TapTarget.Text(cleaned)
       isUrl(cleaned) -> TapTarget.Url(cleaned)
       else -> null
     }
@@ -173,16 +190,21 @@ object ScreenScan {
    * 読む側 ([app.anoterm.ssh.RemoteImage]) が tmux のペインの現在地などから決める。
    * ここで弾いてしまうと、`docs/shot.png` と書かれた行がただの文字のままになる。
    */
-  fun isImagePath(candidate: String): Boolean {
+  fun isImagePath(candidate: String): Boolean = hasExtensionIn(candidate, IMAGE_EXTENSIONS)
+
+  private fun hasExtensionIn(candidate: String, extensions: Set<String>): Boolean {
     if (candidate.isEmpty() || candidate.length > MAX_PATH_LENGTH) return false
     if (candidate.any { it.isISOControl() }) return false
-    // URL の末尾が .png のこともある。そちらはブラウザの仕事。
+    // URL の末尾が .png や .md のこともある。そちらはブラウザの仕事。
     if (candidate.contains("://")) return false
     val name = candidate.substringAfterLast('/')
     if (!name.contains('.')) return false
     if (name.startsWith(".")) return false
-    return name.substringAfterLast('.').lowercase() in IMAGE_EXTENSIONS
+    return name.substringAfterLast('.').lowercase() in extensions
   }
+
+  /** 文章として開けそうな綴りか。判定の作りは [isImagePath] と同じ。 */
+  fun isTextPath(candidate: String): Boolean = hasExtensionIn(candidate, TEXT_EXTENSIONS)
 
   /** 基準となる場所を要するパスか。絶対パスと `~` 始まりはそのまま読める。 */
   fun isRelative(path: String): Boolean = !path.startsWith("/") && !path.startsWith("~/")
@@ -232,6 +254,9 @@ data class TapSpan(val row: Int, val startCol: Int, val endCol: Int)
 sealed interface TapTarget {
   /** 中身を絵として出せるファイル。リモートから読んで表示する。 */
   data class Image(val path: String) : TapTarget
+
+  /** 中身を文章として出せるファイル。Claude Code が書いた物を確かめるのに使う。 */
+  data class Text(val path: String) : TapTarget
 
   /** ブラウザで開く先。localhost なら SSH のポート転送を通す。 */
   data class Url(val url: String) : TapTarget

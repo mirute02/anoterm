@@ -41,6 +41,7 @@ class TerminalRenderer(
       }
   private val bgPaint = Paint()
   private val linkPaint = android.graphics.Paint()
+  private val highlightPaint = android.graphics.Paint()
   private val underlinePaint = Paint()
   private val cursorPaint = Paint().apply { style = Paint.Style.FILL }
   private val selectionPaint = Paint()
@@ -122,6 +123,7 @@ class TerminalRenderer(
       selectionStart: CellPos? = null,
       selectionEnd: CellPos? = null,
       pathSpans: List<TapSpan> = emptyList(),
+      highlightSpans: List<TapSpan> = emptyList(),
   ) {
     val cw = cellWidth
     val ch = cellHeight
@@ -209,6 +211,24 @@ class TerminalRenderer(
           canvas.drawRect(cw * c, y, cw * c2, y + ch, bgPaint)
         }
         c = c2
+      }
+    }
+
+    // ===== 検索の一致を塗る =====
+    // グリフより先に塗る。後から塗ると、半透明でも文字が濁って読めなくなる。
+    // 選択と同じ色は使わない（どちらも塗りなので、同じ色だと見分けが付かない）。
+    if (highlightSpans.isNotEmpty()) {
+      highlightPaint.color = palette.cursor.toAndroidColorInt()
+      highlightPaint.alpha = 90
+      for (h in highlightSpans) {
+        if (h.row !in 0 until buffer.rows) continue
+        canvas.drawRect(
+            cw * h.startCol,
+            ch * h.row,
+            cw * (h.endCol + 1),
+            ch * (h.row + 1),
+            highlightPaint,
+        )
       }
     }
 

@@ -100,8 +100,12 @@ private fun ConnectionHeader(conn: TmuxTreeConnection) {
     if (conn.snapshot == null || conn.snapshot.windows.isEmpty()) {
       // 接続は生きているが tmux が使えない。行ごと消すと「繋いだはずの接続が
       // 一覧に無い」ことになり、原因を探しに行く先が無くなる。
+      //
+      // 理由が取れているならそれを出す。「tmux なし」とだけ出していた頃は、
+      // 入っていないのか、起動していないのか、PATH に無いのかが区別できず、
+      // 直しに行く先が分からなかった。文言はリモートが返した一行そのまま。
       Text(
-          text = stringResource(R.string.tmux_tree_no_tmux),
+          text = conn.unavailableReason ?: stringResource(R.string.tmux_tree_no_tmux),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )

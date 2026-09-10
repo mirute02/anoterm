@@ -163,6 +163,14 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   /** 今どれだけ遡っているか (行) を上へ伝える。0 なら最新を見ている。 */
   var onScrollPositionChanged: ((linesBack: Int) -> Unit)? = null
 
+  private var searchQuery: String? = null
+
+  /** 見つかった行。履歴の古い順。値は「履歴 + 画面」を通した行番号。 */
+  private var searchMatches: List<Int> = emptyList()
+
+  private var cachedHighlights: List<TapSpan>? = null
+  private var cachedHighlightKey: Triple<Long, Int, String>? = null
+
   private val scrollGestureDetector =
       GestureDetector(
           context,
@@ -438,6 +446,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
           selectionStart = selStart,
           selectionEnd = selEnd,
           pathSpans = pathSpans(),
+          highlightSpans = highlightSpans(),
       )
     }
   }
@@ -500,6 +509,88 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   }
 
   /** 縦スクロール位置を相対で変更。正 = 過去方向、負 = 現在方向。 */
+  /**
+   * 履歴と画面を通して [query] を探す。見つかった行数を返す。null か空なら解除。
+   *
+   * 探すのは「行」であって桁ではない。1 行に何度出てきても 1 件と数える。飛び先として
+   * 意味があるのは行で、同じ行の中を行き来しても画面は動かないため。
+   *
+   * 大文字小文字は区別しない。端末に流れる文字はログもコードも混ざっていて、
+   * どちらで書かれているかを覚えている人はいない。
+   */
+  fun setSearchQuery(query: String?): Int {
+    val q = query?.takeIf { it.isNotEmpty() }
+    searchQuery = q
+    cachedHighlights = null
+    if (q == null) {
+      searchMatches = emptyList()
+      invalidate()
+      return 0
+    }
+    val needle = q.lowercase()
+    searchMatches = allLines().withIndex().filter { needle in it.value.lowercase() }.map { it.index }
+    invalidate()
+    return searchMatches.size
+  }
+
+  /** [index] 件目の一致が見えるところまで飛ぶ。 */
+  fun jumpToSearchMatch(index: Int) {
+    val line = searchMatches.getOrNull(index) ?: return
+    val emu = controller?.emulator ?: return
+    val (sbSize, rows) = synchronized(emu) { emu.buffer.scrollbackSize to emu.buffer.rows }
+    // 画面の上から 1/3 あたりに置く。一番上に置くと、その行に至る文脈が見えない。
+    flinger.forceFinished(true)
+    setScrollOffset((sbSize - line + rows / 3).coerceIn(0, sbSize))
+  }
+
+  /**
+   * 履歴と画面を 1 本に並べた行。0 が一番古い履歴、末尾が画面の最下行。
+   *
+   * 検索のたびに作り直す。履歴 2000 行 x 120 桁でも 24 万文字ほどで、押した時に一度だけ
+   * 走る処理としては十分軽い。常時持つと、出力のたびに作り直すことになって割に合わない。
+   */
+  private fun allLines(): List<String> {
+    val emu = controller?.emulator ?: return emptyList()
+    return synchronized(emu) {
+      val buffer = emu.buffer
+      val out = ArrayList<String>(buffer.scrollbackSize + buffer.rows)
+      for (i in buffer.scrollbackSize - 1 downTo 0) {
+        val sb = StringBuilder(buffer.cols)
+        for (c in 0 until buffer.cols) {
+          val cell = buffer.scrollbackCellAt(i, c) ?: break
+          sb.append(if (cell.continuation || cell.codePoint == 0) ' ' else cell.codePoint.toChar())
+        }
+        out.add(sb.toString().trimEnd())
+      }
+      for (r in 0 until buffer.rows) out.add(buffer.rowAsString(r))
+      out
+    }
+  }
+
+  /** 画面に見えている一致。下線ではなく背景で塗るため、桁の範囲で持つ。 */
+  private fun highlightSpans(): List<TapSpan> {
+    val q = searchQuery ?: return emptyList()
+    val emu = controller?.emulator ?: return emptyList()
+    val generation = synchronized(emu) { emu.buffer.generation }
+    val key = Triple(generation, scrollOffset, q)
+    cachedHighlights?.let { if (cachedHighlightKey == key) return it }
+    val needle = q.lowercase()
+    val spans = mutableListOf<TapSpan>()
+    visibleLines().forEachIndexed { row, line ->
+      val haystack = line.lowercase()
+      var from = 0
+      while (true) {
+        val at = haystack.indexOf(needle, from)
+        if (at < 0) break
+        spans.add(TapSpan(row, at, at + needle.length - 1))
+        from = at + needle.length
+      }
+    }
+    cachedHighlightKey = key
+    cachedHighlights = spans
+    return spans
+  }
+
   fun scrollBy(lines: Int) = setScrollOffset(scrollOffset + lines)
 
   /** 遡り位置を直接置く。上限の取得と通知はここに集約する。 */
