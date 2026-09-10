@@ -63,6 +63,10 @@ fun KeyboardToolbar(
     ) {
       KeyButton(stringResource(R.string.kbd_esc)) { onSend(byteArrayOf(0x1B)) }
       KeyButton(stringResource(R.string.kbd_tab)) { onSend(byteArrayOf(0x09)) }
+      // Shift+Tab (CSI Z)。Claude Code はこれで権限モードを切り替える。
+      // ソフトキーボードで Shift を押しながら Tab を打つのは現実的でないので、
+      // 1 つのキーとして置く。承認のたびに 1 を押す作業から降りる正規の道はこれ。
+      KeyButton(stringResource(R.string.kbd_backtab)) { onSend(ESC_BACKTAB) }
       // 承認プロンプトへの返答。文字と改行をまとめて送るので 1 タップで済む。
       // 打てば済む字ではあるが、Claude Code / Codex を触っている間はこれが最頻。
       REPLY_KEYS.forEach { (label, bytes) -> KeyButton(label) { onSend(bytes) } }
@@ -163,6 +167,7 @@ private val TinyPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
 // 落ちる事故を防ぐ。
 private val ESC: Byte = 0x1B
 private val LBR: Byte = '['.code.toByte()
+private val ESC_BACKTAB = byteArrayOf(ESC, LBR, 'Z'.code.toByte())
 private val ESC_UP = byteArrayOf(ESC, LBR, 'A'.code.toByte())
 private val ESC_DOWN = byteArrayOf(ESC, LBR, 'B'.code.toByte())
 private val ESC_RIGHT = byteArrayOf(ESC, LBR, 'C'.code.toByte())

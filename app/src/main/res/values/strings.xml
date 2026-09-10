@@ -176,6 +176,9 @@
     <string name="terminal_install_key">Install a public key</string>
     <string name="terminal_memo">Notes</string>
     <string name="terminal_help">Help</string>
+    <string name="kbd_backtab">⇧Tab</string>
+    <string name="help_g_backtab">⇧Tab in the key row</string>
+    <string name="help_g_backtab_desc">Sends Shift+Tab, which is how Claude Code cycles its permission mode. Set it to auto-accept once and it stops asking, instead of answering every prompt by hand. A soft keyboard cannot really send Shift+Tab, hence the key.</string>
     <string name="search_hint">Find in the history</string>
     <string name="search_none">none</string>
     <string name="search_position">%1$d / %2$d</string>
