@@ -176,6 +176,7 @@
     <string name="terminal_install_key">Install a public key</string>
     <string name="terminal_memo">Notes</string>
     <string name="terminal_help">Help</string>
+    <string name="terminal_lines_back">%1$d lines back</string>
     <string name="browser_open_outside">Open in the phone\'s browser</string>
     <string name="settings_split">Terminal and page</string>
     <string name="settings_split_orientation">How they are arranged</string>
@@ -200,7 +201,7 @@
     <string name="help_g_tap_url">Tap an underlined URL</string>
     <string name="help_g_tap_url_desc">Opens the page beside the terminal, tunnelled through this SSH connection, so a server bound to localhost is reachable without exposing it. Drag the bar between them to change the share; the arrows flip between stacked and side by side.</string>
     <string name="help_g_swipe">Swipe up / down</string>
-    <string name="help_g_swipe_desc">Scrolls through the history. With tmux mouse mode on, the wheel event goes to the far end instead.</string>
+    <string name="help_g_swipe_desc">Scrolls through the history, and keeps going if you flick. While you are back in the history a button appears at the bottom saying how far back you are; tap it to return to the latest. With tmux mouse mode on, the wheel event goes to the far end instead.</string>
     <string name="help_g_double_tap">Double tap</string>
     <string name="help_g_double_tap_desc">Sends Tab, for shell completion.</string>
     <string name="help_g_long_press">Long press, then drag</string>
@@ -212,7 +213,7 @@
     <string name="help_g_pad">The floating pad</string>
     <string name="help_g_pad_desc">1 / 2 / 3 answer a prompt without the keyboard. The keyboard button brings typing back. Drag the middle knob to move the pad; turn it off in Settings.</string>
     <string name="help_g_menu">☰ at the top left</string>
-    <string name="help_g_menu_desc">Every window on every connection, in one list. Tap one to jump straight to it.</string>
+    <string name="help_g_menu_desc">Pulls out a drawer from the left holding every window on every connection. Tap one to jump straight to it. Swipe the drawer away to close it.</string>
     <string name="help_g_keys_hidden">Esc, arrows, Ctrl</string>
     <string name="help_g_keys_hidden_desc">They appear under the keyboard while you type, and go away with it — the screen is too small to keep them there while you read.</string>
     <string name="terminal_menu">More</string>

@@ -30,6 +30,7 @@ fun TerminalHost(
     lineEnding: LineEnding,
     relaxedImePrivacyForClipboard: Boolean = false,
     onTapTarget: (TapTarget) -> Unit = {},
+    onScrollPosition: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     viewBinding: (TerminalView) -> Unit = {},
 ) {
@@ -45,6 +46,7 @@ fun TerminalHost(
           it.setLineEnding(lineEnding)
           it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
           it.onTapTarget = onTapTarget
+          it.onScrollPositionChanged = onScrollPosition
           viewRef.view = it
           viewBinding(it)
         }
@@ -58,6 +60,7 @@ fun TerminalHost(
         it.setLineEnding(lineEnding)
         it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
         it.onTapTarget = onTapTarget
+        it.onScrollPositionChanged = onScrollPosition
         viewRef.view = it
         viewBinding(it)
       },

@@ -25,6 +25,7 @@ import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.widget.OverScroller
 import android.widget.Toast
 import app.anoterm.BuildConfig
 import app.anoterm.data.prefs.LineEnding
@@ -121,12 +122,39 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   private var cachedSpans: List<TapSpan>? = null
   private var cachedSpansKey: Triple<Long, Int, Int>? = null
 
+  /**
+   * 惰性スクロール。指を離した速度で流れ続ける。
+   *
+   * 以前は指が動いた分しか動かず、数百行遡るには何十回も擦る必要があった。
+   * 端末の履歴は「少し戻る」より「かなり戻る」ほうが多いので、その形は合っていない。
+   */
+  private val flinger = OverScroller(context)
+
+  private val flingStep =
+      object : Runnable {
+        override fun run() {
+          if (!flinger.computeScrollOffset()) return
+          val ch = renderer.cellHeight
+          if (ch <= 0f) {
+            flinger.forceFinished(true)
+            return
+          }
+          setScrollOffset((flinger.currY / ch).toInt())
+          if (!flinger.isFinished) postOnAnimation(this)
+        }
+      }
+
+  /** 今どれだけ遡っているか (行) を上へ伝える。0 なら最新を見ている。 */
+  var onScrollPositionChanged: ((linesBack: Int) -> Unit)? = null
+
   private val scrollGestureDetector =
       GestureDetector(
           context,
           object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean {
               scrollAccumPx = 0f
+              // 流れている最中に触ったら止まる。止まらないと狙った所で止められない。
+              flinger.forceFinished(true)
               // false を返すと onScroll に入らない GestureDetector もあるが、Android
               // 標準実装では onScroll は onDown の返り値に依らず呼ばれる。ここで true を
               // 返すと tap / click の検出と競合するため false に。
@@ -187,6 +215,38 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               } else {
                 false
               }
+            }
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float,
+            ): Boolean {
+              if (selectionActive) return false
+              if (kotlin.math.abs(velocityY) < kotlin.math.abs(velocityX)) return false
+              // mouse tracking 中の履歴はリモートが持っている。こちらで流しても何も動かない。
+              val trackingEmu = controller?.emulator
+              if (trackingEmu != null && trackingEmu.mouseTrackingEnabled) return false
+              val ch = renderer.cellHeight
+              if (ch <= 0f) return false
+              val emu = trackingEmu ?: return false
+              val maxLines = synchronized(emu) { emu.buffer.scrollbackSize }
+              if (maxLines <= 0) return false
+              // 指を下へ払う = 過去へ。scrollOffset が増える向きと velocityY の符号が一致する。
+              flinger.forceFinished(true)
+              flinger.fling(
+                  0,
+                  (scrollOffset * ch).toInt(),
+                  0,
+                  velocityY.toInt(),
+                  0,
+                  0,
+                  0,
+                  (maxLines * ch).toInt(),
+              )
+              postOnAnimation(flingStep)
+              return true
             }
 
             override fun onScroll(
@@ -414,14 +474,18 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   }
 
   /** 縦スクロール位置を相対で変更。正 = 過去方向、負 = 現在方向。 */
-  fun scrollBy(lines: Int) {
+  fun scrollBy(lines: Int) = setScrollOffset(scrollOffset + lines)
+
+  /** 遡り位置を直接置く。上限の取得と通知はここに集約する。 */
+  private fun setScrollOffset(lines: Int) {
     // scrollbackSize は feed スレッドの scrollUp/resize と並行に変化する。emulator monitor を
     // 取ってから読む（描画パスと同じロック）。稀な古い値による一瞬のスクロール上限ずれを防ぐ。
     val emu = controller?.emulator
     val maxOffset = if (emu != null) synchronized(emu) { emu.buffer.scrollbackSize } else 0
-    val newOffset = (scrollOffset + lines).coerceIn(0, maxOffset)
+    val newOffset = lines.coerceIn(0, maxOffset)
     if (newOffset != scrollOffset) {
       scrollOffset = newOffset
+      onScrollPositionChanged?.invoke(newOffset)
       invalidate()
     }
   }
@@ -438,8 +502,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
    */
   private fun shiftScrollOffset(delta: Int) {
     if (scrollOffset == 0) return
-    scrollOffset = (scrollOffset + delta).coerceAtLeast(0)
-    invalidate()
+    setScrollOffset(scrollOffset + delta)
   }
 
   /**
@@ -507,10 +570,8 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
 
   /** 最新位置（底）へ戻す。新出力到着時や入力時に呼ぶ。 */
   fun scrollToBottom() {
-    if (scrollOffset != 0) {
-      scrollOffset = 0
-      invalidate()
-    }
+    flinger.forceFinished(true)
+    setScrollOffset(0)
   }
 
   override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {

@@ -10,13 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -26,7 +22,7 @@ import app.anoterm.R
 import app.anoterm.ssh.TmuxWindow
 
 /**
- * 開いている SSH 接続と、その先の tmux をまとめて出す一覧。
+ * 開いている SSH 接続と、その先の tmux をまとめて出す一覧。左の抽斗の中身。
  *
  * バーは「いま見ているセッションの中」を 1 タップで切り替えるためのもので、
  * 別の接続の別のセッションにいるウィンドウには届かない。ここはその逆で、
@@ -34,67 +30,62 @@ import app.anoterm.ssh.TmuxWindow
  *
  * 階層は 接続 → セッション → ウィンドウ。SSH タブとセッションは別物なので、
  * 同じ深さに並べると「どのサーバーの work か」が読めなくなる。
+ *
+ * 入れ物 (抽斗) は呼ぶ側が持つ。ここは中身だけを描く。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TmuxTreeSheet(
+fun TmuxTreeContent(
     connections: List<TmuxTreeConnection>?,
     /** いま前面にある接続。ここだけ「表示中」を出す。 */
     currentTabId: String,
     activity: TmuxActivityTracker,
     onJump: (TmuxJump) -> Unit,
-    onDismiss: () -> Unit,
 ) {
-  val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  ModalBottomSheet(
-      onDismissRequest = onDismiss,
-      sheetState = sheetState,
-      containerColor = MaterialTheme.colorScheme.surface,
-      shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-  ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-      Text(
-          text = stringResource(R.string.tmux_tree_title),
-          style = MaterialTheme.typography.titleMedium,
-          color = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.padding(vertical = 8.dp),
-      )
+  Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Text(
+        text = stringResource(R.string.tmux_tree_title),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(vertical = 8.dp),
+    )
 
-      when {
-        connections == null ->
-            Text(
-                text = stringResource(R.string.tmux_tree_loading),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        connections.isEmpty() ->
-            Text(
-                text = stringResource(R.string.tmux_tree_empty),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        else ->
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-              connections.forEach { conn ->
-                item(key = "c:" + conn.tabId) { ConnectionHeader(conn) }
-                conn.sessions.forEach { (session, windows) ->
-                  item(key = "s:" + conn.tabId + ":" + session) {
-                    SessionHeader(session, attached = session == conn.snapshot?.attached)
-                  }
-                  items(windows.size, key = { i -> "w:" + conn.tabId + ":" + session + ":" + windows[i].index }) { i ->
-                    val w = windows[i]
-                    WindowRow(
-                        window = w,
-                        here = conn.tabId == currentTabId && w.active,
-                        dirty = activity.isDirty(conn.tabId, w),
-                        onClick = { onJump(TmuxJump(conn.tabId, w)) },
-                    )
-                  }
+    when {
+      connections == null ->
+          Text(
+              text = stringResource(R.string.tmux_tree_loading),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+      connections.isEmpty() ->
+          Text(
+              text = stringResource(R.string.tmux_tree_empty),
+              style = MaterialTheme.typography.bodyMedium,
+          )
+      else ->
+          LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            connections.forEach { conn ->
+              item(key = "c:" + conn.tabId) { ConnectionHeader(conn) }
+              conn.sessions.forEach { (session, windows) ->
+                item(key = "s:" + conn.tabId + ":" + session) {
+                  SessionHeader(session, attached = session == conn.snapshot?.attached)
+                }
+                items(
+                    windows.size,
+                    key = { i -> "w:" + conn.tabId + ":" + session + ":" + windows[i].index },
+                ) { i ->
+                  val w = windows[i]
+                  WindowRow(
+                      window = w,
+                      here = conn.tabId == currentTabId && w.active,
+                      dirty = activity.isDirty(conn.tabId, w),
+                      onClick = { onJump(TmuxJump(conn.tabId, w)) },
+                  )
                 }
               }
             }
-      }
-      Spacer(Modifier.height(24.dp))
+          }
     }
+    Spacer(Modifier.height(24.dp))
   }
 }
 

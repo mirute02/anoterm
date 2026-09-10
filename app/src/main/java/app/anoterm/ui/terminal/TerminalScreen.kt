@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,12 +29,15 @@ import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -42,6 +46,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -145,7 +152,7 @@ fun TerminalScreen(
   var showHelp by remember { mutableStateOf(false) }
   var showHistory by remember { mutableStateOf(false) }
   var showTmux by remember { mutableStateOf(false) }
-  var showTmuxTree by remember { mutableStateOf(false) }
+  val drawerState = rememberDrawerState(DrawerValue.Closed)
   var tmuxTree by remember { mutableStateOf<List<TmuxTreeConnection>?>(null) }
   // バーとツリーで既読状態を共有する。別々に持つと、バーで見た更新がツリーに残る。
   val tmuxActivity = rememberTmuxActivityTracker()
@@ -402,518 +409,545 @@ fun TerminalScreen(
 
   val composeView = LocalView.current
 
-  Scaffold(
-      topBar = {
-        TopAppBar(
-            title = {
-              Row(verticalAlignment = Alignment.CenterVertically) {
-                ConnectionDot(currentConnectionState)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    labelFor(currentTabId),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-              }
+  // 抽斗を開けた時だけ全接続を並列に読む。開いていない間も引き直すと、
+  // 見ていない一覧のために ssh セッションを毎回開くことになる。
+  LaunchedEffect(drawerState.isOpen, activeTabs) {
+    if (!drawerState.isOpen) return@LaunchedEffect
+    tmuxTree = null
+    tmuxTree =
+        collectTmuxTree(
+            sortedTabs.mapNotNull { id ->
+              val ch = app.sessionManager.get(id)?.channel as? SshChannel ?: return@mapNotNull null
+              Triple(id, labelFor(id), ch)
             },
-            // ハンバーガーは左上に置く。Android で「一覧を開く」はここにある物という
-            // 前提があり、右端に置くと毎回探すことになる。戻る矢印はこの位置を譲って
-            // 消した。行き先はメニューの中にあり、システムの戻る操作もそのまま効く。
-            navigationIcon = {
-              IconButton(onClick = { showTmuxTree = true }) {
-                Icon(
-                    Icons.Filled.Menu,
-                    contentDescription = stringResource(R.string.tmux_tree_open),
-                )
-              }
-            },
-            // 右は「その他」1 つに畳む。以前はアイコンが 6〜7 個並び、狭い画面では
-            // 接続名を押し潰したうえ、どれが何かは押すまで分からなかった。
-            // 名前が読めるメニュー 1 枚のほうが、常に見えている絵文字の列より速い。
-            actions = {
-              IconButton(onClick = { showOverflow = true }) {
-                Icon(
-                    Icons.Filled.MoreVert,
-                    contentDescription = stringResource(R.string.terminal_menu),
-                )
-              }
-              DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.terminal_history)) },
-                    leadingIcon = { Icon(Icons.Filled.History, contentDescription = null) },
-                    onClick = {
-                      showOverflow = false
-                      showHistory = true
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.terminal_install_key)) },
-                    leadingIcon = { Icon(Icons.Filled.VpnKey, contentDescription = null) },
-                    onClick = {
-                      showOverflow = false
-                      showInstallKey = true
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.terminal_memo)) },
-                    leadingIcon = {
-                      Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null)
-                    },
-                    onClick = {
-                      showOverflow = false
-                      showMemo = true
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.terminal_help)) },
-                    leadingIcon = { Icon(Icons.Filled.HelpOutline, contentDescription = null) },
-                    onClick = {
-                      showOverflow = false
-                      showHelp = true
-                    },
-                )
-                // tmux ダッシュボードは Phase 2 以降の機能 (control mode 未完成)。
-                // 一般ユーザには未使用機能が紛れて見えるのでノイズ、debug + 開発者モード時のみ出す。
-                if (BuildConfig.DEBUG && developerMode) {
+        )
+  }
+
+  // ハンバーガーは左から引き出す。Android で ≡ を押して出てくるのは左の抽斗という
+  // 前提があり、下から出すと「何か別の物が出た」と読まれる。
+  //
+  // 端 (edge) からのスワイプで開く動きは切ってある。開くのは ≡ を押したときだけ。
+  // 端末は左右スワイプで接続を行き来するので、左端の掃き出しを抽斗に取られると
+  // 一番左のタブから隣へ移れなくなる。開いている間だけはスワイプで閉じられる。
+  ModalNavigationDrawer(
+      drawerState = drawerState,
+      gesturesEnabled = drawerState.isOpen,
+      drawerContent = {
+        ModalDrawerSheet {
+          TmuxTreeContent(
+              connections = tmuxTree,
+              currentTabId = currentTabId,
+              activity = tmuxActivity,
+              onJump = { jump ->
+                coroutineScope.launch { drawerState.close() }
+                tmuxActivity.markSeen(jump.tabId, jump.window)
+                coroutineScope.launch {
+                  // 別の接続なら、まずその接続を前面に出す。ページを跨いだ後で
+                  // tmux を触らないと、切り替えた結果が見えないまま終わる。
+                  val page = sortedTabs.indexOf(jump.tabId)
+                  if (page >= 0 && page != pagerState.currentPage) {
+                    pagerState.animateScrollToPage(page)
+                  }
+                  val bundle = app.sessionManager.get(jump.tabId)
+                  val ch = bundle?.channel as? SshChannel ?: return@launch
+                  val snapshot = tmuxTree?.firstOrNull { it.tabId == jump.tabId }?.snapshot
+                  // アタッチ先が違うならクライアントごと動かす。select-window だけでは
+                  // そのセッションのカレントが変わるだけで、見えている画面は変わらない。
+                  if (snapshot?.attached != jump.window.session) {
+                    snapshot?.clientTty?.let { tty ->
+                      TmuxController.switchClient(ch, tty, jump.window.session)
+                    }
+                  }
+                  TmuxController.selectWindow(ch, jump.window)
+                }
+              },
+          )
+        }
+      },
+  ) {
+    Scaffold(
+        topBar = {
+          TopAppBar(
+              title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                  ConnectionDot(currentConnectionState)
+                  Spacer(Modifier.width(8.dp))
+                  Text(
+                      labelFor(currentTabId),
+                      style = MaterialTheme.typography.titleMedium,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                  )
+                }
+              },
+              // ハンバーガーは左上に置く。Android で「一覧を開く」はここにある物という
+              // 前提があり、右端に置くと毎回探すことになる。戻る矢印はこの位置を譲って
+              // 消した。行き先はメニューの中にあり、システムの戻る操作もそのまま効く。
+              navigationIcon = {
+                IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                  Icon(
+                      Icons.Filled.Menu,
+                      contentDescription = stringResource(R.string.tmux_tree_open),
+                  )
+                }
+              },
+              // 右は「その他」1 つに畳む。以前はアイコンが 6〜7 個並び、狭い画面では
+              // 接続名を押し潰したうえ、どれが何かは押すまで分からなかった。
+              // 名前が読めるメニュー 1 枚のほうが、常に見えている絵文字の列より速い。
+              actions = {
+                IconButton(onClick = { showOverflow = true }) {
+                  Icon(
+                      Icons.Filled.MoreVert,
+                      contentDescription = stringResource(R.string.terminal_menu),
+                  )
+                }
+                DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
                   DropdownMenuItem(
-                      text = { Text("tmux") },
-                      leadingIcon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
+                      text = { Text(stringResource(R.string.terminal_history)) },
+                      leadingIcon = { Icon(Icons.Filled.History, contentDescription = null) },
                       onClick = {
                         showOverflow = false
-                        showTmux = true
+                        showHistory = true
+                      },
+                  )
+                  DropdownMenuItem(
+                      text = { Text(stringResource(R.string.terminal_install_key)) },
+                      leadingIcon = { Icon(Icons.Filled.VpnKey, contentDescription = null) },
+                      onClick = {
+                        showOverflow = false
+                        showInstallKey = true
+                      },
+                  )
+                  DropdownMenuItem(
+                      text = { Text(stringResource(R.string.terminal_memo)) },
+                      leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null)
+                      },
+                      onClick = {
+                        showOverflow = false
+                        showMemo = true
+                      },
+                  )
+                  DropdownMenuItem(
+                      text = { Text(stringResource(R.string.terminal_help)) },
+                      leadingIcon = { Icon(Icons.Filled.HelpOutline, contentDescription = null) },
+                      onClick = {
+                        showOverflow = false
+                        showHelp = true
+                      },
+                  )
+                  // tmux ダッシュボードは Phase 2 以降の機能 (control mode 未完成)。
+                  // 一般ユーザには未使用機能が紛れて見えるのでノイズ、debug + 開発者モード時のみ出す。
+                  if (BuildConfig.DEBUG && developerMode) {
+                    DropdownMenuItem(
+                        text = { Text("tmux") },
+                        leadingIcon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
+                        onClick = {
+                          showOverflow = false
+                          showTmux = true
+                        },
+                    )
+                  }
+                  HorizontalDivider()
+                  DropdownMenuItem(
+                      text = { Text(stringResource(R.string.terminal_back_to_hosts)) },
+                      leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                      },
+                      onClick = {
+                        showOverflow = false
+                        onBack()
+                      },
+                  )
+                  DropdownMenuItem(
+                      text = {
+                        Text(
+                            stringResource(R.string.host_disconnect),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                      },
+                      leadingIcon = {
+                        Icon(
+                            Icons.Filled.PowerSettingsNew,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                      },
+                      onClick = {
+                        showOverflow = false
+                        showDisconnectConfirm = true
                       },
                   )
                 }
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.terminal_back_to_hosts)) },
-                    leadingIcon = {
-                      Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                    },
-                    onClick = {
-                      showOverflow = false
-                      onBack()
-                    },
-                )
-                DropdownMenuItem(
-                    text = {
-                      Text(
-                          stringResource(R.string.host_disconnect),
-                          color = MaterialTheme.colorScheme.error,
-                      )
-                    },
-                    leadingIcon = {
-                      Icon(
-                          Icons.Filled.PowerSettingsNew,
-                          contentDescription = null,
-                          tint = MaterialTheme.colorScheme.error,
-                      )
-                    },
-                    onClick = {
-                      showOverflow = false
-                      showDisconnectConfirm = true
-                    },
+              },
+              colors = TopAppBarDefaults.topAppBarColors(),
+          )
+        }
+    ) { inner ->
+      // adjustNothing + edge-to-edge 構成。imePadding は「ツールバーだけ」に付け、
+      // ターミナル領域は IME による window resize の影響を受けないようにする。
+      // これで tmux / Claude Code に SIGWINCH が連打されず、キーボード開閉時の
+      // 「画面が縦に圧縮・復元される」ちらつきが消える。
+      Column(
+          modifier =
+              Modifier.fillMaxSize()
+                  .padding(inner)
+                  .navigationBarsPadding(),
+      ) {
+        // タブ数が 1→2 や 2→1 に変わったときの見せ方は snap。以前は AnimatedVisibility で
+        // 高さを滑らかに変えていたが、伸び縮みの全フレームでターミナルの高さが動き、
+        // 本文がバーに押されて上下に流れる。滑らかに動くこと自体がガタつきとして読まれる。
+        // 一度で決まるほうが、目で追っている行が動かない。
+        if (sortedTabs.size > 1) {
+          TabBar(
+              tabs = sortedTabs,
+              activeTabId = currentTabId,
+              tabTitle = ::labelFor,
+              onSelect = { id ->
+                val idx = sortedTabs.indexOf(id)
+                if (idx >= 0) coroutineScope.launch { pagerState.animateScrollToPage(idx) }
+              },
+              onClose = { app.sessionManager.closeTab(it) },
+              modifier = Modifier.height(36.dp),
+          )
+        }
+        // tmux のウィンドウ列。SSH タブのバーと同じ場所に置くのは、どちらも
+        // 「いま見ているものを切り替える」操作で、探す場所が同じ方がよいため。
+        val tmuxBundle = app.sessionManager.get(currentTabId)
+        val tmuxChannel = tmuxBundle?.channel as? SshChannel
+        val tmuxSessionName = tabTmuxSessions[currentTabId]
+        if (tmuxChannel != null && tmuxSessionName != null) {
+          TmuxBar(
+              channel = tmuxChannel,
+              ttyVar = TmuxController.ttyVarFor(currentTabId),
+              tabId = currentTabId,
+              activity = tmuxActivity,
+          )
+        }
+        when (val s = state) {
+          is TabScreenState.Loading, is TabScreenState.Connecting ->
+              Box(modifier = Modifier.weight(1f).fillMaxSize()) { ConnectingIndicator() }
+          is TabScreenState.Error ->
+              Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                ErrorMessage(
+                    failure = s.failure,
+                    canRetry = s.canRetry,
+                    hostId = s.hostId,
+                    onRetry = { retryNonce++ },
+                    onEditHost = onEditHost,
+                    onOpenKnownHosts = onOpenKnownHosts,
                 )
               }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(),
-        )
-      }
-  ) { inner ->
-    // adjustNothing + edge-to-edge 構成。imePadding は「ツールバーだけ」に付け、
-    // ターミナル領域は IME による window resize の影響を受けないようにする。
-    // これで tmux / Claude Code に SIGWINCH が連打されず、キーボード開閉時の
-    // 「画面が縦に圧縮・復元される」ちらつきが消える。
-    Column(
-        modifier =
-            Modifier.fillMaxSize()
-                .padding(inner)
-                .navigationBarsPadding(),
-    ) {
-      // タブ数が 1→2 や 2→1 に変わったときの見せ方は snap。以前は AnimatedVisibility で
-      // 高さを滑らかに変えていたが、伸び縮みの全フレームでターミナルの高さが動き、
-      // 本文がバーに押されて上下に流れる。滑らかに動くこと自体がガタつきとして読まれる。
-      // 一度で決まるほうが、目で追っている行が動かない。
-      if (sortedTabs.size > 1) {
-        TabBar(
-            tabs = sortedTabs,
-            activeTabId = currentTabId,
-            tabTitle = ::labelFor,
-            onSelect = { id ->
-              val idx = sortedTabs.indexOf(id)
-              if (idx >= 0) coroutineScope.launch { pagerState.animateScrollToPage(idx) }
-            },
-            onClose = { app.sessionManager.closeTab(it) },
-            modifier = Modifier.height(36.dp),
-        )
-      }
-      // tmux のウィンドウ列。SSH タブのバーと同じ場所に置くのは、どちらも
-      // 「いま見ているものを切り替える」操作で、探す場所が同じ方がよいため。
-      val tmuxBundle = app.sessionManager.get(currentTabId)
-      val tmuxChannel = tmuxBundle?.channel as? SshChannel
-      val tmuxSessionName = tabTmuxSessions[currentTabId]
-      if (tmuxChannel != null && tmuxSessionName != null) {
-        TmuxBar(
-            channel = tmuxChannel,
-            ttyVar = TmuxController.ttyVarFor(currentTabId),
-            tabId = currentTabId,
-            activity = tmuxActivity,
-        )
-      }
-      when (val s = state) {
-        is TabScreenState.Loading, is TabScreenState.Connecting ->
-            Box(modifier = Modifier.weight(1f).fillMaxSize()) { ConnectingIndicator() }
-        is TabScreenState.Error ->
-            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-              ErrorMessage(
-                  failure = s.failure,
-                  canRetry = s.canRetry,
-                  hostId = s.hostId,
-                  onRetry = { retryNonce++ },
-                  onEditHost = onEditHost,
-                  onOpenKnownHosts = onOpenKnownHosts,
+          is TabScreenState.Ready -> {
+            val terminalViews = remember { mutableStateMapOf<String, TerminalView>() }
+            LaunchedEffect(sortedTabs) {
+              terminalViews.keys.toList().forEach { k ->
+                if (k !in sortedTabs) terminalViews.remove(k)
+              }
+            }
+            val currentView: TerminalView? = terminalViews[currentTabId]
+            // どれだけ遡っているか。0 なら最新を見ている。タブを移れば数え直し。
+            var linesBack by remember(currentTabId) { mutableStateOf(0) }
+            var ctrlArmed by remember { mutableStateOf(false) }
+            LaunchedEffect(currentTabId, currentView) {
+              ctrlArmed = false
+              currentView?.ctrlArmed = false
+              currentView?.focusAndRequestKeyboard()
+            }
+            // BEL(0x07)の触覚フィードバックは TerminalHost 側の 1 経路に集約した
+            // （スロットル + lifecycle 対応済み）。ここで二重に collect すると表示中タブで
+            // 二重振動し、かつバックグラウンドでも振動していた。
+            val sendBytes: (ByteArray) -> Unit = { bytes ->
+              currentView?.scrollToBottom()
+              app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
+            }
+            // IME の可視判定に `WindowInsets.ime` を使ってはいけない。あれは開閉アニメーションの
+            // 補間値で、コンポジションから読むと全フレームで再コンポーズが走る。再コンポーズは
+            // AndroidView の update を回し、そこから reflow → resize → SIGWINCH に繋がる。
+            // これがキーボード開閉のたびに画面がガタつく実体だった。最終値の
+            // `imeAnimationTarget` を見れば、開閉ごとに 1 回だけ true/false が入れ替わる。
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val imeTarget = WindowInsets.imeAnimationTarget
+            val imeVisible by
+                remember(imeTarget, density) { derivedStateOf { imeTarget.getBottom(density) > 0 } }
+
+            // キーボードを開く経路はここ 1 本。TerminalView に focus を渡してから
+            // soft input を要求する。focus が取れていないと IME は開かない。
+            val showKeyboard: () -> Unit = {
+              currentView?.let { v ->
+                v.requestFocus()
+                val imm =
+                    context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
+              }
+            }
+            // Termius 風のレイアウト: ターミナルが weight(1f) で残余を占め、ツールバーは
+            // そのすぐ下に Column の子として並ぶ。ツールバーに `imePadding` を付けると
+            // IME 表示時にその下に IME 高さ分の余白が入り、結果としてターミナルが
+            // その分だけ縮む → リモートシェルの入力行（cursor 行）がツールバーの直上、
+            // つまり IME の上に見える。ターミナルが縮むので SIGWINCH は飛ぶが、
+            // adjustNothing + Compose 内のレイアウト変化だけなので一度で settle する。
+            // ページを開いている間だけ 2 面になる。開いていなければ SplitPane は
+            // 仕切りごと消えて、端末が全部を使う。
+            val browserTabId = browserRequest?.first
+            val browserUrl = browserRequest?.second
+            val browserChannel =
+                browserTabId
+                    ?.takeIf { it == currentTabId }
+                    ?.let { app.sessionManager.get(it)?.channel as? SshChannel }
+            val browserPane: (@Composable () -> Unit)? =
+                if (browserChannel != null && browserUrl != null) {
+                  {
+                    BrowserPane(
+                        channel = browserChannel,
+                        url = browserUrl,
+                        vertical = splitVertical,
+                        onToggleOrientation = { app.prefs.setSplitVertical(!splitVertical) },
+                        onClose = { browserRequest = null },
+                    )
+                  }
+                } else {
+                  null
+                }
+
+            SplitPane(
+                vertical = splitVertical,
+                ratio = splitRatio,
+                onRatioSettled = { app.prefs.setSplitRatio(it) },
+                // 打っている間は端末の行数を動かさない。見たいのは自分が打っている所で、
+                // ページのほうは後で見ればよい。
+                freezeFirst = imeVisible,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                second = browserPane,
+            ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+            if (sortedTabs.size <= 1) {
+              TerminalHost(
+                  controller = s.bundle.controller,
+                  palette = theme.toPalette(),
+                  fontSizeSp = fontSizeSp,
+                  lineSpacing = lineSpacing,
+                  lineEnding = lineEnding,
+                  relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
+                  onTapTarget = { target -> handleTapTarget(currentTabId, target) },
+                onScrollPosition = { n -> linesBack = n },
+                  modifier = Modifier.fillMaxSize(),
+                  viewBinding = { v -> terminalViews[currentTabId] = v },
+              )
+            } else {
+              HorizontalPager(
+                  state = pagerState,
+                  modifier = Modifier.fillMaxSize(),
+                  key = { page -> sortedTabs.getOrNull(page) ?: page },
+              ) { page ->
+                val pageTabId = sortedTabs.getOrNull(page)
+                val pageBundle = pageTabId?.let { app.sessionManager.get(it) }
+                if (pageTabId != null && pageBundle != null) {
+                  TerminalHost(
+                      controller = pageBundle.controller,
+                      palette = theme.toPalette(),
+                      fontSizeSp = fontSizeSp,
+                      lineSpacing = lineSpacing,
+                      lineEnding = lineEnding,
+                      relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
+                      onTapTarget = { target -> handleTapTarget(pageTabId, target) },
+                    onScrollPosition = { n -> if (pageTabId == currentTabId) linesBack = n },
+                      modifier = Modifier.fillMaxSize(),
+                      viewBinding = { v -> terminalViews[pageTabId] = v },
+                  )
+                } else {
+                  Box(modifier = Modifier.fillMaxSize()) { ConnectingIndicator() }
+                }
+              }
+            }
+            // 遡っている間だけ、最新へ一息で戻る道を出す。惰性で流せるようになっても、
+            // 「読み終わったので今に戻る」は擦って戻る作業ではない。何行前にいるかも
+            // 出す。数字が無いと、どれだけ戻ればいいのか見当が付かない。
+            if (linesBack > 0) {
+              FilledTonalButton(
+                  onClick = { terminalViews[currentTabId]?.scrollToBottom() },
+                  contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                  modifier =
+                      Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).height(36.dp),
+              ) {
+                Icon(
+                    Icons.Filled.KeyboardDoubleArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.terminal_lines_back, linesBack),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+              }
+            }
+            // キーボードを閉じている間だけ重ねる。開いているときは下の列で足りるし、
+            // 重なったままだと IME の上に浮いて本文をさらに隠す。
+            if (replyPadEnabled && !imeVisible) {
+              FloatingReplyPad(
+                  onSend = sendBytes,
+                  onShowKeyboard = showKeyboard,
+                  position = replyPadX to replyPadY,
+                  onMove = { x, y -> app.prefs.setReplyPadPosition(x, y) },
+                  modifier = Modifier.fillMaxSize(),
               )
             }
-        is TabScreenState.Ready -> {
-          val terminalViews = remember { mutableStateMapOf<String, TerminalView>() }
-          LaunchedEffect(sortedTabs) {
-            terminalViews.keys.toList().forEach { k ->
-              if (k !in sortedTabs) terminalViews.remove(k)
             }
-          }
-          val currentView: TerminalView? = terminalViews[currentTabId]
-          var ctrlArmed by remember { mutableStateOf(false) }
-          LaunchedEffect(currentTabId, currentView) {
-            ctrlArmed = false
-            currentView?.ctrlArmed = false
-            currentView?.focusAndRequestKeyboard()
-          }
-          // BEL(0x07)の触覚フィードバックは TerminalHost 側の 1 経路に集約した
-          // （スロットル + lifecycle 対応済み）。ここで二重に collect すると表示中タブで
-          // 二重振動し、かつバックグラウンドでも振動していた。
-          val sendBytes: (ByteArray) -> Unit = { bytes ->
-            currentView?.scrollToBottom()
-            app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
-          }
-          // IME の可視判定に `WindowInsets.ime` を使ってはいけない。あれは開閉アニメーションの
-          // 補間値で、コンポジションから読むと全フレームで再コンポーズが走る。再コンポーズは
-          // AndroidView の update を回し、そこから reflow → resize → SIGWINCH に繋がる。
-          // これがキーボード開閉のたびに画面がガタつく実体だった。最終値の
-          // `imeAnimationTarget` を見れば、開閉ごとに 1 回だけ true/false が入れ替わる。
-          val density = androidx.compose.ui.platform.LocalDensity.current
-          val imeTarget = WindowInsets.imeAnimationTarget
-          val imeVisible by
-              remember(imeTarget, density) { derivedStateOf { imeTarget.getBottom(density) > 0 } }
-
-          // キーボードを開く経路はここ 1 本。TerminalView に focus を渡してから
-          // soft input を要求する。focus が取れていないと IME は開かない。
-          val showKeyboard: () -> Unit = {
-            currentView?.let { v ->
-              v.requestFocus()
-              val imm =
-                  context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-              imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
             }
-          }
-          // Termius 風のレイアウト: ターミナルが weight(1f) で残余を占め、ツールバーは
-          // そのすぐ下に Column の子として並ぶ。ツールバーに `imePadding` を付けると
-          // IME 表示時にその下に IME 高さ分の余白が入り、結果としてターミナルが
-          // その分だけ縮む → リモートシェルの入力行（cursor 行）がツールバーの直上、
-          // つまり IME の上に見える。ターミナルが縮むので SIGWINCH は飛ぶが、
-          // adjustNothing + Compose 内のレイアウト変化だけなので一度で settle する。
-          // ページを開いている間だけ 2 面になる。開いていなければ SplitPane は
-          // 仕切りごと消えて、端末が全部を使う。
-          val browserTabId = browserRequest?.first
-          val browserUrl = browserRequest?.second
-          val browserChannel =
-              browserTabId
-                  ?.takeIf { it == currentTabId }
-                  ?.let { app.sessionManager.get(it)?.channel as? SshChannel }
-          val browserPane: (@Composable () -> Unit)? =
-              if (browserChannel != null && browserUrl != null) {
-                {
-                  BrowserPane(
-                      channel = browserChannel,
-                      url = browserUrl,
-                      vertical = splitVertical,
-                      onToggleOrientation = { app.prefs.setSplitVertical(!splitVertical) },
-                      onClose = { browserRequest = null },
-                  )
-                }
-              } else {
-                null
-              }
-
-          SplitPane(
-              vertical = splitVertical,
-              ratio = splitRatio,
-              onRatioSettled = { app.prefs.setSplitRatio(it) },
-              // 打っている間は端末の行数を動かさない。見たいのは自分が打っている所で、
-              // ページのほうは後で見ればよい。
-              freezeFirst = imeVisible,
-              modifier = Modifier.weight(1f).fillMaxWidth(),
-              second = browserPane,
-          ) {
-          Box(modifier = Modifier.fillMaxSize()) {
-          if (sortedTabs.size <= 1) {
-            TerminalHost(
-                controller = s.bundle.controller,
-                palette = theme.toPalette(),
-                fontSizeSp = fontSizeSp,
-                lineSpacing = lineSpacing,
-                lineEnding = lineEnding,
-                relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
-                onTapTarget = { target -> handleTapTarget(currentTabId, target) },
-                modifier = Modifier.fillMaxSize(),
-                viewBinding = { v -> terminalViews[currentTabId] = v },
-            )
-          } else {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                key = { page -> sortedTabs.getOrNull(page) ?: page },
-            ) { page ->
-              val pageTabId = sortedTabs.getOrNull(page)
-              val pageBundle = pageTabId?.let { app.sessionManager.get(it) }
-              if (pageTabId != null && pageBundle != null) {
-                TerminalHost(
-                    controller = pageBundle.controller,
-                    palette = theme.toPalette(),
-                    fontSizeSp = fontSizeSp,
-                    lineSpacing = lineSpacing,
+            // 補助キーは「打っている間」だけの物なので、キーボードが閉じている間は
+            // 一切出さない。Esc も矢印も Ctrl も、読んでいる時には押さない。常設すると
+            // 縦 70dp 前後を無条件に食い、狭い画面では本文の 3〜4 行分に相当する。
+            //
+            // キーボードを呼び戻す道は 2 つ残してある。画面下 1/4 のシングルタップと、
+            // 浮いている返答パッドのキーボードボタン。どちらも指の届く場所にある。
+            //
+            // ツールバー + ショートカットバーはターミナル直下に固定し、IME が出れば
+            // その上に押し上げる。`imePadding()` はアニメ補間値を読むので毎フレーム
+            // 再レイアウトが走り terminal 側の SIGWINCH も連発される。代わりに
+            // `imeAnimationTarget` (最終値) を windowInsetsPadding で当てることで、
+            // 開閉開始時点で position を snap させる — Termius がカクカク見えない理由。
+            if (imeVisible) {
+            Column(
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .windowInsetsPadding(WindowInsets.imeAnimationTarget),
+            ) {
+              // AnimatedVisibility だと expand/shrink 中に毎フレーム terminal が縮み、
+              // PTY resize → feed/draw が連発して「ショートカット展開がカクつく」。
+              // snap 表示にすれば layout は 1 回で決まる。
+              if (showShortcutBar) {
+                CustomShortcutBar(
+                    shortcuts = customShortcuts,
                     lineEnding = lineEnding,
-                    relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
-                    onTapTarget = { target -> handleTapTarget(pageTabId, target) },
-                    modifier = Modifier.fillMaxSize(),
-                    viewBinding = { v -> terminalViews[pageTabId] = v },
+                    onSend = sendBytes,
                 )
-              } else {
-                Box(modifier = Modifier.fillMaxSize()) { ConnectingIndicator() }
               }
-            }
-          }
-          // キーボードを閉じている間だけ重ねる。開いているときは下の列で足りるし、
-          // 重なったままだと IME の上に浮いて本文をさらに隠す。
-          if (replyPadEnabled && !imeVisible) {
-            FloatingReplyPad(
-                onSend = sendBytes,
-                onShowKeyboard = showKeyboard,
-                position = replyPadX to replyPadY,
-                onMove = { x, y -> app.prefs.setReplyPadPosition(x, y) },
-                modifier = Modifier.fillMaxSize(),
-            )
-          }
-          }
-          }
-          // 補助キーは「打っている間」だけの物なので、キーボードが閉じている間は
-          // 一切出さない。Esc も矢印も Ctrl も、読んでいる時には押さない。常設すると
-          // 縦 70dp 前後を無条件に食い、狭い画面では本文の 3〜4 行分に相当する。
-          //
-          // キーボードを呼び戻す道は 2 つ残してある。画面下 1/4 のシングルタップと、
-          // 浮いている返答パッドのキーボードボタン。どちらも指の届く場所にある。
-          //
-          // ツールバー + ショートカットバーはターミナル直下に固定し、IME が出れば
-          // その上に押し上げる。`imePadding()` はアニメ補間値を読むので毎フレーム
-          // 再レイアウトが走り terminal 側の SIGWINCH も連発される。代わりに
-          // `imeAnimationTarget` (最終値) を windowInsetsPadding で当てることで、
-          // 開閉開始時点で position を snap させる — Termius がカクカク見えない理由。
-          if (imeVisible) {
-          Column(
-              modifier =
-                  Modifier.fillMaxWidth()
-                      .background(MaterialTheme.colorScheme.surface)
-                      .windowInsetsPadding(WindowInsets.imeAnimationTarget),
-          ) {
-            // AnimatedVisibility だと expand/shrink 中に毎フレーム terminal が縮み、
-            // PTY resize → feed/draw が連発して「ショートカット展開がカクつく」。
-            // snap 表示にすれば layout は 1 回で決まる。
-            ReplyKeyBar(onSend = sendBytes)
-            if (showShortcutBar) {
-              CustomShortcutBar(
-                  shortcuts = customShortcuts,
-                  lineEnding = lineEnding,
+              KeyboardToolbar(
+                  ctrlArmed = ctrlArmed,
+                  shortcutBarVisible = showShortcutBar,
+                  keyboardVisible = imeVisible,
+                  onToggleCtrl = {
+                    ctrlArmed = !ctrlArmed
+                    currentView?.ctrlArmed = ctrlArmed
+                  },
+                  onToggleShortcutBar = { showShortcutBar = !showShortcutBar },
+                  onToggleKeyboard = {
+                    if (imeVisible) {
+                      val imm =
+                          context.getSystemService(Context.INPUT_METHOD_SERVICE)
+                              as? InputMethodManager
+                      imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
+                    } else {
+                      showKeyboard()
+                    }
+                  },
                   onSend = sendBytes,
               )
             }
-            KeyboardToolbar(
-                ctrlArmed = ctrlArmed,
-                shortcutBarVisible = showShortcutBar,
-                keyboardVisible = imeVisible,
-                onToggleCtrl = {
-                  ctrlArmed = !ctrlArmed
-                  currentView?.ctrlArmed = ctrlArmed
-                },
-                onToggleShortcutBar = { showShortcutBar = !showShortcutBar },
-                onToggleKeyboard = {
-                  if (imeVisible) {
-                    val imm =
-                        context.getSystemService(Context.INPUT_METHOD_SERVICE)
-                            as? InputMethodManager
-                    imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
-                  } else {
-                    showKeyboard()
-                  }
-                },
-                onSend = sendBytes,
-            )
-          }
+            }
           }
         }
       }
-    }
 
-    firstSeenKey?.let { (keyType, fingerprint) ->
-      AlertDialog(
-          onDismissRequest = { firstSeenKey = null },
-          title = { Text(stringResource(R.string.first_seen_title)) },
-          text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-              Text(
-                  stringResource(R.string.first_seen_recorded),
-                  style = MaterialTheme.typography.bodyMedium,
-              )
-              Text("$keyType\n$fingerprint", style = MaterialTheme.typography.bodySmall)
-              Text(
-                  stringResource(
-                      R.string.first_seen_verify,
-                      "ssh-keygen -lf /etc/ssh/ssh_host_" +
-                          keyType.removePrefix("ssh-") +
-                          "_key.pub",
-                  ),
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-            }
-          },
-          confirmButton = { TextButton(onClick = { firstSeenKey = null }) { Text("OK") } },
-      )
-    }
+      firstSeenKey?.let { (keyType, fingerprint) ->
+        AlertDialog(
+            onDismissRequest = { firstSeenKey = null },
+            title = { Text(stringResource(R.string.first_seen_title)) },
+            text = {
+              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.first_seen_recorded),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text("$keyType\n$fingerprint", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    stringResource(
+                        R.string.first_seen_verify,
+                        "ssh-keygen -lf /etc/ssh/ssh_host_" +
+                            keyType.removePrefix("ssh-") +
+                            "_key.pub",
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            },
+            confirmButton = { TextButton(onClick = { firstSeenKey = null }) { Text("OK") } },
+        )
+      }
 
-    if (showHelp) HelpSheet(onDismiss = { showHelp = false })
-    val readyBundle = app.sessionManager.get(currentTabId)
-    if (showHistory && readyBundle != null) {
-      val history by readyBundle.controller.commandHistory.history.collectAsStateWithLifecycle()
-      HistorySheet(
-          history = history,
-          onInsert = { cmd ->
-            val bytes = (cmd + "\r").toByteArray(Charsets.UTF_8)
-            readyBundle.controller.sendToRemote(bytes)
-          },
-          onDismiss = { showHistory = false },
-      )
-    }
-    if (showInstallKey) {
-      val ch = readyBundle?.channel
-      if (ch is app.anoterm.ssh.SshChannel) {
-        InstallKeySheet(
-            channel = ch,
-            hostLabel = tabLabels[currentTabId] ?: stringResource(R.string.terminal_this_connection),
-            onDismiss = { showInstallKey = false },
+      if (showHelp) HelpSheet(onDismiss = { showHelp = false })
+      val readyBundle = app.sessionManager.get(currentTabId)
+      if (showHistory && readyBundle != null) {
+        val history by readyBundle.controller.commandHistory.history.collectAsStateWithLifecycle()
+        HistorySheet(
+            history = history,
+            onInsert = { cmd ->
+              val bytes = (cmd + "\r").toByteArray(Charsets.UTF_8)
+              readyBundle.controller.sendToRemote(bytes)
+            },
+            onDismiss = { showHistory = false },
         )
-      } else {
-        // 未接続やループバックでは登録できない。黙って閉じるより理由を出す。
-        LaunchedEffect(Unit) { showInstallKey = false }
       }
-    }
-    if (showTmux && readyBundle != null) {
-      val panelChannel = readyBundle.channel as? SshChannel
-      if (panelChannel != null) {
-        TmuxPanel(
-            channel = panelChannel,
-            ttyVar = TmuxController.ttyVarFor(currentTabId),
-            onDismiss = { showTmux = false },
+      if (showInstallKey) {
+        val ch = readyBundle?.channel
+        if (ch is app.anoterm.ssh.SshChannel) {
+          InstallKeySheet(
+              channel = ch,
+              hostLabel = tabLabels[currentTabId] ?: stringResource(R.string.terminal_this_connection),
+              onDismiss = { showInstallKey = false },
+          )
+        } else {
+          // 未接続やループバックでは登録できない。黙って閉じるより理由を出す。
+          LaunchedEffect(Unit) { showInstallKey = false }
+        }
+      }
+      if (showTmux && readyBundle != null) {
+        val panelChannel = readyBundle.channel as? SshChannel
+        if (panelChannel != null) {
+          TmuxPanel(
+              channel = panelChannel,
+              ttyVar = TmuxController.ttyVarFor(currentTabId),
+              onDismiss = { showTmux = false },
+          )
+        } else {
+          LaunchedEffect(Unit) { showTmux = false }
+        }
+      }
+      if (showMemo) {
+        MemoSheet(
+            contextLabel = labelFor(currentTabId),
+            onDismiss = { showMemo = false },
         )
-      } else {
-        LaunchedEffect(Unit) { showTmux = false }
       }
-    }
-    if (showTmuxTree) {
-      LaunchedEffect(showTmuxTree, activeTabs) {
-        tmuxTree = null
-        tmuxTree =
-            collectTmuxTree(
-                sortedTabs.mapNotNull { id ->
-                  val ch = app.sessionManager.get(id)?.channel as? SshChannel ?: return@mapNotNull null
-                  Triple(id, labelFor(id), ch)
-                },
-            )
-      }
-      TmuxTreeSheet(
-          connections = tmuxTree,
-          currentTabId = currentTabId,
-          activity = tmuxActivity,
-          onJump = { jump ->
-            showTmuxTree = false
-            tmuxActivity.markSeen(jump.tabId, jump.window)
-            coroutineScope.launch {
-              // 別の接続なら、まずその接続を前面に出す。ページを跨いだ後で
-              // tmux を触らないと、切り替えた結果が見えないまま終わる。
-              val page = sortedTabs.indexOf(jump.tabId)
-              if (page >= 0 && page != pagerState.currentPage) {
-                pagerState.animateScrollToPage(page)
+      if (showDisconnectConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectConfirm = false },
+            title = { Text(stringResource(R.string.terminal_disconnect_title)) },
+            text = {
+              Text(
+                  stringResource(R.string.terminal_disconnect_body),
+              )
+            },
+            confirmButton = {
+              TextButton(
+                  onClick = {
+                    showDisconnectConfirm = false
+                    app.sessionManager.closeTab(currentTabId)
+                    // すべてのタブを閉じた場合 onBack を呼んでホスト一覧へ戻す。
+                    if (app.sessionManager.activeTabIds().isEmpty()) onBack()
+                  },
+              ) {
+                Text(stringResource(R.string.host_disconnect), color = MaterialTheme.colorScheme.error)
               }
-              val bundle = app.sessionManager.get(jump.tabId)
-              val ch = bundle?.channel as? SshChannel ?: return@launch
-              val snapshot = tmuxTree?.firstOrNull { it.tabId == jump.tabId }?.snapshot
-              // アタッチ先が違うならクライアントごと動かす。select-window だけでは
-              // そのセッションのカレントが変わるだけで、見えている画面は変わらない。
-              if (snapshot?.attached != jump.window.session) {
-                snapshot?.clientTty?.let { tty ->
-                  TmuxController.switchClient(ch, tty, jump.window.session)
-                }
-              }
-              TmuxController.selectWindow(ch, jump.window)
-            }
-          },
-          onDismiss = { showTmuxTree = false },
-      )
-    }
-    imageRequest?.let { (tabId, path) ->
-      val imageChannel = app.sessionManager.get(tabId)?.channel as? SshChannel
-      if (imageChannel != null) {
-        RemoteImageSheet(
-            channel = imageChannel,
-            path = path,
-            tmuxSession = tabTmuxSessions[tabId],
-            onDismiss = { imageRequest = null },
+            },
+            dismissButton = {
+              TextButton(onClick = { showDisconnectConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
-      } else {
-        // ループバックや切断済みのタブには取りに行けない。黙って閉じる。
-        LaunchedEffect(Unit) { imageRequest = null }
       }
-    }
-    if (showMemo) {
-      MemoSheet(
-          contextLabel = labelFor(currentTabId),
-          onDismiss = { showMemo = false },
-      )
-    }
-    if (showDisconnectConfirm) {
-      AlertDialog(
-          onDismissRequest = { showDisconnectConfirm = false },
-          title = { Text(stringResource(R.string.terminal_disconnect_title)) },
-          text = {
-            Text(
-                stringResource(R.string.terminal_disconnect_body),
-            )
-          },
-          confirmButton = {
-            TextButton(
-                onClick = {
-                  showDisconnectConfirm = false
-                  app.sessionManager.closeTab(currentTabId)
-                  // すべてのタブを閉じた場合 onBack を呼んでホスト一覧へ戻す。
-                  if (app.sessionManager.activeTabIds().isEmpty()) onBack()
-                },
-            ) {
-              Text(stringResource(R.string.host_disconnect), color = MaterialTheme.colorScheme.error)
-            }
-          },
-          dismissButton = {
-            TextButton(onClick = { showDisconnectConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
-          },
-      )
     }
   }
 }

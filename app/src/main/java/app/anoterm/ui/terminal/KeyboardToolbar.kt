@@ -29,10 +29,16 @@ import androidx.compose.ui.unit.dp
 import app.anoterm.R
 
 /**
- * ターミナル下部の補助キー群。以下の制約を意識して設計:
- * - 縦の占有を最小化（ボタン高さ 32dp）
- * - 右端に「ショートカット展開」「キーボード閉じ」ボタンを常設
- * - 真ん中のキー群は横スクロール、順序は使用頻度順
+ * ターミナル下部の補助キー列。キーボードを出している間だけ出る。
+ *
+ * 1 段に収めることを最優先にしている。以前は返答キー (1/2/3/y/n) が別の段に分かれていて、
+ * ショートカット段と合わせると 3 段が本文の上に積まれた。狭い画面では本文が数行しか残らず、
+ * 何に答えようとしているのかが見えなくなる。列が長くなっても横に流せばよいが、
+ * 縦は取り返しがつかない。
+ *
+ * - ボタン高さ 32dp
+ * - 右端に「ショートカット展開」「キーボード閉じ」を固定
+ * - 中央は横スクロール、並びは使用頻度順
  */
 @Composable
 fun KeyboardToolbar(
@@ -57,6 +63,9 @@ fun KeyboardToolbar(
     ) {
       KeyButton(stringResource(R.string.kbd_esc)) { onSend(byteArrayOf(0x1B)) }
       KeyButton(stringResource(R.string.kbd_tab)) { onSend(byteArrayOf(0x09)) }
+      // 承認プロンプトへの返答。文字と改行をまとめて送るので 1 タップで済む。
+      // 打てば済む字ではあるが、Claude Code / Codex を触っている間はこれが最頻。
+      REPLY_KEYS.forEach { (label, bytes) -> KeyButton(label) { onSend(bytes) } }
       if (ctrlArmed) {
         FilledTonalButton(
             onClick = onToggleCtrl,
@@ -162,3 +171,20 @@ private val ESC_HOME = byteArrayOf(ESC, LBR, 'H'.code.toByte())
 private val ESC_END = byteArrayOf(ESC, LBR, 'F'.code.toByte())
 private val ESC_PGUP = byteArrayOf(ESC, LBR, '5'.code.toByte(), '~'.code.toByte())
 private val ESC_PGDN = byteArrayOf(ESC, LBR, '6'.code.toByte(), '~'.code.toByte())
+
+/**
+ * 番号や y/n を選ばせるプロンプトに 1 タップで答えるためのキー。
+ *
+ * 送るのは「文字 + 改行」。番号を選ばせるプロンプトは改行まで来て初めて確定する。
+ * プロンプトを検出して専用のボタンを出す案は採らなかった。相手の画面表示を読んで
+ * 「これは承認プロンプトだ」と判断する仕組みは、表示が少し変わった日に無言で効かなくなる。
+ * 常に同じキーを出すだけにして、何のプロンプトにも使える形にする。
+ */
+private val REPLY_KEYS: List<Pair<String, ByteArray>> =
+    listOf(
+        "1" to "1\r".toByteArray(Charsets.US_ASCII),
+        "2" to "2\r".toByteArray(Charsets.US_ASCII),
+        "3" to "3\r".toByteArray(Charsets.US_ASCII),
+        "y" to "y\r".toByteArray(Charsets.US_ASCII),
+        "n" to "n\r".toByteArray(Charsets.US_ASCII),
+    )
