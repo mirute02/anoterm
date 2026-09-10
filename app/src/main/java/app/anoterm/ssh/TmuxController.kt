@@ -83,6 +83,23 @@ object TmuxController {
    */
   const val SEP = "\u001F"
 
+  /**
+   * tmux が返してくる、区切りの「見える形」。
+   *
+   * 送るときは 0x1F の 1 バイトだが、tmux は出力に含まれる非表示文字を `\\037` という
+   * 4 文字の綴りに置き換えて返すことがある（版によって振る舞いが違う）。こちらが
+   * 0x1F だけで切っていたせいで、tmux は正しく答えているのに 1 行も読めず、
+   * ウィンドウ一覧が「tmux なし」としか言えなくなっていた。
+   *
+   * どちらで返ってきても読めるようにする。ウィンドウ名にこの 4 文字がそのまま
+   * 入っている可能性は無視できる。
+   */
+  private const val SEP_ESCAPED = "\\037"
+
+  /** 行を項目に切る。生の 0x1F を優先し、無ければ見える形で切る。 */
+  private fun splitFields(line: String): List<String> =
+      if (line.contains(SEP)) line.split(SEP) else line.split(SEP_ESCAPED)
+
   private const val WINDOW_TAG = "W"
   private const val CLIENT_TAG = "C"
   private const val TTY_PREFIX = "ANOTERM_TTY_"
@@ -154,7 +171,7 @@ object TmuxController {
         ourTty = line.substringAfter('=').takeIf { it.isNotBlank() }
         continue
       }
-      val parts = line.split(SEP)
+      val parts = splitFields(line)
       when {
         parts.size == 3 && parts[0] == CLIENT_TAG -> clientSessionByTty[parts[1]] = parts[2]
         parts.size == 8 && parts[0] == WINDOW_TAG -> {
@@ -228,7 +245,7 @@ object TmuxController {
     val others =
         result.stdout.lineSequence().count { raw ->
           val line = raw.trimEnd('\r')
-          val parts = line.split(SEP)
+          val parts = splitFields(line)
           line.startsWith(ttyVar) || (parts.size == 3 && parts[0] == CLIENT_TAG)
         }
     val understood = snapshot.windows.size + others
@@ -243,7 +260,8 @@ object TmuxController {
     val sample =
         if (snapshot.windows.isEmpty() && understood == 0) {
           val first = result.stdout.lineSequence().firstOrNull { it.isNotBlank() }?.trimEnd('\r')
-          val withSep = result.stdout.lineSequence().count { it.contains(SEP) }
+          val withSep =
+              result.stdout.lineSequence().count { it.contains(SEP) || it.contains(SEP_ESCAPED) }
           val shown =
               first
                   ?.map { if (it == SEP[0]) '·' else if (it.isISOControl()) '?' else it }

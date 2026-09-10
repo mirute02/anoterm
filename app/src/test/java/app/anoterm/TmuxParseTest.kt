@@ -59,6 +59,28 @@ class TmuxParseTest {
   }
 
   @Test
+  fun readsTheFormTmuxActuallyReturns() {
+    // tmux は出力に含まれる非表示文字を `\\037` という 4 文字に置き換えて返すことがある。
+    // 送ったのは 0x1F の 1 バイトでも、返りはこの形。ここを読めていなかったせいで
+    // 一覧が「tmux なし」としか言えなかった。
+    val e = "\\037"
+    val out =
+        listOf(
+                "C${e}/dev/pts/3${e}work",
+                "W${e}work${e}0${e}1${e}1${e}1789054933${e}claude${e}claude",
+                "W${e}work${e}1${e}0${e}2${e}1789054000${e}bash${e}my notes",
+            )
+            .joinToString("\n")
+
+    val snap = TmuxController.parseSnapshot(out, "ANOTERM_TTY_1")
+
+    assertEquals(2, snap.windows.size)
+    assertEquals("work", snap.attached)
+    assertEquals("claude", snap.windows[0].command)
+    assertEquals("my notes", snap.windows[1].name)
+  }
+
+  @Test
   fun readsNothingWhenTheSeparatorNeverArrives() {
     // 区切りが落ちて空白に化けた場合。1 件も取れないのが正しい挙動
     // （読み違えて別のウィンドウを選ばせるくらいなら、何も出さないほうがよい）。
