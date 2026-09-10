@@ -57,6 +57,15 @@ class AppPrefs(context: Context) {
   private val _replyPadEnabled = MutableStateFlow(readReplyPadEnabled())
   val replyPadEnabled: StateFlow<Boolean> = _replyPadEnabled.asStateFlow()
 
+  /**
+   * 画面の左に空ける余白 (dp)。
+   *
+   * 内側カメラ自体は [androidx.compose.foundation.layout.WindowInsets.Companion.displayCutout]
+   * で自動的に避けるので、これは好みのための調整。端が詰まって見えるのが嫌なとき用。
+   */
+  private val _leftMarginDp = MutableStateFlow(readLeftMargin())
+  val leftMarginDp: StateFlow<Float> = _leftMarginDp.asStateFlow()
+
   /** ブラウザを開いたときの並べ方。true = 上下、false = 左右。 */
   private val _splitVertical = MutableStateFlow(sp.getBoolean(KEY_SPLIT_VERTICAL, true))
   val splitVertical: StateFlow<Boolean> = _splitVertical.asStateFlow()
@@ -144,6 +153,12 @@ class AppPrefs(context: Context) {
         .apply()
     _replyPadX.value = x.coerceIn(0f, 1f)
     _replyPadY.value = y.coerceIn(0f, 1f)
+  }
+
+  fun setLeftMarginDp(value: Float) {
+    val clamped = value.coerceIn(0f, MAX_LEFT_MARGIN_DP)
+    sp.edit().putFloat(KEY_LEFT_MARGIN, clamped).apply()
+    _leftMarginDp.value = clamped
   }
 
   fun setSplitVertical(vertical: Boolean) {
@@ -285,6 +300,9 @@ class AppPrefs(context: Context) {
 
   private fun readReplyPadEnabled(): Boolean = sp.getBoolean(KEY_REPLY_PAD_ENABLED, true)
 
+  private fun readLeftMargin(): Float =
+      sp.getFloat(KEY_LEFT_MARGIN, 0f).coerceIn(0f, MAX_LEFT_MARGIN_DP)
+
   private fun readSplitRatio(): Float =
       sp.getFloat(KEY_SPLIT_RATIO, DEFAULT_SPLIT_RATIO).coerceIn(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO)
 
@@ -352,6 +370,8 @@ class AppPrefs(context: Context) {
     private const val KEY_REPLY_PAD_X = "reply_pad_x"
     private const val KEY_REPLY_PAD_Y = "reply_pad_y"
     private const val KEY_REPLY_PAD_ENABLED = "reply_pad_enabled"
+    private const val KEY_LEFT_MARGIN = "left_margin_dp"
+    const val MAX_LEFT_MARGIN_DP = 48f
     private const val KEY_SPLIT_VERTICAL = "split_vertical"
     private const val KEY_SPLIT_RATIO = "split_ratio"
 

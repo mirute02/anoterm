@@ -57,6 +57,7 @@ fun SettingsScreen(
   val lineSpacing by prefs.lineSpacing.collectAsStateWithLifecycle()
   val hideTmuxStatus by prefs.hideTmuxStatus.collectAsStateWithLifecycle()
   val replyPad by prefs.replyPadEnabled.collectAsStateWithLifecycle()
+  val leftMargin by prefs.leftMarginDp.collectAsStateWithLifecycle()
   val splitVertical by prefs.splitVertical.collectAsStateWithLifecycle()
   val splitRatio by prefs.splitRatio.collectAsStateWithLifecycle()
   val bioLock by prefs.biometricLockEnabled.collectAsStateWithLifecycle()
@@ -228,6 +229,21 @@ fun SettingsScreen(
             Switch(checked = replyPad, onCheckedChange = { prefs.setReplyPadEnabled(it) })
           },
       )
+      HorizontalDivider()
+      // 内側カメラは displayCutout で自動的に避ける。これはそれとは別の、
+      // 端が詰まって見えるのが嫌なとき用の調整。
+      Text(
+          stringResource(R.string.settings_left_margin, leftMargin.toInt()),
+          style = MaterialTheme.typography.bodyMedium,
+      )
+      Slider(
+          value = leftMargin,
+          valueRange = 0f..AppPrefs.MAX_LEFT_MARGIN_DP,
+          steps = 11,
+          onValueChange = { prefs.setLeftMarginDp(it) },
+          modifier = Modifier.fillMaxWidth(),
+      )
+
       HorizontalDivider()
       // 仕切りは指でも動かせるが、狙った配分にぴったり合わせるのは難しい。
       // 折りたたみを開いた時と閉じた時で好みが変わるので、ここでも決められるようにする。

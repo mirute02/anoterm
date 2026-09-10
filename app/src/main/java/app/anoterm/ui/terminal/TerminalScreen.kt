@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -138,6 +141,7 @@ fun TerminalScreen(
   val fontSizeSp by app.prefs.fontSizeSp.collectAsStateWithLifecycle()
   val lineSpacing by app.prefs.lineSpacing.collectAsStateWithLifecycle()
   val replyPadEnabled by app.prefs.replyPadEnabled.collectAsStateWithLifecycle()
+  val leftMarginDp by app.prefs.leftMarginDp.collectAsStateWithLifecycle()
   val splitVertical by app.prefs.splitVertical.collectAsStateWithLifecycle()
   val splitRatio by app.prefs.splitRatio.collectAsStateWithLifecycle()
   val replyPadX by app.prefs.replyPadX.collectAsStateWithLifecycle()
@@ -486,6 +490,18 @@ fun TerminalScreen(
       },
   ) {
     Scaffold(
+        // 内側カメラ（折りたたみを開くと画面の中にある）に文字が食われる。
+        // 端末を回すとカメラは上にも横にも来るので、位置を決め打ちにはできない。
+        // displayCutout は「画面のうち塞がっている所」をシステムが教えてくれる値なので、
+        // 左右ぶんだけ避ければ向きが変わっても勝手に付いてくる。上下は Scaffold と
+        // navigationBarsPadding が既に見ている。
+        //
+        // leftMargin はそれとは別の、単に端が詰まって見えるのが嫌な人のための調整。
+        modifier =
+            Modifier.windowInsetsPadding(
+                    WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
+                )
+                .padding(start = leftMarginDp.dp),
         topBar = {
           TopAppBar(
               title = {
