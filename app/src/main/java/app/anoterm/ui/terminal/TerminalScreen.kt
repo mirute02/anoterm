@@ -872,6 +872,7 @@ fun TerminalScreen(
         RemoteImageSheet(
             channel = imageChannel,
             path = path,
+            tmuxSession = tabTmuxSessions[tabId],
             onDismiss = { imageRequest = null },
         )
       } else {

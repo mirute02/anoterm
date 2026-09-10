@@ -44,9 +44,17 @@ object RemoteImage {
   /** 長辺がこれを超える画像は間引いて読む。原寸で持つ意味が無いうえ OOM を招く。 */
   private const val MAX_DIMENSION = 2048
 
-  suspend fun read(channel: SshChannel, path: String): RemoteImageResult =
+  /**
+   * [tmuxSession] を渡すと、相対パスをそのセッションのペインの現在地から探す。
+   * 渡さない、あるいは tmux が動いていなければホームだけを見る。
+   */
+  suspend fun read(
+      channel: SshChannel,
+      path: String,
+      tmuxSession: String? = null,
+  ): RemoteImageResult =
       try {
-        readOrThrow(channel, path)
+        readOrThrow(channel, path, tmuxSession)
       } catch (t: Throwable) {
         // 接続が切れかけている最中に押されるのは普通に起きる。ここで投げると
         // LaunchedEffect の中なのでアプリごと落ちる。理由を出して閉じるだけにする。
@@ -54,8 +62,19 @@ object RemoteImage {
         RemoteImageResult.Failed(RemoteImageFailure.UNREADABLE)
       }
 
-  private suspend fun readOrThrow(channel: SshChannel, path: String): RemoteImageResult {
-    val word = ScreenScan.shellWord(path)
+  private suspend fun readOrThrow(
+      channel: SshChannel,
+      path: String,
+      tmuxSession: String?,
+  ): RemoteImageResult {
+    val absolute =
+        if (ScreenScan.isRelative(path)) {
+          resolve(channel, path, tmuxSession)
+              ?: return RemoteImageResult.Failed(RemoteImageFailure.NOT_FOUND)
+        } else {
+          path
+        }
+    val word = ScreenScan.shellWord(absolute)
 
     // 先に大きさを見る。数十 MB を base64 で引っ張ってから諦めるのでは遅すぎる。
     // `wc -c < f` はどの環境にもある。`stat` は GNU と BSD で書式が違う。
@@ -83,6 +102,45 @@ object RemoteImage {
 
     val bitmap = decodeSampled(raw) ?: return RemoteImageResult.Failed(RemoteImageFailure.NOT_AN_IMAGE)
     return RemoteImageResult.Ok(bitmap, size)
+  }
+
+  /**
+   * 相対パスを絶対パスに直す。見つからなければ null。
+   *
+   * 読みに行くセッションの作業ディレクトリはホームで、利用者が作業している場所ではない。
+   * そこで tmux にペインの現在地を尋ねる。このアプリで作業している以上、たいていは
+   * tmux の中にいるので、これがいちばん当たる手掛かりになる。tmux がいなければホームを見る。
+   *
+   * 探す順に意味がある。作業中の場所を先に見ないと、たまたま同じ名前がホームにあったときに
+   * 別のファイルを開いてしまう。
+   *
+   * 組み立てているのは POSIX シェルの文。exec はログインシェルを通るので、fish や csh を
+   * 使っている相手では動かない。この判断はこのファイル全体で同じ (`test -f` や `wc -c <` も
+   * 同様)。動かなかった場合は「見つからない」として返るだけで、壊れはしない。
+   */
+  private suspend fun resolve(
+      channel: SshChannel,
+      relative: String,
+      tmuxSession: String?,
+  ): String? {
+    val rel = ScreenScan.shellWord(relative)
+    val paneQuery =
+        if (tmuxSession != null && TmuxController.isSafeSessionName(tmuxSession)) {
+          "p=$(tmux display-message -p -t ${TmuxController.quote(tmuxSession)} " +
+              "'#{pane_current_path}' 2>/dev/null || true); "
+        } else {
+          "p=''; "
+        }
+    val script =
+        paneQuery +
+            "for d in \"\$p\" \"\$HOME\"; do " +
+            "[ -n \"\$d\" ] || continue; " +
+            "f=\"\$d\"/$rel; " +
+            "if [ -f \"\$f\" ]; then printf '%s' \"\$f\"; exit 0; fi; " +
+            "done; exit 1"
+    val found = channel.exec(script)
+    if (!found.isSuccess) return null
+    return found.stdout.trim().takeIf { it.startsWith("/") }
   }
 
   /**

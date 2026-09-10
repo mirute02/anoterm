@@ -56,12 +56,16 @@ import app.anoterm.ssh.SshChannel
 fun RemoteImageSheet(
     channel: SshChannel,
     path: String,
+    /** 相対パスをどこから探すか決める手掛かり。tmux を使っていなければ null。 */
+    tmuxSession: String?,
     onDismiss: () -> Unit,
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var result by remember(path) { mutableStateOf<RemoteImageResult?>(null) }
 
-  LaunchedEffect(channel, path) { result = RemoteImage.read(channel, path) }
+  LaunchedEffect(channel, path, tmuxSession) {
+    result = RemoteImage.read(channel, path, tmuxSession)
+  }
 
   ModalBottomSheet(
       onDismissRequest = onDismiss,
