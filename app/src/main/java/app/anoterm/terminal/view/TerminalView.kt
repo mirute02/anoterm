@@ -694,17 +694,20 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
     super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
     Logger.d("IME", "onFocusChanged gainFocus=$gainFocus")
-    if (gainFocus) restartInputAndShowKeyboard()
+    // 焦点が来ただけではキーボードを出さない。焦点は色々な理由で移ってくる。
+    if (gainFocus) restartInputOnly()
   }
 
   override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
     super.onWindowFocusChanged(hasWindowFocus)
     Logger.d("IME", "onWindowFocusChanged hasWindowFocus=$hasWindowFocus focused=$isFocused attached=$isAttachedToWindow")
-    // window 取得時、この view が画面上に表示されている（attach 中）なら focus + IME 復活。
+    // window 取得時、この view が画面上に表示されている（attach 中）なら focus を取り戻す。
     // HOME→戻り時に isFocused は false に落ちていることが多いので、focus ごと取り戻す必要あり。
-    // ダイアログは別 window 扱いなので、ダイアログ閉じた時点でこちらの window focus が戻る
-    // = その時に terminal に focus 戻すのは妥当。
-    if (hasWindowFocus && isAttachedToWindow) requestInputFocus()
+    // ダイアログやシートは別 window 扱いなので、閉じた時点でこちらの window focus が戻る。
+    //
+    // ただしキーボードは出さない。シートを閉じただけ、ホームから戻っただけで
+    // せり上がってくるのは、読んでいる最中には邪魔でしかない。
+    if (hasWindowFocus && isAttachedToWindow) takeInputFocus()
   }
 
   override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -1323,31 +1326,53 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     return byteArrayOf(0x1B, 'O'.code.toByte(), final)
   }
 
+  /**
+   * 「焦点を取る」と「キーボードを出す」を分けてある。
+   *
+   * 以前はこの 2 つが 1 つの関数に入っていて、焦点が移るあらゆる場面
+   * （タブのスワイプ、シートを閉じた、ホームから戻った、画面を読み直した）で
+   * キーボードが勝手にせり上がってきた。出すのは利用者がそう言ったときだけでよい。
+   *
+   * 焦点自体は取っておく必要がある。取っていないと物理キーボードの入力が届かず、
+   * 後から「出せ」と言われたときの宛先も無い。
+   */
   private fun requestInputFocus() {
     Logger.d("IME", "requestInputFocus focused=$isFocused")
+    takeInputFocus()
+    showKeyboardNow()
+  }
+
+  /**
+   * 焦点だけを取る。キーボードは出さない。
+   *
+   * Pager のページが切り替わっても Pager 自体は focus を新ページに移さないので、
+   * タブ切替を検知したホスト側からここを叩いて、入力の宛先を新しい TerminalView に
+   * 紐付け直す。開いていたキーボードはそのまま残る（window の IME 状態は触らない）。
+   */
+  fun takeInputFocus() {
     if (!isFocused) {
       requestFocusFromTouch()
       requestFocus()
     }
-    restartInputAndShowKeyboard()
+    restartInputOnly()
   }
 
-  /**
-   * 外部（タブ切替時など）から focus を取り戻させるためのフック。
-   * Pager のページが切り替わっても、Pager 自体は focus を新ページに移してくれないため、
-   * ホスト側で tab 切替を検知したらここを叩いて IME を新 TerminalView に紐付け直す。
-   */
-  fun focusAndRequestKeyboard() {
-    requestInputFocus()
-  }
-
-  private fun restartInputAndShowKeyboard() {
+  /** InputConnection を張り直すだけ。表示状態には触らない。 */
+  private fun restartInputOnly() {
     if (windowToken == null) return
     val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
     post {
       if (!isFocused || windowToken == null) return@post
-      Logger.d("IME", "restartInputAndShowKeyboard")
       imm.restartInput(this)
+    }
+  }
+
+  private fun showKeyboardNow() {
+    if (windowToken == null) return
+    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
+    post {
+      if (!isFocused || windowToken == null) return@post
+      Logger.d("IME", "showKeyboardNow")
       imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
     }
   }

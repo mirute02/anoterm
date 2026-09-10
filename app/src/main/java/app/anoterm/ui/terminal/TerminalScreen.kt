@@ -696,7 +696,9 @@ fun TerminalScreen(
             LaunchedEffect(currentTabId, currentView) {
               ctrlArmed = false
               currentView?.ctrlArmed = false
-              currentView?.focusAndRequestKeyboard()
+              // 焦点だけ移す。スワイプでタブを移った先でキーボードがせり上がってくるのは、
+              // 読みに行っただけの時には邪魔でしかない。開いていたなら開いたまま残る。
+              currentView?.takeInputFocus()
             }
             // BEL(0x07)の触覚フィードバックは TerminalHost 側の 1 経路に集約した
             // （スロットル + lifecycle 対応済み）。ここで二重に collect すると表示中タブで
