@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import app.anoterm.R
+import app.anoterm.ssh.ClaudeMode
 import kotlin.math.roundToInt
 
 /**
@@ -45,14 +47,17 @@ import kotlin.math.roundToInt
  * 移動は中央のつまみをドラッグする。ボタン自体をドラッグ移動にすると、
  * 「押したつもりが動いた」「動かしたつもりが送信された」が避けられない。
  *
- * 左上にキーボードボタンを 1 つ足してある。補助キー列を常設しなくなったぶん、
- * 「打ちたくなった時に開く」入口がどこかに要る。画面下 1/4 のタップでも開くが、
- * 指がすでにパッドの上にあるなら、そこから届くほうが速い。
+ * 上の 2 隅には、答えるためではないキーを置いてある。左上がキーボード、右上が ⇧Tab。
+ * 数字より小さく、色も変えてあるのは、押し間違いの向きを揃えるため。答えるつもりで
+ * モードを切り替えてしまうのは、その逆より取り返しがつかない。
  */
 @Composable
 fun FloatingReplyPad(
     onSend: (ByteArray) -> Unit,
     onShowKeyboard: () -> Unit,
+    /** 向こうの Claude Code の権限モード。読めていなければ null。 */
+    permissionMode: String?,
+    onCyclePermissionMode: () -> Unit,
     position: Pair<Float, Float>,
     onMove: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
@@ -78,22 +83,45 @@ fun FloatingReplyPad(
       PadButton("2", Alignment.BottomStart) { onSend(replyBytes("2")) }
       PadButton("3", Alignment.BottomEnd) { onSend(replyBytes("3")) }
 
-      // 三角形の空いている角。数字より一回り小さく、色も変えてある。
-      // 送信ボタンと同じ見た目にすると、プロンプトに答えるつもりで IME を開いてしまう。
-      Surface(
-          onClick = onShowKeyboard,
-          modifier = Modifier.align(Alignment.TopStart).size(KEYBOARD_BUTTON_SIZE),
-          shape = CircleShape,
-          color = MaterialTheme.colorScheme.surfaceVariant,
-          shadowElevation = 3.dp,
+      // 三角形の空いている 2 隅。数字より一回り小さく、色も変えてある。
+      UtilityButton(Alignment.TopStart, onShowKeyboard) {
+        Icon(
+            Icons.Filled.Keyboard,
+            contentDescription = stringResource(R.string.terminal_show_keyboard),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      // Claude Code の権限モードを回す Shift+Tab。承認を聞かれるのはキーボードを閉じて
+      // 読んでいる時なので、そこから 1 タップで届くのが筋。
+      //
+      // 色で今どちら側にいるかを示す。
+      //   消灯 (surfaceVariant) : 聞かれる。あるいはモードが読めていない
+      //   点灯 (primary)        : 聞かずに進む
+      //   警告色 (error)        : 何も確認しない (bypassPermissions)
+      // 読めていないときに「聞かれない」と光らせてはいけない。嘘を吐くくらいなら消しておく。
+      val auto = ClaudeMode.isAutoApproving(permissionMode)
+      val unchecked = ClaudeMode.isUnchecked(permissionMode)
+      UtilityButton(
+          alignment = Alignment.TopEnd,
+          onClick = onCyclePermissionMode,
+          color =
+              when {
+                unchecked -> MaterialTheme.colorScheme.errorContainer
+                auto -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.surfaceVariant
+              },
       ) {
-        Box(contentAlignment = Alignment.Center) {
-          Icon(
-              Icons.Filled.Keyboard,
-              contentDescription = stringResource(R.string.terminal_show_keyboard),
-              tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+        Text(
+            text = "⇧⇥",
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelLarge,
+            color =
+                when {
+                  unchecked -> MaterialTheme.colorScheme.onErrorContainer
+                  auto -> MaterialTheme.colorScheme.onPrimary
+                  else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+        )
       }
 
       // 中央のつまみ。ここだけがドラッグを受ける。
@@ -122,6 +150,25 @@ fun FloatingReplyPad(
                   },
       )
     }
+  }
+}
+
+/** 答えるためではないキー。数字と見た目を分けて、押し間違いの向きを揃える。 */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.UtilityButton(
+    alignment: Alignment,
+    onClick: () -> Unit,
+    color: Color = Color.Unspecified,
+    content: @Composable () -> Unit,
+) {
+  Surface(
+      onClick = onClick,
+      modifier = Modifier.align(alignment).size(UTILITY_BUTTON_SIZE),
+      shape = CircleShape,
+      color = if (color == Color.Unspecified) MaterialTheme.colorScheme.surfaceVariant else color,
+      shadowElevation = 3.dp,
+  ) {
+    Box(contentAlignment = Alignment.Center) { content() }
   }
 }
 
@@ -155,5 +202,8 @@ private fun replyBytes(key: String): ByteArray = (key + "\r").toByteArray(Charse
 
 private val PAD_SIZE = 136.dp
 private val BUTTON_SIZE = 52.dp
-private val KEYBOARD_BUTTON_SIZE = 40.dp
+private val UTILITY_BUTTON_SIZE = 40.dp
+
+/** Shift+Tab = CSI Z。ESC は 0x1B を明示する（文字列に埋めると編集で落ちる）。 */
+val ESC_BACKTAB = byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())
 private val HANDLE_SIZE = 22.dp

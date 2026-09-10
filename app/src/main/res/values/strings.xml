@@ -230,7 +230,7 @@
     <string name="help_g_swipe_side">Swipe left / right</string>
     <string name="help_g_swipe_side_desc">Moves between open connections.</string>
     <string name="help_g_pad">The floating pad</string>
-    <string name="help_g_pad_desc">1 / 2 / 3 answer a prompt without the keyboard. The keyboard button brings typing back. Drag the middle knob to move the pad; turn it off in Settings.</string>
+    <string name="help_g_pad_desc">1 / 2 / 3 answer a prompt without the keyboard. The two smaller keys above them are not answers: one brings the keyboard back, the other sends Shift+Tab to cycle Claude Code\'s permission mode, and it lights up when that mode has stopped asking (red when nothing is being checked at all, unlit when it is asking or when the mode could not be read). Drag the middle knob to move the pad; turn it off in Settings.</string>
     <string name="help_g_menu">☰ at the top left</string>
     <string name="help_g_menu_desc">Pulls out a drawer from the left holding every window on every connection. Tap one to jump straight to it. Swipe the drawer away to close it.</string>
     <string name="help_g_keys_hidden">Esc, arrows, Ctrl</string>
