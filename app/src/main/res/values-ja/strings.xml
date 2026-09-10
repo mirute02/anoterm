@@ -183,7 +183,9 @@
     <string name="image_size">%1$s, %2$d x %3$d</string>
     <string name="help_section_gestures">画面の操作</string>
     <string name="help_g_tap_bottom">画面下 1/4 をタップ</string>
-    <string name="help_g_tap_bottom_desc">キーボードを出す。それ以外の場所のタップは何も起きないので、読んでいる最中に触れても画面は動かない。</string>
+    <string name="help_g_tap_bottom_desc">キーボードを出す。それ以外の場所のタップは何も起きないので（下の「マウスを見ている相手」の場合を除く）、読んでいる最中に触れても画面は動かない。</string>
+    <string name="help_g_tap_cursor">マウスを見ている相手をタップ</string>
+    <string name="help_g_tap_cursor_desc">触った所にカーソルが移る。Claude Code の入力欄はマウスで位置を指せるので、タップをそのまま渡している。相手がマウス報告を要求している間だけ効く（Claude Code、vim、mouse on の tmux など）。</string>
     <string name="help_g_tap_path">下線の付いたパスをタップ</string>
     <string name="help_g_tap_path_desc">その画像を向こうから読んで開く。ピンチで拡大、ダブルタップで元の大きさ。</string>
     <string name="help_g_tap_url">下線の付いた URL をタップ</string>

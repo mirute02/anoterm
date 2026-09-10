@@ -195,7 +195,9 @@
     <string name="image_size">%1$s, %2$d x %3$d</string>
     <string name="help_section_gestures">Touch</string>
     <string name="help_g_tap_bottom">Tap the bottom quarter</string>
-    <string name="help_g_tap_bottom_desc">Opens the keyboard. Tapping anywhere else does nothing, so reading never moves the screen.</string>
+    <string name="help_g_tap_bottom_desc">Opens the keyboard. Tapping elsewhere does nothing (unless the far end is watching the mouse, below), so reading never moves the screen.</string>
+    <string name="help_g_tap_cursor">Tap where the far end watches the mouse</string>
+    <string name="help_g_tap_cursor_desc">Puts the cursor where you touched. Claude Code lets a mouse pick the spot in its input box, and this hands the tap straight to it. Works wherever the far end asked for mouse reporting — Claude Code, vim, tmux with mouse on.</string>
     <string name="help_g_tap_path">Tap an underlined path</string>
     <string name="help_g_tap_path_desc">Opens the image it points at, read straight off the far end. Pinch to zoom, double tap to fit.</string>
     <string name="help_g_tap_url">Tap an underlined URL</string>

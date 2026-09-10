@@ -59,6 +59,10 @@ private val SECTIONS =
                         desc = R.string.help_g_tap_bottom_desc,
                     ),
                     Shortcut(
+                        keysRes = R.string.help_g_tap_cursor,
+                        desc = R.string.help_g_tap_cursor_desc,
+                    ),
+                    Shortcut(
                         keysRes = R.string.help_g_tap_path,
                         desc = R.string.help_g_tap_path_desc,
                     ),

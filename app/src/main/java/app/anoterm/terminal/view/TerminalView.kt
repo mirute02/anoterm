@@ -224,6 +224,16 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
                 onTapTarget?.invoke(target)
                 return true
               }
+              // リモートがマウスを見ているなら、触った所にカーソルを置ける。Claude Code の
+              // 入力欄はマウスで位置を指せるので、タップをそのまま渡すだけで同じ事ができる。
+              // 「単タップは下 1/4 以外なにもしない」という原則の唯一の例外。相手が
+              // マウス報告を要求している間だけなので、勝手に誤爆する場面は無い。
+              if (sendClickIfTracking(e)) {
+                // 入力欄は画面の下にある。そこを触ったのは打ちたいからなので、
+                // カーソルを置いたうえでキーボードも開く。
+                if (e.y > h * 0.75f) requestInputFocus()
+                return true
+              }
               // 下 1/4 タップのみ IME 起動、他は no-op（スクロールしたい時は swipe）。
               return if (e.y > h * 0.75f) {
                 requestInputFocus()
@@ -800,6 +810,51 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
    * [positiveLines] が正で「過去方向スクロール」= wheel up (button 64)、
    * 負なら「現在方向スクロール」= wheel down (button 65)。
    */
+  /**
+   * タップした桁・行へマウスの左クリックを送る。リモートが mouse tracking を
+   * 有効にしていなければ何もせず false を返す。
+   *
+   * 押下と解放を続けて送る。押しっぱなしにするとドラッグ選択と解釈され、相手の側で
+   * 範囲が広がったままになる。
+   */
+  private fun sendClickIfTracking(e: MotionEvent): Boolean {
+    val ctl = controller ?: return false
+    val emu = ctl.emulator
+    if (!emu.mouseTrackingEnabled) return false
+    val cw = renderer.cellWidth
+    val ch = renderer.cellHeight
+    if (cw <= 0f || ch <= 0f) return false
+    val col = (e.x / cw).toInt().coerceAtLeast(0) + 1 // 1-based
+    val row = (e.y / ch).toInt().coerceAtLeast(0) + 1
+    if (emu.mouseSgrMode) {
+      // SGR は終端の M/m で押下と解放を区別する。ボタン番号は同じ 0 のまま。
+      ctl.sendToRemote(sgrMouse(0, col, row, press = true))
+      ctl.sendToRemote(sgrMouse(0, col, row, press = false))
+    } else {
+      // X10 形式に解放専用の符号は無く、ボタン 3 が「離した」を表す。
+      ctl.sendToRemote(x10Mouse(0, col, row))
+      ctl.sendToRemote(x10Mouse(3, col, row))
+    }
+    return true
+  }
+
+  /** `ESC [ < b ; x ; y M|m`。ESC は 0x1B を明示する（文字列に埋めると編集で落ちる）。 */
+  private fun sgrMouse(button: Int, col: Int, row: Int, press: Boolean): ByteArray =
+      byteArrayOf(0x1B, '['.code.toByte(), '<'.code.toByte()) +
+          (button.toString() + ";" + col + ";" + row + if (press) "M" else "m")
+              .toByteArray(Charsets.US_ASCII)
+
+  /** `ESC [ M <b+32> <x+32> <y+32>`。223 桁を超えると壊れる形式なので上限で止める。 */
+  private fun x10Mouse(button: Int, col: Int, row: Int): ByteArray =
+      byteArrayOf(
+          0x1B,
+          '['.code.toByte(),
+          'M'.code.toByte(),
+          (button + 32).toByte(),
+          (col + 32).coerceAtMost(255).toByte(),
+          (row + 32).coerceAtMost(255).toByte(),
+      )
+
   private fun sendWheelIfTracking(e: MotionEvent, positiveLines: Int): Boolean {
     val ctl = controller ?: return false
     val emu = ctl.emulator
