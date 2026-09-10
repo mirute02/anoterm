@@ -649,6 +649,9 @@ fun TerminalScreen(
               vertical = splitVertical,
               ratio = splitRatio,
               onRatioSettled = { app.prefs.setSplitRatio(it) },
+              // 打っている間は端末の行数を動かさない。見たいのは自分が打っている所で、
+              // ページのほうは後で見ればよい。
+              freezeFirst = imeVisible,
               modifier = Modifier.weight(1f).fillMaxWidth(),
               second = browserPane,
           ) {

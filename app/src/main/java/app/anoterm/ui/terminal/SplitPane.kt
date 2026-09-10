@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,17 @@ fun SplitPane(
     vertical: Boolean,
     ratio: Float,
     onRatioSettled: (Float) -> Unit,
+    /**
+     * true の間、1 つ目の面の大きさを据え置き、狭くなったぶんは 2 つ目に負わせる。
+     *
+     * キーボードを出している間に使う。打っている時に見たいのは端末なので、そこの行数が
+     * 変わらないほうが素直で、リサイズも 1 回減る。ただし 2 つ目を潰しきりはしない
+     * ([AppPrefs.MAX_SPLIT_RATIO] で頭を打つ)。据え置けるのは残りの高さが許す範囲まで。
+     *
+     * 左右に並べているときは効かない。キーボードは窓の下端を横いっぱいに取るので、
+     * 隣り合った 2 面はどちらも同じだけ低くなる。片方だけ背を高いままにする置き方が無い。
+     */
+    freezeFirst: Boolean = false,
     modifier: Modifier = Modifier,
     second: (@Composable () -> Unit)? = null,
     first: @Composable () -> Unit,
@@ -55,6 +67,19 @@ fun SplitPane(
     var live by remember(ratio) { mutableStateOf(ratio) }
     val span = (if (vertical) constraints.maxHeight else constraints.maxWidth).toFloat()
 
+    // 据え置きが始まる前の広さを覚えておく。キーボードが出ている間は測り直さない。
+    var relaxedSpan by remember { mutableStateOf(span) }
+    LaunchedEffect(freezeFirst, span) { if (!freezeFirst) relaxedSpan = span }
+
+    // 1 つ目の面が前と同じ大きさになる配分を逆算する。狭すぎて無理なときは
+    // 上限で頭打ちになり、そこまでは近づく。
+    val applied =
+        if (freezeFirst && vertical && span > 0f && relaxedSpan > 0f) {
+          (relaxedSpan * live / span).coerceIn(AppPrefs.MIN_SPLIT_RATIO, AppPrefs.MAX_SPLIT_RATIO)
+        } else {
+          live
+        }
+
     val handle: @Composable () -> Unit = {
       Box(
           modifier =
@@ -63,16 +88,19 @@ fun SplitPane(
                       else Modifier.fillMaxHeight().width(HANDLE_THICKNESS),
                   )
                   .background(MaterialTheme.colorScheme.surfaceVariant)
-                  .pointerInput(vertical, span) {
+                  .pointerInput(vertical, span, relaxedSpan, freezeFirst) {
                     detectDragGestures(
                         onDragEnd = { onRatioSettled(live) },
                         onDragCancel = { onRatioSettled(live) },
                     ) { change, drag ->
                       change.consume()
-                      if (span <= 0f) return@detectDragGestures
+                      // 据え置き中、面の高さは relaxedSpan * live で決まる。指の動きと
+                      // 仕切りの動きを一致させるには、そちらで割らないと倍率がずれる。
+                      val basis = if (freezeFirst && vertical) relaxedSpan else span
+                      if (basis <= 0f) return@detectDragGestures
                       val delta = if (vertical) drag.y else drag.x
                       live =
-                          (live + delta / span)
+                          (live + delta / basis)
                               .coerceIn(AppPrefs.MIN_SPLIT_RATIO, AppPrefs.MAX_SPLIT_RATIO)
                     }
                   },
@@ -90,15 +118,15 @@ fun SplitPane(
 
     if (vertical) {
       Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(live).fillMaxWidth()) { first() }
+        Box(modifier = Modifier.weight(applied).fillMaxWidth()) { first() }
         handle()
-        Box(modifier = Modifier.weight(1f - live).fillMaxWidth()) { second() }
+        Box(modifier = Modifier.weight(1f - applied).fillMaxWidth()) { second() }
       }
     } else {
       Row(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(live).fillMaxHeight()) { first() }
+        Box(modifier = Modifier.weight(applied).fillMaxHeight()) { first() }
         handle()
-        Box(modifier = Modifier.weight(1f - live).fillMaxHeight()) { second() }
+        Box(modifier = Modifier.weight(1f - applied).fillMaxHeight()) { second() }
       }
     }
   }
