@@ -28,6 +28,8 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import app.anoterm.BuildConfig
 import app.anoterm.data.prefs.LineEnding
+import app.anoterm.terminal.PathScan
+import app.anoterm.terminal.PathSpan
 import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.theme.TerminalPalette
 import app.anoterm.R
@@ -109,6 +111,15 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   // scrollBy に流して残りは次回に繰り越す。
   private var scrollAccumPx: Float = 0f
 
+  /**
+   * 端末に出ている画像パスが押されたときの通知。UI 層が中身を取りに行く。
+   * View 自身は SSH を知らないので、ここでは「どのパスが押されたか」だけを伝える。
+   */
+  var onImagePathTapped: ((String) -> Unit)? = null
+
+  private var cachedSpans: List<PathSpan>? = null
+  private var cachedSpansKey: Triple<Long, Int, Int>? = null
+
   private val scrollGestureDetector =
       GestureDetector(
           context,
@@ -156,6 +167,18 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               if (selectionActive) return false // ActionMode が拾うので素通し
               val h = height
               if (h <= 0) return false
+              // パスの上を押したなら、そこはパスを開く場所。位置より優先する。
+              // 直前の出力は画面の下に出るので、パスと「下 1/4 でキーボード」は必ずぶつかる。
+              // どちらか一方に決めるなら、狙って押した物のほうを採るのが素直。
+              val path = imagePathAtPixel(e.x, e.y)
+              if (path != null) {
+                performHapticFeedback(
+                    HapticFeedbackConstants.KEYBOARD_TAP,
+                    HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+                )
+                onImagePathTapped?.invoke(path)
+                return true
+              }
               // 下 1/4 タップのみ IME 起動、他は no-op（スクロールしたい時は swipe）。
               return if (e.y > h * 0.75f) {
                 requestInputFocus()
@@ -327,6 +350,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
           scrollOffset = scrollOffset,
           selectionStart = selStart,
           selectionEnd = selEnd,
+          pathSpans = pathSpans(),
       )
     }
   }
@@ -415,6 +439,69 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     if (scrollOffset == 0) return
     scrollOffset = (scrollOffset + delta).coerceAtLeast(0)
     invalidate()
+  }
+
+  /**
+   * 画面に見えている行を、1 セル = 1 文字で書き出す。
+   *
+   * 桁と文字の位置をずらさないため、全角文字とその 2 桁目はどちらも空白として置く。
+   * パスに全角は使われない前提なので、混ざっていれば単語がそこで切れて「見つからない」に
+   * なる。誤って別のファイルを開くよりよい。
+   */
+  private fun visibleLines(): List<String> {
+    val emu = controller?.emulator ?: return emptyList()
+    return synchronized(emu) {
+      val buffer = emu.buffer
+      val offset = scrollOffset.coerceAtMost(buffer.rows + buffer.scrollbackSize)
+      (0 until buffer.rows).map { r ->
+        val sb = StringBuilder(buffer.cols)
+        for (c in 0 until buffer.cols) {
+          val cell = visibleCellAt(buffer, offset, r, c)
+          val cp = cell?.codePoint ?: 0
+          sb.append(
+              if (cell == null || cell.continuation || cell.wide || cp == 0 || cp > 0xFFFF) ' '
+              else cp.toChar(),
+          )
+        }
+        sb.toString()
+      }
+    }
+  }
+
+  /**
+   * 画面上の行番号を、scrollback と grid のどちらから読むかに振り分ける。
+   * 描画側 (`TerminalRenderer`) と同じ対応にしておかないと、押した場所と見えている物がずれる。
+   */
+  private fun visibleCellAt(
+      buffer: app.anoterm.terminal.emulator.TerminalBuffer,
+      offset: Int,
+      row: Int,
+      col: Int,
+  ): app.anoterm.terminal.emulator.Cell? =
+      if (row < offset) {
+        buffer.scrollbackCellAt(offset - 1 - row, col)
+      } else {
+        val r = row - offset
+        if (r in 0 until buffer.rows) buffer.cellAt(r, col) else null
+      }
+
+  /**
+   * 画面に出ている画像パスの位置。下線を引くために描画のたびに要る。
+   *
+   * 毎フレーム全行を走査すると無駄なので、画面が書き換わるかスクロールするまで使い回す。
+   * `generation` は buffer が変わるたびに進むカウンタ。
+   */
+  private fun pathSpans(): List<PathSpan> {
+    val emu = controller?.emulator ?: return emptyList()
+    val generation = synchronized(emu) { emu.buffer.generation }
+    val key = Triple(generation, scrollOffset, emu.cols)
+    val cached = cachedSpans
+    if (cached != null && cachedSpansKey == key) return cached
+    val lines = visibleLines()
+    val spans = PathScan.imagePathSpans(lines, emu.cols)
+    cachedSpansKey = key
+    cachedSpans = spans
+    return spans
   }
 
   /** 最新位置（底）へ戻す。新出力到着時や入力時に呼ぶ。 */
@@ -688,6 +775,13 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     val rows = ctl.emulator.rows
     val cols = ctl.emulator.cols
     return CellPos(row.coerceAtMost(rows - 1), col.coerceAtMost(cols - 1))
+  }
+
+  /** 指の座標にある画像パス。無ければ null。 */
+  private fun imagePathAtPixel(x: Float, y: Float): String? {
+    val pos = cellAtPixel(x, y) ?: return null
+    val emu = controller?.emulator ?: return null
+    return PathScan.imagePathAt(visibleLines(), emu.cols, pos.row, pos.col)
   }
 
   private fun beginSelection(pos: CellPos) {

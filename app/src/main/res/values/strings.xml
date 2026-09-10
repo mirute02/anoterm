@@ -176,9 +176,17 @@
     <string name="terminal_install_key">Install a public key</string>
     <string name="terminal_memo">Notes</string>
     <string name="terminal_help">Help</string>
+    <string name="image_fail_not_found">That file is not on the far end any more.</string>
+    <string name="image_fail_too_big">Too large to open here (over 5 MB).</string>
+    <string name="image_fail_unreadable">Could not read the file.</string>
+    <string name="image_fail_not_an_image">That is not an image this app can draw.</string>
+    <string name="image_loading">Reading it from the far end…</string>
+    <string name="image_size">%1$s, %2$d x %3$d</string>
     <string name="help_section_gestures">Touch</string>
     <string name="help_g_tap_bottom">Tap the bottom quarter</string>
     <string name="help_g_tap_bottom_desc">Opens the keyboard. Tapping anywhere else does nothing, so reading never moves the screen.</string>
+    <string name="help_g_tap_path">Tap an underlined path</string>
+    <string name="help_g_tap_path_desc">Opens the image it points at, read straight off the far end. Pinch to zoom, double tap to fit.</string>
     <string name="help_g_swipe">Swipe up / down</string>
     <string name="help_g_swipe_desc">Scrolls through the history. With tmux mouse mode on, the wheel event goes to the far end instead.</string>
     <string name="help_g_double_tap">Double tap</string>

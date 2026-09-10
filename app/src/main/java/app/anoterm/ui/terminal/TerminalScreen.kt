@@ -152,6 +152,9 @@ fun TerminalScreen(
   var showMemo by remember { mutableStateOf(false) }
   var showDisconnectConfirm by remember { mutableStateOf(false) }
   var showOverflow by remember { mutableStateOf(false) }
+  // 端末に出たパスが押されたとき、どのタブのどのファイルを開くか。
+  // タブを跨いで開くことはないが、ページャで隣のタブが生きているので取り違えないよう対にして持つ。
+  var imageRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
   var retryNonce by remember { mutableStateOf(0) }
   // カスタムショートカットバーはデフォルトで非表示。下部のツールバー右端の apps アイコンで切替。
   var showShortcutBar by remember { mutableStateOf(false) }
@@ -614,6 +617,7 @@ fun TerminalScreen(
                 lineSpacing = lineSpacing,
                 lineEnding = lineEnding,
                 relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
+                onImagePathTapped = { path -> imageRequest = currentTabId to path },
                 modifier = Modifier.fillMaxSize(),
                 viewBinding = { v -> terminalViews[currentTabId] = v },
             )
@@ -633,6 +637,7 @@ fun TerminalScreen(
                     lineSpacing = lineSpacing,
                     lineEnding = lineEnding,
                     relaxedImePrivacyForClipboard = terminalClipboardHistoryEnabled,
+                    onImagePathTapped = { path -> imageRequest = pageTabId to path },
                     modifier = Modifier.fillMaxSize(),
                     viewBinding = { v -> terminalViews[pageTabId] = v },
                 )
@@ -815,6 +820,19 @@ fun TerminalScreen(
           },
           onDismiss = { showTmuxTree = false },
       )
+    }
+    imageRequest?.let { (tabId, path) ->
+      val imageChannel = app.sessionManager.get(tabId)?.channel as? SshChannel
+      if (imageChannel != null) {
+        RemoteImageSheet(
+            channel = imageChannel,
+            path = path,
+            onDismiss = { imageRequest = null },
+        )
+      } else {
+        // ループバックや切断済みのタブには取りに行けない。黙って閉じる。
+        LaunchedEffect(Unit) { imageRequest = null }
+      }
     }
     if (showMemo) {
       MemoSheet(

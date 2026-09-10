@@ -10,6 +10,7 @@ import androidx.core.content.res.ResourcesCompat
 import app.anoterm.R
 import app.anoterm.terminal.emulator.AnsiColor
 import app.anoterm.terminal.emulator.TerminalBuffer
+import app.anoterm.terminal.PathSpan
 import app.anoterm.terminal.emulator.TerminalEmulator
 import app.anoterm.theme.TerminalPalette
 
@@ -39,6 +40,7 @@ class TerminalRenderer(
         textSize = fontSizePx
       }
   private val bgPaint = Paint()
+  private val linkPaint = android.graphics.Paint()
   private val underlinePaint = Paint()
   private val cursorPaint = Paint().apply { style = Paint.Style.FILL }
   private val selectionPaint = Paint()
@@ -119,6 +121,7 @@ class TerminalRenderer(
       scrollOffset: Int = 0,
       selectionStart: CellPos? = null,
       selectionEnd: CellPos? = null,
+      pathSpans: List<PathSpan> = emptyList(),
   ) {
     val cw = cellWidth
     val ch = cellHeight
@@ -224,6 +227,19 @@ class TerminalRenderer(
           drawGlyphInline(canvas, cell.codePoint, cell.style, x, y, cellRectWidth, ch)
         }
         c += w
+      }
+    }
+
+    // ===== Pass 3: 押せるパスに下線 =====
+    // 押せると分かる印が無ければ誰も押さない。色はカーソルと同じにして、
+    // 「この端末が注目してほしい所」の見た目を 1 つに保つ。
+    if (pathSpans.isNotEmpty()) {
+      linkPaint.color = palette.cursor.toAndroidColorInt()
+      val thickness = maxOf(1f, ch * 0.06f)
+      for (s in pathSpans) {
+        if (s.row !in 0 until buffer.rows) continue
+        val y = ch * (s.row + 1) - thickness * 2f
+        canvas.drawRect(cw * s.startCol, y, cw * (s.endCol + 1), y + thickness, linkPaint)
       }
     }
 

@@ -28,6 +28,7 @@ fun TerminalHost(
     lineSpacing: Float,
     lineEnding: LineEnding,
     relaxedImePrivacyForClipboard: Boolean = false,
+    onImagePathTapped: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewBinding: (TerminalView) -> Unit = {},
 ) {
@@ -42,6 +43,7 @@ fun TerminalHost(
           it.setLineSpacing(lineSpacing)
           it.setLineEnding(lineEnding)
           it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
+          it.onImagePathTapped = onImagePathTapped
           viewRef.view = it
           viewBinding(it)
         }
@@ -54,6 +56,7 @@ fun TerminalHost(
         it.setLineSpacing(lineSpacing)
         it.setLineEnding(lineEnding)
         it.setRelaxedImePrivacyForClipboard(relaxedImePrivacyForClipboard)
+        it.onImagePathTapped = onImagePathTapped
         viewRef.view = it
         viewBinding(it)
       },
