@@ -1065,6 +1065,35 @@ fun TerminalScreen(
           LaunchedEffect(Unit) { showTmux = false }
         }
       }
+      // 端末に出たパスを押したときに開く 2 枚。読み込みは作業中のシェルとは別の
+      // SSH セッションなので、コマンドラインに base64 が混ざらない。
+      textRequest?.let { (tabId, path) ->
+        val textChannel = app.sessionManager.get(tabId)?.channel as? SshChannel
+        if (textChannel != null) {
+          RemoteTextSheet(
+              channel = textChannel,
+              path = path,
+              tmuxSession = tabTmuxSessions[tabId],
+              onDismiss = { textRequest = null },
+          )
+        } else {
+          // ループバックや切断済みのタブには取りに行けない。黙って閉じる。
+          LaunchedEffect(Unit) { textRequest = null }
+        }
+      }
+      imageRequest?.let { (tabId, path) ->
+        val imageChannel = app.sessionManager.get(tabId)?.channel as? SshChannel
+        if (imageChannel != null) {
+          RemoteImageSheet(
+              channel = imageChannel,
+              path = path,
+              tmuxSession = tabTmuxSessions[tabId],
+              onDismiss = { imageRequest = null },
+          )
+        } else {
+          LaunchedEffect(Unit) { imageRequest = null }
+        }
+      }
       if (showMemo) {
         MemoSheet(
             contextLabel = labelFor(currentTabId),
