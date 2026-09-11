@@ -76,6 +76,16 @@ class TerminalSessionController(
    */
   var onScrollbackShift: ((Int) -> Unit)? = null
 
+  /**
+   * 表示側が最新（底）を追っているか。View が設定する。
+   *
+   * 底を追っている間は resize の後に直す表示位置が無いので、Main スレッドで
+   * 適用する理由がない。emulator のロックは受信スレッドが全画面の描き直しを
+   * 流し込んでいる間ずっと握られるので、そこを Main で待つと、全画面の
+   * 切り替えを何度かしただけでキーボードの開閉まで一緒にもたつく。
+   */
+  var isFollowingBottom: () -> Boolean = { true }
+
   private val _redrawSignal = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
   val redrawSignal = _redrawSignal.asSharedFlow()
 
@@ -190,11 +200,16 @@ class TerminalSessionController(
     // 途中の高さを何度も通過し、その一つ一つに SIGWINCH を送ると、リモートの TUI が
     // そのたびに全画面を描き直す。これが画面のガタつきの実体なので、落ち着くまで待つ。
     pendingResize?.cancel()
-    // Main で適用する。emulator の中身が変わるのと、それに合わせた表示位置の補正が
-    // 別スレッドに分かれると、1 フレームだけ補正前の位置が描かれてガタつく。
-    // SIGWINCH 送信は SshChannel が自前の IO スコープへ逃がすのでここは塞がらない。
+    // 履歴を遡っている間だけ Main で適用する。emulator の中身が変わるのと、それに
+    // 合わせた表示位置の補正が別スレッドに分かれると、1 フレームだけ補正前の位置が
+    // 描かれてガタつくため。底を追っているなら直す位置が無いので、IO のままでよい。
+    //
+    // 常に Main にしていた頃は、全画面を何度か切り替えるとキーボードの開閉まで
+    // もたついた。切り替えのたびに resize が走り、そのたびに Main が
+    // 「受信スレッドが全画面の描き直しを流し終わる」のを待っていた。
+    val dispatcher = if (isFollowingBottom()) Dispatchers.IO else Dispatchers.Main
     pendingResize =
-        scope.launch(Dispatchers.Main) {
+        scope.launch(dispatcher) {
           delay(RESIZE_SETTLE_MS)
           applyResize(rows, cols)
         }

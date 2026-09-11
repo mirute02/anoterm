@@ -385,6 +385,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
     this.controller?.onScrollbackShift = null
     this.controller = controller
     controller.onScrollbackShift = ::shiftScrollOffset
+    controller.isFollowingBottom = { scrollOffset == 0 }
     composingState.clear()
     ctrlArmed = false
     reflowToViewport()

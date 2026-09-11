@@ -105,14 +105,15 @@ fun FloatingReplyPad(
                 .alpha(if (dragging) 0.95f else 0.55f),
     ) {
       if (arrowMode) {
-        // 方向キー。十字の真ん中はつまみが占めているので、決定は左下に置く。
+        // 方向キー。十字の真ん中はつまみが占めているので、決定は右下に置く。
+        // 返答版の「3」と同じ場所で、親指の付け根から一番近い角でもある。
         // 矢印は 44dp。48dp だと十字とつまみが重なり、重なった帯は押せなくなる。
         ArrowButton("↑", Alignment.TopCenter) { onSend(ESC_UP) }
         ArrowButton("↓", Alignment.BottomCenter) { onSend(ESC_DOWN) }
         ArrowButton("←", Alignment.CenterStart) { onSend(ESC_LEFT) }
         ArrowButton("→", Alignment.CenterEnd) { onSend(ESC_RIGHT) }
         UtilityButton(
-            alignment = Alignment.BottomStart,
+            alignment = Alignment.BottomEnd,
             onClick = { onSend(ENTER) },
             color = MaterialTheme.colorScheme.secondaryContainer,
         ) {
