@@ -176,6 +176,9 @@
     <string name="terminal_install_key">Install a public key</string>
     <string name="terminal_memo">Notes</string>
     <string name="terminal_help">Help</string>
+    <string name="terminal_full_screen">Terminal only</string>
+    <string name="help_g_fullscreen">Terminal only, in the ⋮ menu</string>
+    <string name="help_g_fullscreen_desc">Drops the bar, the window row and the system bars, leaving the terminal and the floating pad. The bottom quarter still opens the keyboard. Back leaves it; swipe from an edge to bring the system bars back for a moment.</string>
     <string name="terminal_hide_window_bar">Hide the window row</string>
     <string name="terminal_show_window_bar">Show the window row</string>
     <string name="kbd_backtab">⇧Tab</string>

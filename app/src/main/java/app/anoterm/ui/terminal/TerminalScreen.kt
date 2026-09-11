@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
@@ -60,6 +61,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -79,7 +81,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.BackHandler
 import app.anoterm.BuildConfig
 import app.anoterm.R
 import androidx.annotation.StringRes
@@ -144,6 +150,7 @@ fun TerminalScreen(
   val lineSpacing by app.prefs.lineSpacing.collectAsStateWithLifecycle()
   val replyPadEnabled by app.prefs.replyPadEnabled.collectAsStateWithLifecycle()
   val leftMarginDp by app.prefs.leftMarginDp.collectAsStateWithLifecycle()
+  val fullScreen by app.prefs.fullScreen.collectAsStateWithLifecycle()
   val hideWindowBar by app.prefs.hideWindowBar.collectAsStateWithLifecycle()
   val splitVertical by app.prefs.splitVertical.collectAsStateWithLifecycle()
   val splitRatio by app.prefs.splitRatio.collectAsStateWithLifecycle()
@@ -427,6 +434,26 @@ fun TerminalScreen(
 
   val composeView = LocalView.current
 
+  // 全画面の間はシステムのバーも消す。「端末だけ」と言う以上、上の 24dp を残す理由が無い。
+  // 端から掃くと一時的に戻るので、時計も戻るボタンも見失わない。
+  // 画面を離れるときは必ず戻す。消したまま別の画面へ行くと、そちらで操作できなくなる。
+  DisposableEffect(fullScreen, composeView) {
+    val window = composeView.context.findActivity()?.window
+    val controller = window?.let { WindowCompat.getInsetsController(it, composeView) }
+    if (fullScreen) {
+      controller?.systemBarsBehavior =
+          WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+      controller?.hide(WindowInsetsCompat.Type.systemBars())
+    } else {
+      controller?.show(WindowInsetsCompat.Type.systemBars())
+    }
+    onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+  }
+
+  // 抜ける道は戻る操作。バーが無い以上、押す場所ではなく元から指が知っている操作に
+  // 割り当てないと、入ったきり出られない。
+  BackHandler(enabled = fullScreen) { app.prefs.setFullScreen(false) }
+
   // 接続を移ったら検索は畳む。探していたのは前の画面の中身で、移った先には無い。
   // 塗りも前の画面に残ったままになる。
   LaunchedEffect(currentTabId) {
@@ -506,6 +533,9 @@ fun TerminalScreen(
                 WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
             ),
         topBar = {
+          // 全画面のときはバーごと出さない。高さを 0 にするのではなく、
+          // 中身を作らないことで Scaffold の inner padding も 0 になる。
+          if (fullScreen) return@Scaffold
           TopAppBar(
               // 接続が 2 本以上あるときは、見出しの代わりにタブを並べる。
               // タブの名前はそのまま「今どの接続にいるか」で、見出しと役割が重なる。
@@ -558,6 +588,16 @@ fun TerminalScreen(
                   )
                 }
                 DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
+                  DropdownMenuItem(
+                      text = { Text(stringResource(R.string.terminal_full_screen)) },
+                      leadingIcon = {
+                        Icon(Icons.Filled.Fullscreen, contentDescription = null)
+                      },
+                      onClick = {
+                        showOverflow = false
+                        app.prefs.setFullScreen(true)
+                      },
+                  )
                   DropdownMenuItem(
                       text = {
                         Text(
@@ -684,7 +724,7 @@ fun TerminalScreen(
         val tmuxBundle = app.sessionManager.get(currentTabId)
         val tmuxChannel = tmuxBundle?.channel as? SshChannel
         val tmuxSessionName = tabTmuxSessions[currentTabId]
-        if (tmuxChannel != null && tmuxSessionName != null && !hideWindowBar) {
+        if (tmuxChannel != null && tmuxSessionName != null && !hideWindowBar && !fullScreen) {
           TmuxBar(
               channel = tmuxChannel,
               ttyVar = TmuxController.ttyVarFor(currentTabId),
@@ -1060,6 +1100,19 @@ fun TerminalScreen(
     }
   }
 }
+
+/**
+ * View の Context から Activity を辿る。
+ *
+ * Compose の中で得られる Context は ContextWrapper で包まれていることがあり、
+ * そのまま Activity にキャストすると環境によって落ちる。包みを剥がしながら探す。
+ */
+private tailrec fun Context.findActivity(): android.app.Activity? =
+    when (this) {
+      is android.app.Activity -> this
+      is android.content.ContextWrapper -> baseContext.findActivity()
+      else -> null
+    }
 
 @Composable
 private fun ConnectionDot(state: ConnectionState) {

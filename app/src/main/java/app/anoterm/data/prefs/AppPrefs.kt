@@ -67,6 +67,15 @@ class AppPrefs(context: Context) {
   val leftMarginDp: StateFlow<Float> = _leftMarginDp.asStateFlow()
 
   /**
+   * 端末だけの全画面。上のバーも tmux の行も、システムのバーも消える。
+   *
+   * 覚えておく。読むための姿勢であって、その都度入り直す物ではない。抜ける道は
+   * 戻る操作に常に用意してあるので、忘れて起動しても詰まらない。
+   */
+  private val _fullScreen = MutableStateFlow(sp.getBoolean(KEY_FULL_SCREEN, false))
+  val fullScreen: StateFlow<Boolean> = _fullScreen.asStateFlow()
+
+  /**
    * tmux のウィンドウ列を隠すか。
    *
    * 隠しても行き先は消えない。抽斗 (≡) に全接続のウィンドウが並んでいる。
@@ -168,6 +177,11 @@ class AppPrefs(context: Context) {
     val clamped = value.coerceIn(0f, MAX_LEFT_MARGIN_DP)
     sp.edit().putFloat(KEY_LEFT_MARGIN, clamped).apply()
     _leftMarginDp.value = clamped
+  }
+
+  fun setFullScreen(on: Boolean) {
+    sp.edit().putBoolean(KEY_FULL_SCREEN, on).apply()
+    _fullScreen.value = on
   }
 
   fun setHideWindowBar(hide: Boolean) {
@@ -386,6 +400,7 @@ class AppPrefs(context: Context) {
     private const val KEY_REPLY_PAD_ENABLED = "reply_pad_enabled"
     private const val KEY_LEFT_MARGIN = "left_margin_dp"
     const val MAX_LEFT_MARGIN_DP = 48f
+    private const val KEY_FULL_SCREEN = "full_screen"
     private const val KEY_HIDE_WINDOW_BAR = "hide_window_bar"
     private const val KEY_SPLIT_VERTICAL = "split_vertical"
     private const val KEY_SPLIT_RATIO = "split_ratio"
