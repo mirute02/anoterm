@@ -435,13 +435,40 @@ fun TerminalScreen(
   LaunchedEffect(displayedTabId.value, sortedTabs) {
     val target = displayedTabId.value ?: return@LaunchedEffect
     val idx = sortedTabs.indexOf(target)
-    if (idx >= 0 && idx != pagerState.currentPage) {
+    // 指やアニメーションが pager を動かしている最中は触らない。ここで scrollToPage を
+    // 撃つと、タブを選んで滑っている途中の pager を途中で止めてしまい、
+    // 「押したタブと違う所に着く」ことがあった。
+    if (idx >= 0 && idx != pagerState.currentPage && !pagerState.isScrollInProgress) {
       pagerState.scrollToPage(idx)
     }
   }
 
   val currentTabId by remember(pagerState, sortedTabs) {
     derivedStateOf { sortedTabs.getOrNull(pagerState.currentPage) ?: tabId }
+  }
+
+  /**
+   * タブを閉じる。**閉じる前に次の行き先を決める**のが要点。
+   *
+   * 以前は `closeTab` を呼ぶだけだった。閉じたのが表示中のタブだと、`displayedTabId` は
+   * 死んだ id を指したまま、pager の番号だけが詰められる。そこから 3 つの Effect が
+   * 互いに追いかけ合って、どのタブが出るかが運任せになっていた。
+   *
+   * 行き先は左隣を優先する。右を詰めると、閉じるたびに一覧が左へ流れていくように見える。
+   */
+  fun closeTabAndMoveOn(id: String) {
+    val idx = sortedTabs.indexOf(id)
+    val next =
+        when {
+          idx < 0 -> null
+          idx > 0 -> sortedTabs[idx - 1]
+          sortedTabs.size > 1 -> sortedTabs[1]
+          else -> null
+        }
+    if (next != null) displayedTabId.value = next
+    app.sessionManager.closeTab(id)
+    // 最後の 1 枚を閉じたなら、この画面に留まる理由がない。
+    if (app.sessionManager.activeTabIds().isEmpty()) onBack()
   }
 
   // 現在のタブの接続状態を dot で表示するため、StateFlow を collect
@@ -523,6 +550,7 @@ fun TerminalScreen(
                 coroutineScope.launch { drawerState.close() }
                 onBack()
               },
+              onCloseTab = { id -> closeTabAndMoveOn(id) },
               onKillWindow = { jump -> killWindow = jump },
               onKillSession = { tabId, session -> killSession = tabId to session },
               onJump = { jump ->
@@ -584,7 +612,7 @@ fun TerminalScreen(
                         val idx = sortedTabs.indexOf(id)
                         if (idx >= 0) coroutineScope.launch { pagerState.animateScrollToPage(idx) }
                       },
-                      onClose = { id -> app.sessionManager.closeTab(id) },
+                      onClose = { id -> closeTabAndMoveOn(id) },
                   )
                 } else {
                   Row(verticalAlignment = Alignment.CenterVertically) {
@@ -707,16 +735,9 @@ fun TerminalScreen(
                     )
                   }
                   HorizontalDivider()
-                  DropdownMenuItem(
-                      text = { Text(stringResource(R.string.terminal_back_to_hosts)) },
-                      leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                      },
-                      onClick = {
-                        showOverflow = false
-                        onBack()
-                      },
-                  )
+                  // 「ホスト一覧へ戻る」は抽斗 (≡) にある。行き先は行き先の一覧に
+                  // 一度だけ置く。ここに残すと、同じ物が二か所にあるうえ、
+                  // 全画面ではこのメニュー自体が出せないので、置き場所としても不適。
                   DropdownMenuItem(
                       text = {
                         Text(
@@ -919,7 +940,7 @@ fun TerminalScreen(
                   onTapTarget = { target -> handleTapTarget(currentTabId, target) },
                 onScrollPosition = { n -> linesBack = n },
                 onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
-                onTwoFingerDoubleTap = { app.prefs.setFullScreen(!fullScreen) },
+                onToggleFullScreen = { app.prefs.setFullScreen(!fullScreen) },
                 onAnyTap = { if (fullScreen) exitChipAt = System.currentTimeMillis() },
                   modifier = Modifier.fillMaxSize(),
                   viewBinding = { v -> terminalViews[currentTabId] = v },
@@ -944,7 +965,7 @@ fun TerminalScreen(
                       onTapTarget = { target -> handleTapTarget(pageTabId, target) },
                     onScrollPosition = { n -> if (pageTabId == currentTabId) linesBack = n },
                     onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
-                    onTwoFingerDoubleTap = { app.prefs.setFullScreen(!fullScreen) },
+                    onToggleFullScreen = { app.prefs.setFullScreen(!fullScreen) },
                     onAnyTap = { if (fullScreen) exitChipAt = System.currentTimeMillis() },
                       modifier = Modifier.fillMaxSize(),
                       viewBinding = { v -> terminalViews[pageTabId] = v },
@@ -1269,9 +1290,7 @@ fun TerminalScreen(
               TextButton(
                   onClick = {
                     showDisconnectConfirm = false
-                    app.sessionManager.closeTab(currentTabId)
-                    // すべてのタブを閉じた場合 onBack を呼んでホスト一覧へ戻す。
-                    if (app.sessionManager.activeTabIds().isEmpty()) onBack()
+                    closeTabAndMoveOn(currentTabId)
                   },
               ) {
                 Text(stringResource(R.string.host_disconnect), color = MaterialTheme.colorScheme.error)

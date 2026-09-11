@@ -164,16 +164,12 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   var onScrollPositionChanged: ((linesBack: Int) -> Unit)? = null
 
   /**
-   * 二本指のダブルタップ。全画面の出入りに使う。
-   *
-   * 一本指のダブルタップは Tab のままにした。あれは他の端末アプリと同じ慣習で、
-   * 補完のために頻繁に打つもの。全画面の切り替えは一日に数回で、頻度が二桁違う。
-   * 頻度の高いほうを譲るのは筋が悪い。
+   * 全画面を行き来する。ダブルタップ（一本指・二本指のどちらでも）から呼ぶ。
    *
    * メニューからも入れるが、出るときにメニューは無い。入りと出が同じ操作で、
    * どちらの向きにも効くものが要る。
    */
-  var onTwoFingerDoubleTap: (() -> Unit)? = null
+  var onToggleFullScreen: (() -> Unit)? = null
 
   /**
    * 単タップが確定したことだけを伝える。そのタップが何をしたかは問わない。
@@ -214,10 +210,21 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
               return false
             }
 
-            // ダブルタップで Tab (0x09) を送る。他ターミナルアプリ（Termius 等）の慣習に合わせ、
-            // シェル補完を素早く呼び出せるようにする UX。
+            /**
+             * ダブルタップで全画面を行き来する。
+             *
+             * 以前は Tab (0x09) を送っていた（Termius 等の慣習）。やめたのは、補完のために
+             * Tab を打つのはキーボードを出している時で、その時には補助キー列に Tab が
+             * 並んでいるから。同じ物が指の届く所に二つある一方で、全画面の出口は
+             * メニューの中にしか無く、全画面ではそのメニューが出せなかった。
+             * 出口の無いほうに割り当て直した。
+             */
             override fun onDoubleTap(e: MotionEvent): Boolean {
-              sendBytes(byteArrayOf(0x09))
+              performHapticFeedback(
+                  HapticFeedbackConstants.LONG_PRESS,
+                  HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+              )
+              onToggleFullScreen?.invoke()
               return true
             }
 
@@ -1085,7 +1092,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
                 HapticFeedbackConstants.LONG_PRESS,
                 HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
             )
-            onTwoFingerDoubleTap?.invoke()
+            onToggleFullScreen?.invoke()
           } else {
             lastTwoFingerTapAt = event.eventTime
           }

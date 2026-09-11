@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,13 +14,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,7 +68,13 @@ fun TmuxTreeContent(
     onKillSession: (String, String) -> Unit = { _, _ -> },
     /** ホスト一覧へ戻る。抽斗は「行き先の一覧」なので、いちばん外側の行き先もここに置く。 */
     onGoHome: () -> Unit = {},
+    /** 接続タブごと閉じる。 */
+    onCloseTab: (String) -> Unit = {},
 ) {
+  // 「整理」に入っている間だけ × を出す。長押しだけだと、そんな操作があること自体が
+  // 見えない。かといって常に × を並べると、行き先を選ぶ的の隣に壊す的が並ぶ。
+  // 見えるボタンで入る一時的なモードなら、どちらも避けられる。
+  var managing by remember { mutableStateOf(false) }
   Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
     // 版を出しておく。手元の端末に何が入っているのか確かめる手段が無いと、
     // 「直したはずのものが直っていない」ときに、入っていないのか効いていないのかが
@@ -75,11 +89,21 @@ fun TmuxTreeContent(
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.primary,
       )
-      Text(
-          text = BuildConfig.VERSION_NAME,
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = BuildConfig.VERSION_NAME,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = { managing = !managing }) {
+          Text(
+              stringResource(
+                  if (managing) R.string.tmux_tree_manage_done else R.string.tmux_tree_manage,
+              ),
+              style = MaterialTheme.typography.labelMedium,
+          )
+        }
+      }
     }
 
     // 全画面のときは上のバーが無く、⋮ メニューも出せない。抽斗は ≡ で必ず開けるので、
@@ -123,13 +147,16 @@ fun TmuxTreeContent(
       else ->
           LazyColumn(modifier = Modifier.fillMaxWidth()) {
             connections.forEach { conn ->
-              item(key = "c:" + conn.tabId) { ConnectionHeader(conn) }
+              item(key = "c:" + conn.tabId) {
+                ConnectionHeader(conn, managing = managing, onClose = { onCloseTab(conn.tabId) })
+              }
               conn.sessions.forEach { (session, windows) ->
                 item(key = "s:" + conn.tabId + ":" + session) {
                   SessionHeader(
                       session,
                       attached = session == conn.snapshot?.attached,
-                      onLongClick = { onKillSession(conn.tabId, session) },
+                      managing = managing,
+                      onKill = { onKillSession(conn.tabId, session) },
                   )
                 }
                 items(
@@ -142,7 +169,8 @@ fun TmuxTreeContent(
                       here = conn.tabId == currentTabId && w.active,
                       dirty = activity.isDirty(conn.tabId, w),
                       onClick = { onJump(TmuxJump(conn.tabId, w)) },
-                      onLongClick = { onKillWindow(TmuxJump(conn.tabId, w)) },
+                      managing = managing,
+                      onKill = { onKillWindow(TmuxJump(conn.tabId, w)) },
                   )
                 }
               }
@@ -154,12 +182,14 @@ fun TmuxTreeContent(
 }
 
 @Composable
-private fun ConnectionHeader(conn: TmuxTreeConnection) {
+private fun ConnectionHeader(conn: TmuxTreeConnection, managing: Boolean, onClose: () -> Unit) {
   HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
   Row(
       modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically,
   ) {
+    if (managing) KillButton(onClose)
     Text(conn.label, style = MaterialTheme.typography.labelLarge)
     if (conn.snapshot == null || conn.snapshot.windows.isEmpty()) {
       // 接続は生きているが tmux が使えない。行ごと消すと「繋いだはずの接続が
@@ -190,14 +220,21 @@ private fun ConnectionHeader(conn: TmuxTreeConnection) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SessionHeader(session: String, attached: Boolean, onLongClick: () -> Unit) {
+private fun SessionHeader(
+    session: String,
+    attached: Boolean,
+    managing: Boolean,
+    onKill: () -> Unit,
+) {
   Row(
       modifier =
           Modifier.fillMaxWidth()
-              .combinedClickable(onClick = {}, onLongClick = onLongClick)
+              .combinedClickable(onClick = {}, onLongClick = onKill)
               .padding(start = 12.dp, top = 4.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically,
   ) {
+    if (managing) KillButton(onKill)
     Text(session, style = MaterialTheme.typography.labelMedium)
     if (attached) {
       Text(
@@ -216,7 +253,8 @@ private fun WindowRow(
     here: Boolean,
     dirty: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    managing: Boolean,
+    onKill: () -> Unit,
 ) {
   val background =
       if (here) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
@@ -226,10 +264,12 @@ private fun WindowRow(
               .background(background)
               // 短く押せば飛ぶ、長く押せば消す。並んだ行に × を足すと、行き先を
               // 選ぶ操作の隣に破壊的な的が並ぶことになる。押し間違いの代償が違いすぎる。
-              .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-              .padding(start = 28.dp, top = 10.dp, bottom = 10.dp, end = 8.dp),
+              .combinedClickable(onClick = onClick, onLongClick = onKill)
+              .padding(start = if (managing) 4.dp else 28.dp, top = 6.dp, bottom = 6.dp, end = 8.dp),
       horizontalArrangement = Arrangement.spacedBy(10.dp),
+      verticalAlignment = Alignment.CenterVertically,
   ) {
+    if (managing) KillButton(onKill)
     Text(
         text = window.index.toString(),
         fontFamily = FontFamily.Monospace,
@@ -261,5 +301,22 @@ private fun WindowRow(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
+  }
+}
+
+/** 整理の間だけ出る「閉じる」。押した先で必ず確認が出る。 */
+@Composable
+private fun KillButton(onClick: () -> Unit) {
+  Box(
+      modifier =
+          Modifier.size(28.dp).clip(CircleShape).clickable(onClick = onClick),
+      contentAlignment = Alignment.Center,
+  ) {
+    Icon(
+        Icons.Filled.Close,
+        contentDescription = null,
+        modifier = Modifier.size(16.dp),
+        tint = MaterialTheme.colorScheme.error,
+    )
   }
 }

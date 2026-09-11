@@ -233,7 +233,7 @@
     <string name="help_g_swipe">Swipe up / down</string>
     <string name="help_g_swipe_desc">Scrolls through the history, and keeps going if you flick. While you are back in the history a button appears at the bottom saying how far back you are; tap it to return to the latest. With tmux mouse mode on, the wheel event goes to the far end instead.</string>
     <string name="help_g_double_tap">Double tap</string>
-    <string name="help_g_double_tap_desc">Sends Tab, for shell completion.</string>
+    <string name="help_g_double_tap_desc">Goes in and out of terminal-only. Tab is not on this gesture any more: Tab is pressed while typing, and the key row is right there when you are, whereas the way out of full screen was nowhere.</string>
     <string name="help_g_long_press">Long press, then drag</string>
     <string name="help_g_long_press_desc">Selects text. Release to get Copy; drag either end handle to adjust. Tap outside to clear.</string>
     <string name="help_g_pinch">Pinch</string>
@@ -412,6 +412,8 @@
     <string name="tmux_tree_no_windows">tmux answered but listed no window (%1$d lines back, %2$d understood)</string>
     <string name="tmux_tree_attached">attached</string>
     <string name="tmux_tree_open">Open the window list</string>
+    <string name="tmux_tree_manage">Manage</string>
+    <string name="tmux_tree_manage_done">Done</string>
     <string name="tmux_kill_window_title">Close this window?</string>
     <string name="tmux_kill_window_body">%1$s window %2$d (%3$s). Whatever is running in it goes with it.</string>
     <string name="tmux_kill_session_title">Close this session?</string>

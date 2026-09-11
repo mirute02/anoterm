@@ -221,7 +221,7 @@
     <string name="help_g_swipe">上下にスワイプ</string>
     <string name="help_g_swipe_desc">履歴をスクロールする。勢いよく払えばそのまま流れる。遡っている間は下に「何行前」のボタンが出て、押すと最新に戻る。tmux のマウスモードが有効なときは、ホイール操作としてリモートへ送る。</string>
     <string name="help_g_double_tap">ダブルタップ</string>
-    <string name="help_g_double_tap_desc">Tab を送る。シェルの補完用。</string>
+    <string name="help_g_double_tap_desc">端末だけの全画面を行き来する。Tab はこのジェスチャから外した（Tab を打つのはキーボードを出している時で、その時には補助キー列に並んでいる。全画面の出口はどこにも無かった）。</string>
     <string name="help_g_long_press">長押ししてドラッグ</string>
     <string name="help_g_long_press_desc">文字を範囲選択する。離すとコピーが出る。両端のハンドルで範囲を調整でき、範囲の外をタップすると解除。</string>
     <string name="help_g_pinch">ピンチ</string>
@@ -400,6 +400,8 @@
     <string name="tmux_tree_no_windows">tmux は答えたがウィンドウ 0 件 (%1$d 行返り、うち %2$d 行を解釈)</string>
     <string name="tmux_tree_attached">表示中</string>
     <string name="tmux_tree_open">ウィンドウ一覧を開く</string>
+    <string name="tmux_tree_manage">整理</string>
+    <string name="tmux_tree_manage_done">完了</string>
     <string name="tmux_kill_window_title">このウィンドウを閉じますか？</string>
     <string name="tmux_kill_window_body">%1$s のウィンドウ %2$d (%3$s)。中で動いているものは道連れになります。</string>
     <string name="tmux_kill_session_title">このセッションを閉じますか？</string>
