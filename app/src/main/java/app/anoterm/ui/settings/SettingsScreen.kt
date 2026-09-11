@@ -57,6 +57,7 @@ fun SettingsScreen(
   val lineSpacing by prefs.lineSpacing.collectAsStateWithLifecycle()
   val hideTmuxStatus by prefs.hideTmuxStatus.collectAsStateWithLifecycle()
   val replyPad by prefs.replyPadEnabled.collectAsStateWithLifecycle()
+  val padArrows by prefs.padArrows.collectAsStateWithLifecycle()
   val leftMargin by prefs.leftMarginDp.collectAsStateWithLifecycle()
   val splitVertical by prefs.splitVertical.collectAsStateWithLifecycle()
   val splitRatio by prefs.splitRatio.collectAsStateWithLifecycle()
@@ -220,6 +221,24 @@ fun SettingsScreen(
                 checked = terminalClipboardHistoryEnabled,
                 onCheckedChange = { prefs.setTerminalClipboardHistoryEnabled(it) },
             )
+          },
+      )
+      ListItem(
+          headlineContent = { Text(stringResource(R.string.settings_pad_contents)) },
+          supportingContent = { Text(stringResource(R.string.settings_pad_contents_summary)) },
+          trailingContent = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              FilterChip(
+                  selected = !padArrows,
+                  onClick = { prefs.setPadArrows(false) },
+                  label = { Text(stringResource(R.string.settings_pad_reply)) },
+              )
+              FilterChip(
+                  selected = padArrows,
+                  onClick = { prefs.setPadArrows(true) },
+                  label = { Text(stringResource(R.string.settings_pad_arrows)) },
+              )
+            }
           },
       )
       ListItem(

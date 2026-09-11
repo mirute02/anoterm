@@ -307,6 +307,30 @@ object TmuxController {
     return run(channel, "switch-client -c " + quote(clientTty) + " -t " + quote("=" + session))
   }
 
+  /**
+   * ウィンドウを閉じる。中で動いているものは道連れになる。
+   *
+   * `kill-server` は絶対に使わない。あれは自分がぶら下がっている tmux ごと落とすので、
+   * 「ウィンドウを 1 つ閉じたい」の答えには決してならない。対象は必ず `-t` で名指しする。
+   */
+  suspend fun killWindow(channel: SshChannel, window: TmuxWindow): Boolean {
+    if (!isSafeSessionName(window.session)) {
+      Logger.w("Tmux", "refusing to kill a window whose session name cannot be quoted")
+      return false
+    }
+    return run(channel, "kill-window -t " + quote(window.target))
+  }
+
+  /** セッションごと閉じる。中のウィンドウも全部道連れ。 */
+  suspend fun killSession(channel: SshChannel, session: String): Boolean {
+    if (!isSafeSessionName(session)) {
+      Logger.w("Tmux", "refusing to kill a session whose name cannot be quoted")
+      return false
+    }
+    // `=` を付けて完全一致にする。付けないと前方一致で、`work` が `work2` を巻き込む。
+    return run(channel, "kill-session -t " + quote("=" + session))
+  }
+
   /** `tmux <args>` を実行し、成功したかどうかだけ返す。 */
   suspend fun run(channel: SshChannel, args: String): Boolean {
     val result =

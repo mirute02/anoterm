@@ -2,6 +2,7 @@ package app.anoterm.ui.terminal
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
@@ -49,7 +50,7 @@ import kotlin.math.roundToInt
  * 「押したつもりが動いた」「動かしたつもりが送信された」が避けられない。
  *
  * 配置と色の決めごと:
- *   上段 Esc(小) / 1(大) / キーボード(小)、中段左に ⇧Tab(小)、下段に 2 / 3(大)、中央につまみ。
+ *   上段 Esc(小) / 1(大) / キーボード(小)、下段に 2 / 3(大)、中央につまみ。
  *   **色は役割**。文字を送るもの (Esc・1・2・3) は同じ色、アプリの側を変えるもの
  *   (キーボード・⇧Tab) は別の色。**大きさは頻度**。1/2/3 が一番押されるので一番大きい。
  *
@@ -60,6 +61,10 @@ import kotlin.math.roundToInt
 fun FloatingReplyPad(
     onSend: (ByteArray) -> Unit,
     onShowKeyboard: () -> Unit,
+    /** true なら方向キーと決定、false なら返答キー。 */
+    arrowMode: Boolean,
+    /** つまみの長押しで中身を入れ替える。 */
+    onToggleMode: () -> Unit,
     position: Pair<Float, Float>,
     onMove: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
@@ -99,9 +104,30 @@ fun FloatingReplyPad(
                 .size(PAD_SIZE)
                 .alpha(if (dragging) 0.95f else 0.55f),
     ) {
-      PadButton("1", Alignment.TopCenter) { onSend(replyBytes("1")) }
-      PadButton("2", Alignment.BottomStart) { onSend(replyBytes("2")) }
-      PadButton("3", Alignment.BottomEnd) { onSend(replyBytes("3")) }
+      if (arrowMode) {
+        // 方向キー。十字の真ん中はつまみが占めているので、決定は左下に置く。
+        // 矢印は 44dp。48dp だと十字とつまみが重なり、重なった帯は押せなくなる。
+        ArrowButton("↑", Alignment.TopCenter) { onSend(ESC_UP) }
+        ArrowButton("↓", Alignment.BottomCenter) { onSend(ESC_DOWN) }
+        ArrowButton("←", Alignment.CenterStart) { onSend(ESC_LEFT) }
+        ArrowButton("→", Alignment.CenterEnd) { onSend(ESC_RIGHT) }
+        UtilityButton(
+            alignment = Alignment.BottomStart,
+            onClick = { onSend(ENTER) },
+            color = MaterialTheme.colorScheme.secondaryContainer,
+        ) {
+          Text(
+              text = "⏎",
+              fontWeight = FontWeight.Bold,
+              style = MaterialTheme.typography.titleMedium,
+              color = MaterialTheme.colorScheme.onSecondaryContainer,
+          )
+        }
+      } else {
+        PadButton("1", Alignment.TopCenter) { onSend(replyBytes("1")) }
+        PadButton("2", Alignment.BottomStart) { onSend(replyBytes("2")) }
+        PadButton("3", Alignment.BottomEnd) { onSend(replyBytes("3")) }
+      }
 
       // Esc。改行は付けない。付けると、閉じた直後の画面に空行が入る。
       // 色は数字と同じ（どちらも文字を送るもの）、大きさは小さめ（頻度が下がる）。
@@ -126,29 +152,20 @@ fun FloatingReplyPad(
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-      // Claude Code の権限モードを回す Shift+Tab。承認を聞かれるのはキーボードを閉じて
-      // 読んでいる時なので、そこから 1 タップで届くのが筋。
-      //
-      // 今どのモードかを色で示すのは一度作って取り消した。モードは Claude Code の
-      // セッション記録から読めるが、どの記録がこのウィンドウのものかは tmux のペインの
-      // 現在地からの当て推量で、同じディレクトリに複数立てていると取り違える。
-      // 「承認が自動かどうか」で嘘を吐く表示は、表示が無いより悪い。
-      UtilityButton(Alignment.CenterStart, { onSend(ESC_BACKTAB) }) {
-        Text(
-            text = "⇧⇥",
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-
       // 中央のつまみ。ここだけがドラッグを受ける。
+      //
+      // 当たり判定は見た目より大きく取る。見えている丸と同じ 22dp で受けていた頃は、
+      // 少し外すと何も起きず「たまに反応しない」になっていた。Material の最小タップは
+      // 48dp で、その半分以下だった。指は自分がどこを押したか見えない。
       Box(
           modifier =
               Modifier.align(Alignment.Center)
-                  .size(HANDLE_SIZE)
-                  .clip(CircleShape)
-                  .background(MaterialTheme.colorScheme.onSurfaceVariant)
+                  .size(HANDLE_TOUCH_SIZE)
+                  // 長押しで中身を入れ替える。パッドの上でいちばん「パッド自身」に近い
+                  // 場所なので、パッドの性格を変える操作はここに置く。
+                  .pointerInput(onToggleMode) {
+                    detectTapGestures(onLongPress = { onToggleMode() })
+                  }
                   .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { dragging = true },
@@ -165,7 +182,15 @@ fun FloatingReplyPad(
                       if (my > 0f) ry = (ry + drag.y / my).coerceIn(0f, 1f)
                     }
                   },
-      )
+          contentAlignment = Alignment.Center,
+      ) {
+        Box(
+            modifier =
+                Modifier.size(HANDLE_DOT_SIZE)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant),
+        )
+      }
     }
   }
 }
@@ -215,6 +240,38 @@ private fun androidx.compose.foundation.layout.BoxScope.PadButton(
   }
 }
 
+/** 方向キー。数字より一回り小さいのは、十字とつまみが重ならない大きさがこれだから。 */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.ArrowButton(
+    label: String,
+    alignment: Alignment,
+    onClick: () -> Unit,
+) {
+  Surface(
+      onClick = onClick,
+      modifier = Modifier.align(alignment).size(ARROW_BUTTON_SIZE),
+      shape = CircleShape,
+      color = MaterialTheme.colorScheme.secondaryContainer,
+      shadowElevation = 3.dp,
+  ) {
+    Box(contentAlignment = Alignment.Center) {
+      Text(
+          text = label,
+          fontWeight = FontWeight.Bold,
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSecondaryContainer,
+      )
+    }
+  }
+}
+
+// CSI は必ず ESC (0x1B) 始まり。0x1B を明示して定義し、編集で invisibly に落ちるのを防ぐ。
+private val ESC_UP = byteArrayOf(0x1B, '['.code.toByte(), 'A'.code.toByte())
+private val ESC_DOWN = byteArrayOf(0x1B, '['.code.toByte(), 'B'.code.toByte())
+private val ESC_RIGHT = byteArrayOf(0x1B, '['.code.toByte(), 'C'.code.toByte())
+private val ESC_LEFT = byteArrayOf(0x1B, '['.code.toByte(), 'D'.code.toByte())
+private val ENTER = "\r".toByteArray(Charsets.US_ASCII)
+
 /** 番号を選ばせるプロンプトは改行まで来て初めて確定する。 */
 private fun replyBytes(key: String): ByteArray = (key + "\r").toByteArray(Charsets.US_ASCII)
 
@@ -228,7 +285,17 @@ private fun replyBytes(key: String): ByteArray = (key + "\r").toByteArray(Charse
 private val PAD_SIZE = 152.dp
 private val BUTTON_SIZE = 52.dp
 private val UTILITY_BUTTON_SIZE = 40.dp
+private val ARROW_BUTTON_SIZE = 44.dp
 
 /** Shift+Tab = CSI Z。ESC は 0x1B を明示する（文字列に埋めると編集で落ちる）。 */
 val ESC_BACKTAB = byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())
-private val HANDLE_SIZE = 22.dp
+/** 見えている丸。小さいほうが本文を隠さない。 */
+private val HANDLE_DOT_SIZE = 22.dp
+
+/**
+ * つまみが指を受ける範囲。丸より大きい。
+ *
+ * 152dp の枠で 48dp を中央に置くと (52,52)-(100,100) で、上段 52dp・下段 52dp の
+ * どのボタンとも辺で接するだけで重ならない。広げるならこの計算をやり直すこと。
+ */
+private val HANDLE_TOUCH_SIZE = 48.dp

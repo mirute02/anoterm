@@ -21,8 +21,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import android.view.HapticFeedbackConstants
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -55,6 +58,7 @@ fun KeyboardToolbar(
       modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
       horizontalArrangement = Arrangement.spacedBy(4.dp),
   ) {
+    val tap = rememberKeyTap()
     // スクロール可能な中央のキー群
     Row(
         modifier =
@@ -73,7 +77,10 @@ fun KeyboardToolbar(
       REPLY_KEYS.forEach { (label, bytes) -> KeyButton(label) { onSend(bytes) } }
       if (ctrlArmed) {
         FilledTonalButton(
-            onClick = onToggleCtrl,
+            onClick = {
+              tap()
+              onToggleCtrl()
+            },
             contentPadding = TinyPadding,
             modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 32.dp),
         ) {
@@ -81,7 +88,10 @@ fun KeyboardToolbar(
         }
       } else {
         OutlinedButton(
-            onClick = onToggleCtrl,
+            onClick = {
+              tap()
+              onToggleCtrl()
+            },
             contentPadding = TinyPadding,
             modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 32.dp),
         ) {
@@ -134,10 +144,35 @@ private fun IconToggleButtonBar(
   }
 }
 
+/**
+ * 押した手応えを返す。
+ *
+ * 画面の上の平らなボタンは、押せたかどうかが指に返ってこない。端末に何が送られたかは
+ * 相手の反応を待たないと分からないので、返事が遅いときほど「押せたのか」が分からない。
+ * `FLAG_IGNORE_VIEW_SETTING` を付けるのは、端末側の触覚設定を切っている人でも
+ * このボタンだけは返したいから（文字を送るキーは、押し損ねが直接の実害になる）。
+ */
+@Composable
+private fun rememberKeyTap(): () -> Unit {
+  val view = LocalView.current
+  return remember(view) {
+    {
+      view.performHapticFeedback(
+          HapticFeedbackConstants.KEYBOARD_TAP,
+          HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+      )
+    }
+  }
+}
+
 @Composable
 private fun KeyButton(label: String, onClick: () -> Unit) {
+  val tap = rememberKeyTap()
   OutlinedButton(
-      onClick = onClick,
+      onClick = {
+        tap()
+        onClick()
+      },
       contentPadding = TinyPadding,
       modifier = Modifier.defaultMinSize(minWidth = 40.dp, minHeight = 32.dp),
       colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
@@ -152,8 +187,12 @@ private fun IconKeyButton(
     contentDescription: String,
     onClick: () -> Unit,
 ) {
+  val tap = rememberKeyTap()
   OutlinedButton(
-      onClick = onClick,
+      onClick = {
+        tap()
+        onClick()
+      },
       contentPadding = TinyPadding,
       modifier = Modifier.defaultMinSize(minWidth = 40.dp, minHeight = 32.dp),
       colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),

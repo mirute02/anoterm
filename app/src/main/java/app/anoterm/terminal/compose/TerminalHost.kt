@@ -33,6 +33,7 @@ fun TerminalHost(
     onTapTarget: (TapTarget) -> Unit = {},
     onScrollPosition: (Int) -> Unit = {},
     onFontSizeChanged: (Float) -> Unit = {},
+    onTwoFingerDoubleTap: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewBinding: (TerminalView) -> Unit = {},
 ) {
@@ -51,6 +52,8 @@ fun TerminalHost(
           it.onTapTarget = onTapTarget
           it.onScrollPositionChanged = onScrollPosition
           it.onFontSizeChanged = onFontSizeChanged
+        it.onTwoFingerDoubleTap = onTwoFingerDoubleTap
+          it.onTwoFingerDoubleTap = onTwoFingerDoubleTap
           viewRef.view = it
           viewBinding(it)
         }

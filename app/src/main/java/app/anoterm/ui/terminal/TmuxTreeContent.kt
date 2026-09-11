@@ -1,7 +1,8 @@
 package app.anoterm.ui.terminal
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,7 +35,11 @@ import app.anoterm.ssh.TmuxWindow
  * 同じ深さに並べると「どのサーバーの work か」が読めなくなる。
  *
  * 入れ物 (抽斗) は呼ぶ側が持つ。ここは中身だけを描く。
+ *
+ * 行を短く押せばそこへ飛び、長く押せば消す（確認を挟む）。× を並べない理由は
+ * [WindowRow] に書いた。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TmuxTreeContent(
     connections: List<TmuxTreeConnection>?,
@@ -42,6 +47,10 @@ fun TmuxTreeContent(
     currentTabId: String,
     activity: TmuxActivityTracker,
     onJump: (TmuxJump) -> Unit,
+    /** 長押しで「消す」と言われたウィンドウ。確認は呼び出し側が出す。 */
+    onKillWindow: (TmuxJump) -> Unit = {},
+    /** 長押しで「消す」と言われたセッション。(タブ, セッション名)。 */
+    onKillSession: (String, String) -> Unit = { _, _ -> },
 ) {
   Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
     // 版を出しておく。手元の端末に何が入っているのか確かめる手段が無いと、
@@ -82,7 +91,11 @@ fun TmuxTreeContent(
               item(key = "c:" + conn.tabId) { ConnectionHeader(conn) }
               conn.sessions.forEach { (session, windows) ->
                 item(key = "s:" + conn.tabId + ":" + session) {
-                  SessionHeader(session, attached = session == conn.snapshot?.attached)
+                  SessionHeader(
+                      session,
+                      attached = session == conn.snapshot?.attached,
+                      onLongClick = { onKillSession(conn.tabId, session) },
+                  )
                 }
                 items(
                     windows.size,
@@ -94,6 +107,7 @@ fun TmuxTreeContent(
                       here = conn.tabId == currentTabId && w.active,
                       dirty = activity.isDirty(conn.tabId, w),
                       onClick = { onJump(TmuxJump(conn.tabId, w)) },
+                      onLongClick = { onKillWindow(TmuxJump(conn.tabId, w)) },
                   )
                 }
               }
@@ -139,10 +153,14 @@ private fun ConnectionHeader(conn: TmuxTreeConnection) {
   }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SessionHeader(session: String, attached: Boolean) {
+private fun SessionHeader(session: String, attached: Boolean, onLongClick: () -> Unit) {
   Row(
-      modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp),
+      modifier =
+          Modifier.fillMaxWidth()
+              .combinedClickable(onClick = {}, onLongClick = onLongClick)
+              .padding(start = 12.dp, top = 4.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(session, style = MaterialTheme.typography.labelMedium)
@@ -156,12 +174,14 @@ private fun SessionHeader(session: String, attached: Boolean) {
   }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WindowRow(
     window: TmuxWindow,
     here: Boolean,
     dirty: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
   val background =
       if (here) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
@@ -169,7 +189,9 @@ private fun WindowRow(
       modifier =
           Modifier.fillMaxWidth()
               .background(background)
-              .clickable(onClick = onClick)
+              // 短く押せば飛ぶ、長く押せば消す。並んだ行に × を足すと、行き先を
+              // 選ぶ操作の隣に破壊的な的が並ぶことになる。押し間違いの代償が違いすぎる。
+              .combinedClickable(onClick = onClick, onLongClick = onLongClick)
               .padding(start = 28.dp, top = 10.dp, bottom = 10.dp, end = 8.dp),
       horizontalArrangement = Arrangement.spacedBy(10.dp),
   ) {

@@ -166,7 +166,7 @@
     <string name="terminal_help">ヘルプ</string>
     <string name="terminal_full_screen">端末だけにする</string>
     <string name="help_g_fullscreen">⋮ メニューの「端末だけにする」</string>
-    <string name="help_g_fullscreen_desc">上のバーもウィンドウの行もシステムのバーも消え、端末と浮遊パッドだけが残る。画面下 1/4 のタップでキーボードは今までどおり出る。抜けるのは戻る操作。端から掃けばシステムのバーが一時的に戻る。</string>
+    <string name="help_g_fullscreen_desc">上のバーもウィンドウの行もステータスバーも消え、端末と浮遊パッドだけが残る。**二本指のダブルタップで行き来できる**（戻る操作でも抜けられる。⋮ メニューからも入れる）。ナビゲーションバーを残してあるのは戻る操作のため。一本指のダブルタップは Tab のまま。</string>
     <string name="terminal_hide_window_bar">ウィンドウの行を隠す</string>
     <string name="terminal_show_window_bar">ウィンドウの行を出す</string>
     <string name="kbd_backtab">⇧Tab</string>
@@ -182,6 +182,10 @@
     <string name="terminal_lines_back">%1$d 行前</string>
     <string name="browser_open_outside">端末のブラウザで開く</string>
     <string name="settings_split">端末とページの分割</string>
+    <string name="settings_pad_contents">浮遊パッドの中身</string>
+    <string name="settings_pad_contents_summary">プロンプトに答えるか、選択を動かすか。パッドのつまみを長押しでも入れ替わる。</string>
+    <string name="settings_pad_reply">1 / 2 / 3</string>
+    <string name="settings_pad_arrows">方向キー</string>
     <string name="settings_ambiguous_width">East Asian Ambiguous 幅を 2 セルとして数える</string>
     <string name="settings_left_margin">左端の余白: %1$d dp</string>
     <string name="settings_split_orientation">並べ方</string>
@@ -227,6 +231,8 @@
     <string name="help_g_pad_desc">1 / 2 / 3 でキーボードを出さずにプロンプトへ答える。隣に Esc。色が役割を表しており、数字と同じ色は文字を送るもの、別の色はアプリの側を変えるもの（片方はキーボードに戻り、もう片方は Shift+Tab を送る＝Claude Code の権限モードが回る）。中央のつまみをドラッグで移動、不要なら設定で消せる。</string>
     <string name="help_g_menu">左上の ☰</string>
     <string name="help_g_menu_desc">左から抽斗が出て、すべての接続のすべてのウィンドウが並ぶ。選べばそこへ直接飛ぶ。横に払えば閉じる。</string>
+    <string name="help_g_kill">抽斗の行を長押し</string>
+    <string name="help_g_kill_desc">その tmux ウィンドウ、またはセッションごと閉じる（確認あり）。短く押せば今までどおり飛ぶ。× を並べないのは、行き先を選ぶ的の隣に壊す的を置きたくないため。</string>
     <string name="help_g_keys_hidden">Esc・矢印・Ctrl</string>
     <string name="help_g_keys_hidden_desc">キーボードを出している間だけ下に並び、閉じると一緒に消える。読んでいる間まで置いておくには画面が狭い。</string>
     <string name="terminal_menu">その他</string>
@@ -393,6 +399,11 @@
     <string name="tmux_tree_no_windows">tmux は答えたがウィンドウ 0 件 (%1$d 行返り、うち %2$d 行を解釈)</string>
     <string name="tmux_tree_attached">表示中</string>
     <string name="tmux_tree_open">ウィンドウ一覧を開く</string>
+    <string name="tmux_kill_window_title">このウィンドウを閉じますか？</string>
+    <string name="tmux_kill_window_body">%1$s のウィンドウ %2$d (%3$s)。中で動いているものは道連れになります。</string>
+    <string name="tmux_kill_session_title">このセッションを閉じますか？</string>
+    <string name="tmux_kill_session_body">セッション %1$s と、その中の全ウィンドウ。今このセッションに繋いでいる場合、この接続は切れます。</string>
+    <string name="tmux_kill_confirm">閉じる</string>
     <string name="tmux_tree_loading">接続を読み込み中\u2026</string>
     <string name="tmux_activity">更新あり</string>
     <string name="settings_line_spacing">行間</string>

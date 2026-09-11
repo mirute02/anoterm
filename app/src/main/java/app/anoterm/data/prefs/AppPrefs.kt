@@ -67,6 +67,15 @@ class AppPrefs(context: Context) {
   val leftMarginDp: StateFlow<Float> = _leftMarginDp.asStateFlow()
 
   /**
+   * 浮遊パッドの中身。true = 方向キーと決定、false = 返答キー (1/2/3)。
+   *
+   * 承認に答えるのと、一覧を上下に動いて選ぶのは別の作業で、同時には要らない。
+   * 両方を 1 つのパッドに詰めると、どちらの用でも押しにくくなる。
+   */
+  private val _padArrows = MutableStateFlow(sp.getBoolean(KEY_PAD_ARROWS, false))
+  val padArrows: StateFlow<Boolean> = _padArrows.asStateFlow()
+
+  /**
    * 端末だけの全画面。上のバーも tmux の行も、システムのバーも消える。
    *
    * 覚えておく。読むための姿勢であって、その都度入り直す物ではない。抜ける道は
@@ -177,6 +186,11 @@ class AppPrefs(context: Context) {
     val clamped = value.coerceIn(0f, MAX_LEFT_MARGIN_DP)
     sp.edit().putFloat(KEY_LEFT_MARGIN, clamped).apply()
     _leftMarginDp.value = clamped
+  }
+
+  fun setPadArrows(on: Boolean) {
+    sp.edit().putBoolean(KEY_PAD_ARROWS, on).apply()
+    _padArrows.value = on
   }
 
   fun setFullScreen(on: Boolean) {
@@ -400,6 +414,7 @@ class AppPrefs(context: Context) {
     private const val KEY_REPLY_PAD_ENABLED = "reply_pad_enabled"
     private const val KEY_LEFT_MARGIN = "left_margin_dp"
     const val MAX_LEFT_MARGIN_DP = 48f
+    private const val KEY_PAD_ARROWS = "pad_arrows"
     private const val KEY_FULL_SCREEN = "full_screen"
     private const val KEY_HIDE_WINDOW_BAR = "hide_window_bar"
     private const val KEY_SPLIT_VERTICAL = "split_vertical"

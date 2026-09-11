@@ -149,6 +149,7 @@ fun TerminalScreen(
   val fontSizeSp by app.prefs.fontSizeSp.collectAsStateWithLifecycle()
   val lineSpacing by app.prefs.lineSpacing.collectAsStateWithLifecycle()
   val replyPadEnabled by app.prefs.replyPadEnabled.collectAsStateWithLifecycle()
+  val padArrows by app.prefs.padArrows.collectAsStateWithLifecycle()
   val leftMarginDp by app.prefs.leftMarginDp.collectAsStateWithLifecycle()
   val fullScreen by app.prefs.fullScreen.collectAsStateWithLifecycle()
   val hideWindowBar by app.prefs.hideWindowBar.collectAsStateWithLifecycle()
@@ -177,6 +178,10 @@ fun TerminalScreen(
   var showMemo by remember { mutableStateOf(false) }
   var showDisconnectConfirm by remember { mutableStateOf(false) }
   var showOverflow by remember { mutableStateOf(false) }
+
+  // 抽斗で長押しされた「消す対象」。確認を出すまで実行しない。
+  var killWindow by remember { mutableStateOf<TmuxJump?>(null) }
+  var killSession by remember { mutableStateOf<Pair<String, String>?>(null) }
 
   // 履歴の検索。開いている間だけ端末の上に一行出る。
   var searchOpen by remember { mutableStateOf(false) }
@@ -434,8 +439,16 @@ fun TerminalScreen(
 
   val composeView = LocalView.current
 
-  // 全画面の間はシステムのバーも消す。「端末だけ」と言う以上、上の 24dp を残す理由が無い。
-  // 端から掃くと一時的に戻るので、時計も戻るボタンも見失わない。
+  // 全画面の間はステータスバーを隠す。**ナビゲーションバーは隠さない。**
+  //
+  // 最初は `systemBars()` で両方消していたが、それだと抜けられなくなる。
+  // ジェスチャ操作の端末では、バーが隠れている間の端からの掃きは「バーを一時的に出す」
+  // 動作に吸われ、戻る操作として届かない。唯一の出口をそれに割り当てていたので、
+  // 入ったら出られない部屋になっていた。
+  //
+  // ジェスチャ操作ならナビゲーションバーは細い棒なので、隠して得られる面積はほぼ無い。
+  // 3 ボタン操作なら、そこに出口そのものが並んでいる。どちらにしても隠す理由がない。
+  //
   // 画面を離れるときは必ず戻す。消したまま別の画面へ行くと、そちらで操作できなくなる。
   DisposableEffect(fullScreen, composeView) {
     val window = composeView.context.findActivity()?.window
@@ -443,9 +456,9 @@ fun TerminalScreen(
     if (fullScreen) {
       controller?.systemBarsBehavior =
           WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-      controller?.hide(WindowInsetsCompat.Type.systemBars())
+      controller?.hide(WindowInsetsCompat.Type.statusBars())
     } else {
-      controller?.show(WindowInsetsCompat.Type.systemBars())
+      controller?.show(WindowInsetsCompat.Type.statusBars())
     }
     onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
   }
@@ -492,6 +505,8 @@ fun TerminalScreen(
               connections = tmuxTree,
               currentTabId = currentTabId,
               activity = tmuxActivity,
+              onKillWindow = { jump -> killWindow = jump },
+              onKillSession = { tabId, session -> killSession = tabId to session },
               onJump = { jump ->
                 coroutineScope.launch { drawerState.close() }
                 tmuxActivity.markSeen(jump.tabId, jump.window)
@@ -767,9 +782,17 @@ fun TerminalScreen(
             // BEL(0x07)の触覚フィードバックは TerminalHost 側の 1 経路に集約した
             // （スロットル + lifecycle 対応済み）。ここで二重に collect すると表示中タブで
             // 二重振動し、かつバックグラウンドでも振動していた。
+            // View を通す。controller へ直接投げると、DECCKM (application cursor keys) の
+            // 書き換えを素通りする。tmux のコピーモードや readline はそのモードで
+            // `ESC O A` を期待するので、`ESC [ A` のままでは矢印が効かない。
+            // 補助キー列の矢印も浮遊パッドの方向キーも、ここを通って初めて正しくなる。
             val sendBytes: (ByteArray) -> Unit = { bytes ->
-              currentView?.scrollToBottom()
-              app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
+              val v = currentView
+              if (v != null) {
+                v.sendBytes(bytes)
+              } else {
+                app.sessionManager.get(currentTabId)?.controller?.sendToRemote(bytes)
+              }
             }
             // IME の可視判定に `WindowInsets.ime` を使ってはいけない。あれは開閉アニメーションの
             // 補間値で、コンポジションから読むと全フレームで再コンポーズが走る。再コンポーズは
@@ -878,6 +901,7 @@ fun TerminalScreen(
                   onTapTarget = { target -> handleTapTarget(currentTabId, target) },
                 onScrollPosition = { n -> linesBack = n },
                 onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
+                onTwoFingerDoubleTap = { app.prefs.setFullScreen(!fullScreen) },
                   modifier = Modifier.fillMaxSize(),
                   viewBinding = { v -> terminalViews[currentTabId] = v },
               )
@@ -901,6 +925,7 @@ fun TerminalScreen(
                       onTapTarget = { target -> handleTapTarget(pageTabId, target) },
                     onScrollPosition = { n -> if (pageTabId == currentTabId) linesBack = n },
                     onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
+                    onTwoFingerDoubleTap = { app.prefs.setFullScreen(!fullScreen) },
                       modifier = Modifier.fillMaxSize(),
                       viewBinding = { v -> terminalViews[pageTabId] = v },
                   )
@@ -937,6 +962,8 @@ fun TerminalScreen(
               FloatingReplyPad(
                   onSend = sendBytes,
                   onShowKeyboard = showKeyboard,
+                  arrowMode = padArrows,
+                  onToggleMode = { app.prefs.setPadArrows(!padArrows) },
                   position = replyPadX to replyPadY,
                   onMove = { x, y -> app.prefs.setReplyPadPosition(x, y) },
                   modifier = Modifier.fillMaxSize(),
@@ -1093,6 +1120,94 @@ fun TerminalScreen(
         } else {
           LaunchedEffect(Unit) { imageRequest = null }
         }
+      }
+      // 消す前に必ず一度止める。中で動いているものは戻らない。
+      killWindow?.let { jump ->
+        val target = jump.window
+        AlertDialog(
+            onDismissRequest = { killWindow = null },
+            title = { Text(stringResource(R.string.tmux_kill_window_title)) },
+            text = {
+              Text(
+                  stringResource(
+                      R.string.tmux_kill_window_body,
+                      target.session,
+                      target.index,
+                      target.name,
+                  ),
+              )
+            },
+            confirmButton = {
+              TextButton(
+                  onClick = {
+                    killWindow = null
+                    coroutineScope.launch {
+                      val ch = app.sessionManager.get(jump.tabId)?.channel as? SshChannel
+                      if (ch != null && TmuxController.killWindow(ch, target)) {
+                        // 一覧は消した結果を映さないと、消えたのか失敗したのか分からない。
+                        tmuxTree =
+                            collectTmuxTree(
+                                sortedTabs.mapNotNull { id ->
+                                  val c =
+                                      app.sessionManager.get(id)?.channel as? SshChannel
+                                          ?: return@mapNotNull null
+                                  Triple(id, labelFor(id), c)
+                                },
+                            )
+                      }
+                    }
+                  },
+              ) {
+                Text(
+                    stringResource(R.string.tmux_kill_confirm),
+                    color = MaterialTheme.colorScheme.error,
+                )
+              }
+            },
+            dismissButton = {
+              TextButton(onClick = { killWindow = null }) {
+                Text(stringResource(R.string.action_cancel))
+              }
+            },
+        )
+      }
+      killSession?.let { (tabId, session) ->
+        AlertDialog(
+            onDismissRequest = { killSession = null },
+            title = { Text(stringResource(R.string.tmux_kill_session_title)) },
+            text = { Text(stringResource(R.string.tmux_kill_session_body, session)) },
+            confirmButton = {
+              TextButton(
+                  onClick = {
+                    killSession = null
+                    coroutineScope.launch {
+                      val ch = app.sessionManager.get(tabId)?.channel as? SshChannel
+                      if (ch != null && TmuxController.killSession(ch, session)) {
+                        tmuxTree =
+                            collectTmuxTree(
+                                sortedTabs.mapNotNull { id ->
+                                  val c =
+                                      app.sessionManager.get(id)?.channel as? SshChannel
+                                          ?: return@mapNotNull null
+                                  Triple(id, labelFor(id), c)
+                                },
+                            )
+                      }
+                    }
+                  },
+              ) {
+                Text(
+                    stringResource(R.string.tmux_kill_confirm),
+                    color = MaterialTheme.colorScheme.error,
+                )
+              }
+            },
+            dismissButton = {
+              TextButton(onClick = { killSession = null }) {
+                Text(stringResource(R.string.action_cancel))
+              }
+            },
+        )
       }
       if (showMemo) {
         MemoSheet(

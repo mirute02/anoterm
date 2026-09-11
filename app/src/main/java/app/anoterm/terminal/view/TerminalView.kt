@@ -163,6 +163,26 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   /** 今どれだけ遡っているか (行) を上へ伝える。0 なら最新を見ている。 */
   var onScrollPositionChanged: ((linesBack: Int) -> Unit)? = null
 
+  /**
+   * 二本指のダブルタップ。全画面の出入りに使う。
+   *
+   * 一本指のダブルタップは Tab のままにした。あれは他の端末アプリと同じ慣習で、
+   * 補完のために頻繁に打つもの。全画面の切り替えは一日に数回で、頻度が二桁違う。
+   * 頻度の高いほうを譲るのは筋が悪い。
+   *
+   * メニューからも入れるが、出るときにメニューは無い。入りと出が同じ操作で、
+   * どちらの向きにも効くものが要る。
+   */
+  var onTwoFingerDoubleTap: (() -> Unit)? = null
+
+  // 二本指タップの判定。GestureDetector は一本指しか見ないので自前で数える。
+  private var twoFingerDownAt = 0L
+  private var twoFingerMaxPointers = 0
+  private var twoFingerStartX = 0f
+  private var twoFingerStartY = 0f
+  private var twoFingerMoved = false
+  private var lastTwoFingerTapAt = 0L
+
   private var searchQuery: String? = null
 
   /** 見つかった行。履歴の古い順。値は「履歴 + 画面」を通した行番号。 */
@@ -504,6 +524,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
       }
       parent?.requestDisallowInterceptTouchEvent(true)
     }
+    trackTwoFingerTap(event)
     scaleDetector.onTouchEvent(event)
     val scrolled = scrollGestureDetector.onTouchEvent(event)
     val superHandled = super.onTouchEvent(event)
@@ -1008,6 +1029,62 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   // --- テキスト選択 ---
 
   /** ピクセル座標を画面上のセル位置 (row/col) に変換。見えない位置は null。 */
+  /**
+   * 二本指のタップを数え、2 回続いたら通知する。
+   *
+   * 「タップ」とみなす条件は、二本目が着いてから指が動いていないこと、
+   * ピンチとして扱われていないこと、短時間で離れたこと。ここを緩めると、
+   * スクロールしようとして二本指が触れただけで全画面が入れ替わる。
+   */
+  private fun trackTwoFingerTap(event: MotionEvent) {
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        twoFingerMaxPointers = 1
+        twoFingerMoved = false
+      }
+      MotionEvent.ACTION_POINTER_DOWN -> {
+        twoFingerMaxPointers = maxOf(twoFingerMaxPointers, event.pointerCount)
+        if (event.pointerCount == 2) {
+          twoFingerDownAt = event.eventTime
+          twoFingerStartX = event.getX(0)
+          twoFingerStartY = event.getY(0)
+        }
+      }
+      MotionEvent.ACTION_MOVE -> {
+        if (twoFingerMaxPointers >= 2 && !twoFingerMoved && event.pointerCount >= 1) {
+          val dx = event.getX(0) - twoFingerStartX
+          val dy = event.getY(0) - twoFingerStartY
+          val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop
+          if (dx * dx + dy * dy > (slop * slop).toFloat()) twoFingerMoved = true
+        }
+      }
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+        val tapped =
+            twoFingerMaxPointers == 2 &&
+                !twoFingerMoved &&
+                !scaleDetector.isInProgress &&
+                event.actionMasked == MotionEvent.ACTION_UP &&
+                event.eventTime - twoFingerDownAt <
+                    android.view.ViewConfiguration.getLongPressTimeout()
+        if (tapped) {
+          val gap = event.eventTime - lastTwoFingerTapAt
+          if (gap < android.view.ViewConfiguration.getDoubleTapTimeout()) {
+            lastTwoFingerTapAt = 0L
+            performHapticFeedback(
+                HapticFeedbackConstants.LONG_PRESS,
+                HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+            )
+            onTwoFingerDoubleTap?.invoke()
+          } else {
+            lastTwoFingerTapAt = event.eventTime
+          }
+        }
+        twoFingerMaxPointers = 0
+        twoFingerMoved = false
+      }
+    }
+  }
+
   private fun cellAtPixel(x: Float, y: Float): CellPos? {
     val cw = renderer.cellWidth
     val ch = renderer.cellHeight

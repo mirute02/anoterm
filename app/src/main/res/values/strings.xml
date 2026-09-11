@@ -178,7 +178,7 @@
     <string name="terminal_help">Help</string>
     <string name="terminal_full_screen">Terminal only</string>
     <string name="help_g_fullscreen">Terminal only, in the ⋮ menu</string>
-    <string name="help_g_fullscreen_desc">Drops the bar, the window row and the system bars, leaving the terminal and the floating pad. The bottom quarter still opens the keyboard. Back leaves it; swipe from an edge to bring the system bars back for a moment.</string>
+    <string name="help_g_fullscreen_desc">Drops the bar, the window row and the status bar, leaving the terminal and the floating pad. **A two-finger double tap goes in and out**, and so does Back; the ⋮ menu has it too. The navigation bar stays so Back keeps working. One-finger double tap still sends Tab.</string>
     <string name="terminal_hide_window_bar">Hide the window row</string>
     <string name="terminal_show_window_bar">Show the window row</string>
     <string name="kbd_backtab">⇧Tab</string>
@@ -194,6 +194,10 @@
     <string name="terminal_lines_back">%1$d lines back</string>
     <string name="browser_open_outside">Open in the phone\'s browser</string>
     <string name="settings_split">Terminal and page</string>
+    <string name="settings_pad_contents">Floating pad</string>
+    <string name="settings_pad_contents_summary">Answers a prompt, or moves a selection. Long-press the pad\'s knob to swap.</string>
+    <string name="settings_pad_reply">1 / 2 / 3</string>
+    <string name="settings_pad_arrows">Arrows</string>
     <string name="settings_ambiguous_width">East-Asian ambiguous width counts as 2 cells</string>
     <string name="settings_left_margin">Space at the left edge: %1$d dp</string>
     <string name="settings_split_orientation">How they are arranged</string>
@@ -239,6 +243,8 @@
     <string name="help_g_pad_desc">1 / 2 / 3 answer a prompt without the keyboard, with Esc beside them. Colour says what a key does: the same colour as the numbers sends characters, the other colour changes the app -- one brings the keyboard back, the other sends Shift+Tab, which is how Claude Code cycles its permission mode. Drag the middle knob to move the pad; turn it off in Settings.</string>
     <string name="help_g_menu">☰ at the top left</string>
     <string name="help_g_menu_desc">Pulls out a drawer from the left holding every window on every connection. Tap one to jump straight to it. Swipe the drawer away to close it.</string>
+    <string name="help_g_kill">Long-press a row in the drawer</string>
+    <string name="help_g_kill_desc">Closes that tmux window, or that whole session, after a confirmation. A short press still jumps there. No × is shown: a destructive target next to a navigation one is a bad trade.</string>
     <string name="help_g_keys_hidden">Esc, arrows, Ctrl</string>
     <string name="help_g_keys_hidden_desc">They appear under the keyboard while you type, and go away with it — the screen is too small to keep them there while you read.</string>
     <string name="terminal_menu">More</string>
@@ -405,6 +411,11 @@
     <string name="tmux_tree_no_windows">tmux answered but listed no window (%1$d lines back, %2$d understood)</string>
     <string name="tmux_tree_attached">attached</string>
     <string name="tmux_tree_open">Open the window list</string>
+    <string name="tmux_kill_window_title">Close this window?</string>
+    <string name="tmux_kill_window_body">%1$s window %2$d (%3$s). Whatever is running in it goes with it.</string>
+    <string name="tmux_kill_session_title">Close this session?</string>
+    <string name="tmux_kill_session_body">Session %1$s, and every window in it. If you are attached to it, this connection drops.</string>
+    <string name="tmux_kill_confirm">Close</string>
     <string name="tmux_tree_loading">Reading the connections\u2026</string>
     <string name="tmux_activity">new output</string>
     <string name="settings_line_spacing">Line spacing</string>
