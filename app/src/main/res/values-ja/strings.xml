@@ -164,6 +164,8 @@
     <string name="terminal_install_key">公開鍵を登録</string>
     <string name="terminal_memo">メモ</string>
     <string name="terminal_help">ヘルプ</string>
+    <string name="terminal_hide_window_bar">ウィンドウの行を隠す</string>
+    <string name="terminal_show_window_bar">ウィンドウの行を出す</string>
     <string name="kbd_backtab">⇧Tab</string>
     <string name="help_g_backtab">補助キー列の ⇧Tab</string>
     <string name="help_g_backtab_desc">Shift+Tab を送る。Claude Code はこれで権限モードを切り替える。自動承認に一度合わせれば、以後は聞かれなくなる。ソフトキーボードでは Shift+Tab が実質打てないので、キーとして置いてある。</string>

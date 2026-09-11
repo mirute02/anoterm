@@ -66,6 +66,15 @@ class AppPrefs(context: Context) {
   private val _leftMarginDp = MutableStateFlow(readLeftMargin())
   val leftMarginDp: StateFlow<Float> = _leftMarginDp.asStateFlow()
 
+  /**
+   * tmux のウィンドウ列を隠すか。
+   *
+   * 隠しても行き先は消えない。抽斗 (≡) に全接続のウィンドウが並んでいる。
+   * 1 タップが 2 タップになる代わりに、狭い画面で 1 行返ってくる。
+   */
+  private val _hideWindowBar = MutableStateFlow(sp.getBoolean(KEY_HIDE_WINDOW_BAR, false))
+  val hideWindowBar: StateFlow<Boolean> = _hideWindowBar.asStateFlow()
+
   /** ブラウザを開いたときの並べ方。true = 上下、false = 左右。 */
   private val _splitVertical = MutableStateFlow(sp.getBoolean(KEY_SPLIT_VERTICAL, true))
   val splitVertical: StateFlow<Boolean> = _splitVertical.asStateFlow()
@@ -159,6 +168,11 @@ class AppPrefs(context: Context) {
     val clamped = value.coerceIn(0f, MAX_LEFT_MARGIN_DP)
     sp.edit().putFloat(KEY_LEFT_MARGIN, clamped).apply()
     _leftMarginDp.value = clamped
+  }
+
+  fun setHideWindowBar(hide: Boolean) {
+    sp.edit().putBoolean(KEY_HIDE_WINDOW_BAR, hide).apply()
+    _hideWindowBar.value = hide
   }
 
   fun setSplitVertical(vertical: Boolean) {
@@ -372,6 +386,7 @@ class AppPrefs(context: Context) {
     private const val KEY_REPLY_PAD_ENABLED = "reply_pad_enabled"
     private const val KEY_LEFT_MARGIN = "left_margin_dp"
     const val MAX_LEFT_MARGIN_DP = 48f
+    private const val KEY_HIDE_WINDOW_BAR = "hide_window_bar"
     private const val KEY_SPLIT_VERTICAL = "split_vertical"
     private const val KEY_SPLIT_RATIO = "split_ratio"
 

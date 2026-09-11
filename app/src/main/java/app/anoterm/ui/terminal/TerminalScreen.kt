@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -142,6 +144,7 @@ fun TerminalScreen(
   val lineSpacing by app.prefs.lineSpacing.collectAsStateWithLifecycle()
   val replyPadEnabled by app.prefs.replyPadEnabled.collectAsStateWithLifecycle()
   val leftMarginDp by app.prefs.leftMarginDp.collectAsStateWithLifecycle()
+  val hideWindowBar by app.prefs.hideWindowBar.collectAsStateWithLifecycle()
   val splitVertical by app.prefs.splitVertical.collectAsStateWithLifecycle()
   val splitRatio by app.prefs.splitRatio.collectAsStateWithLifecycle()
   val replyPadX by app.prefs.replyPadX.collectAsStateWithLifecycle()
@@ -504,16 +507,33 @@ fun TerminalScreen(
             ),
         topBar = {
           TopAppBar(
+              // 接続が 2 本以上あるときは、見出しの代わりにタブを並べる。
+              // タブの名前はそのまま「今どの接続にいるか」で、見出しと役割が重なる。
+              // 重なっているものを 2 行に分けて置くのは、狭い画面では高く付く。
               title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                  ConnectionDot(currentConnectionState)
-                  Spacer(Modifier.width(8.dp))
-                  Text(
-                      labelFor(currentTabId),
-                      style = MaterialTheme.typography.titleMedium,
-                      maxLines = 1,
-                      overflow = TextOverflow.Ellipsis,
+                if (sortedTabs.size > 1) {
+                  TabStrip(
+                      tabs = sortedTabs,
+                      activeTabId = currentTabId,
+                      tabTitle = ::labelFor,
+                      activeState = currentConnectionState,
+                      onSelect = { id ->
+                        val idx = sortedTabs.indexOf(id)
+                        if (idx >= 0) coroutineScope.launch { pagerState.animateScrollToPage(idx) }
+                      },
+                      onClose = { id -> app.sessionManager.closeTab(id) },
                   )
+                } else {
+                  Row(verticalAlignment = Alignment.CenterVertically) {
+                    ConnectionDot(currentConnectionState)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        labelFor(currentTabId),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                  }
                 }
               },
               // ハンバーガーは左上に置く。Android で「一覧を開く」はここにある物という
@@ -538,6 +558,27 @@ fun TerminalScreen(
                   )
                 }
                 DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
+                  DropdownMenuItem(
+                      text = {
+                        Text(
+                            stringResource(
+                                if (hideWindowBar) R.string.terminal_show_window_bar
+                                else R.string.terminal_hide_window_bar,
+                            ),
+                        )
+                      },
+                      leadingIcon = {
+                        Icon(
+                            if (hideWindowBar) Icons.Filled.Visibility
+                            else Icons.Filled.VisibilityOff,
+                            contentDescription = null,
+                        )
+                      },
+                      onClick = {
+                        showOverflow = false
+                        app.prefs.setHideWindowBar(!hideWindowBar)
+                      },
+                  )
                   DropdownMenuItem(
                       text = { Text(stringResource(R.string.terminal_search)) },
                       leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
@@ -638,29 +679,12 @@ fun TerminalScreen(
                   .padding(inner)
                   .navigationBarsPadding(),
       ) {
-        // タブ数が 1→2 や 2→1 に変わったときの見せ方は snap。以前は AnimatedVisibility で
-        // 高さを滑らかに変えていたが、伸び縮みの全フレームでターミナルの高さが動き、
-        // 本文がバーに押されて上下に流れる。滑らかに動くこと自体がガタつきとして読まれる。
-        // 一度で決まるほうが、目で追っている行が動かない。
-        if (sortedTabs.size > 1) {
-          TabBar(
-              tabs = sortedTabs,
-              activeTabId = currentTabId,
-              tabTitle = ::labelFor,
-              onSelect = { id ->
-                val idx = sortedTabs.indexOf(id)
-                if (idx >= 0) coroutineScope.launch { pagerState.animateScrollToPage(idx) }
-              },
-              onClose = { app.sessionManager.closeTab(it) },
-              modifier = Modifier.height(36.dp),
-          )
-        }
         // tmux のウィンドウ列。SSH タブのバーと同じ場所に置くのは、どちらも
         // 「いま見ているものを切り替える」操作で、探す場所が同じ方がよいため。
         val tmuxBundle = app.sessionManager.get(currentTabId)
         val tmuxChannel = tmuxBundle?.channel as? SshChannel
         val tmuxSessionName = tabTmuxSessions[currentTabId]
-        if (tmuxChannel != null && tmuxSessionName != null) {
+        if (tmuxChannel != null && tmuxSessionName != null && !hideWindowBar) {
           TmuxBar(
               channel = tmuxChannel,
               ttyVar = TmuxController.ttyVarFor(currentTabId),

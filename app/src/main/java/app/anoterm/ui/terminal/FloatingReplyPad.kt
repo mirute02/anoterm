@@ -16,7 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,10 +65,28 @@ fun FloatingReplyPad(
     val maxX = (constraints.maxWidth - padPx).coerceAtLeast(0f)
     val maxY = (constraints.maxHeight - padPx).coerceAtLeast(0f)
 
-    // 比率で受け取り、画面内に収まる座標へ直す。回転しても同じあたりに残る。
-    var x by remember(position.first, maxX) { mutableStateOf(position.first * maxX) }
-    var y by remember(position.second, maxY) { mutableStateOf(position.second * maxY) }
+    // 位置は比率のまま持つ。px に直して持つと、使える幅が変わるたびに持ち直しになる。
+    //
+    // 以前は px を `remember(position, maxX)` で持っていた。ブラウザを開いた、tmux の行が
+    // 出た、といった理由で maxX が変わると、その瞬間に remember が作り直されて位置が
+    // 飛んでいた。指で動かしている最中に起きると「ワープ」に見える。
+    var rx by remember { mutableStateOf(position.first) }
+    var ry by remember { mutableStateOf(position.second) }
+    // 外から位置が変わったとき（他の画面での変更、初期化）だけ追従する。
+    LaunchedEffect(position) {
+      rx = position.first
+      ry = position.second
+    }
     var dragging by remember { mutableStateOf(false) }
+
+    // 掴んでいる最中に大きさが変わっても、ジェスチャを取り消さずに新しい値を読む。
+    // pointerInput の key に入れると、変わった瞬間に指ごと離したことにされ、
+    // 動かした分が捨てられる。
+    val maxXNow = rememberUpdatedState(maxX)
+    val maxYNow = rememberUpdatedState(maxY)
+
+    val x = rx * maxX
+    val y = ry * maxY
 
     Box(
         modifier =
@@ -109,21 +129,20 @@ fun FloatingReplyPad(
                   .size(HANDLE_SIZE)
                   .clip(CircleShape)
                   .background(MaterialTheme.colorScheme.onSurfaceVariant)
-                  .pointerInput(maxX, maxY) {
+                  .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { dragging = true },
                         onDragEnd = {
                           dragging = false
-                          onMove(
-                              if (maxX > 0f) x / maxX else 0f,
-                              if (maxY > 0f) y / maxY else 0f,
-                          )
+                          onMove(rx, ry)
                         },
                         onDragCancel = { dragging = false },
                     ) { change, drag ->
                       change.consume()
-                      x = (x + drag.x).coerceIn(0f, maxX)
-                      y = (y + drag.y).coerceIn(0f, maxY)
+                      val mx = maxXNow.value
+                      val my = maxYNow.value
+                      if (mx > 0f) rx = (rx + drag.x / mx).coerceIn(0f, 1f)
+                      if (my > 0f) ry = (ry + drag.y / my).coerceIn(0f, 1f)
                     }
                   },
       )
