@@ -1,6 +1,6 @@
 # AnoTerm
 
-[日本語](README.md) | **English**
+[日本語](README.md) | **English** | [简体中文](README.zh.md) | [한국어](README.ko.md)
 
 An SSH client and terminal emulator for Android. Kotlin + Jetpack Compose.
 
@@ -8,6 +8,10 @@ Its reason for existing is **rendering full-width characters at the right
 width**. Terminal apps on Android routinely misplace the cursor once CJK text
 appears, and the display falls apart from there. Character width resolution and
 UTF-8 decoding are implemented here rather than delegated, which is why.
+
+> **The app's own text is English and Japanese only.** There are Chinese and Korean
+> READMEs but not yet a Chinese or Korean UI. What the terminal shows comes from the
+> host you connect to and is unaffected by this.
 
 ## Features
 
