@@ -194,6 +194,25 @@ fun BrowserPane(
                           ): Boolean {
                             val host = request.url.host ?: return false
                             if (host == "127.0.0.1") return false
+                            // 開発サーバーは `localhost` へ転送してくることがある。同じ
+                            // ループバックを指す別名なので外へ出す先ではないが、平文の
+                            // 例外は `127.0.0.1` だけに絞ってあるので、この綴りでは
+                            // network security config に弾かれて真っ白になる。
+                            // 名前を書き換えて、この面の中で読み込ませる。
+                            if (host == "localhost") {
+                              view.loadUrl(
+                                  request.url
+                                      .buildUpon()
+                                      .encodedAuthority(
+                                          "127.0.0.1" +
+                                              (request.url.port.takeIf { it > 0 }?.let { ":" + it }
+                                                  ?: ""),
+                                      )
+                                      .build()
+                                      .toString(),
+                              )
+                              return true
+                            }
                             runCatching {
                               context.startActivity(
                                   Intent(Intent.ACTION_VIEW, request.url).addFlags(
