@@ -194,6 +194,7 @@
     <string name="terminal_lines_back">%1$d lines back</string>
     <string name="browser_open_outside">Open in the phone\'s browser</string>
     <string name="settings_split">Terminal and page</string>
+    <string name="settings_ambiguous_width">East-Asian ambiguous width counts as 2 cells</string>
     <string name="settings_left_margin">Space at the left edge: %1$d dp</string>
     <string name="settings_split_orientation">How they are arranged</string>
     <string name="settings_split_vertical">Stacked</string>

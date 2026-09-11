@@ -12,8 +12,16 @@ All are compatible with Play Store distribution (closed-source permitted).
 ## Bouncy Castle (bcprov-jdk18on, bcpkix-jdk18on)
 
 - Source: https://www.bouncycastle.org/
-- Version: 1.78.1
+- Version: bcprov 1.80.2 / bcpkix 1.80 / bcutil 1.80.2 (resolved; sshj requires [1.80,1.81))
 - License: Bouncy Castle Licence (MIT-style)
+
+## Also present at runtime
+
+- asn-one 0.6.0 — Apache-2.0 (required by sshj)
+- slf4j-api 2.0.17 — MIT
+- Google Tink (tink-android) 1.8.0 — Apache-2.0
+- Gson 2.8.9 — Apache-2.0
+- JSpecify 1.0.0 — Apache-2.0
 
 ## JetBrains Mono (bundled font)
 

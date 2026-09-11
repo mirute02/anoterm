@@ -182,6 +182,7 @@
     <string name="terminal_lines_back">%1$d 行前</string>
     <string name="browser_open_outside">端末のブラウザで開く</string>
     <string name="settings_split">端末とページの分割</string>
+    <string name="settings_ambiguous_width">East Asian Ambiguous 幅を 2 セルとして数える</string>
     <string name="settings_left_margin">左端の余白: %1$d dp</string>
     <string name="settings_split_orientation">並べ方</string>
     <string name="settings_split_vertical">上下</string>

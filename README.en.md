@@ -128,8 +128,19 @@ Android will ask you to allow installs from that source the first time. Since
 8.0 this is per-app, so allowing your browser or file manager once is enough.
 
 Because it does not come from the Play Store, Play Protect may show a
-confirmation screen. The build is self-signed; the certificate fingerprint is
-published with each release.
+confirmation screen. The build is self-signed, and the certificate is recorded here
+rather than promised per release — a promise like that becomes a lie on the first
+release someone forgets:
+
+```
+CN=AnoTerm, OU=AnoTerm, O=AnoTerm, C=JP
+SHA-256: 7e1677c2e1094ca36b9584990beabb2fb1668b327417ead3b0993ec1b99bbbdb
+```
+
+Check an APK against it with `apksigner verify --print-certs <apk>`.
+**This fingerprint cannot change.** Android treats an app signed by a different key as
+a different app and refuses to update over it, so an APK with another fingerprint is
+not from this project.
 
 ### Building it yourself
 

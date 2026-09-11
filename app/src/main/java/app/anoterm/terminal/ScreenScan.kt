@@ -30,7 +30,10 @@ object ScreenScan {
           "ts", "tsx", "js", "jsx", "vue", "svelte", "php", "sh", "bash", "zsh", "fish",
           "gradle", "properties", "toml", "yaml", "yml", "json", "xml", "html", "css", "scss",
           "md", "markdown", "txt", "log", "csv", "tsv", "sql", "diff", "patch", "conf", "ini",
-          "cfg", "lock", "gitignore", "dockerfile", "makefile", "cmake", "proto", "graphql",
+          // `gitignore` `dockerfile` `makefile` は入れない。前者は dot-file、後ろ 2 つは
+          // 拡張子を持たない名前で、いずれも hasExtensionIn の手前で弾かれるため、
+          // 並べておくと「対応している」という嘘になる。
+          "cfg", "lock", "cmake", "proto", "graphql",
       )
 
   /**

@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session as SshjSession
 import net.schmizz.sshj.userauth.password.PasswordUtils
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -75,8 +76,11 @@ class SshChannel private constructor(
         val cmdSession = ssh.startSession()
         try {
           val cmd = cmdSession.exec(command)
-          val out = cmd.inputStream.readBytes().toString(Charsets.UTF_8)
-          val err = cmd.errorStream.readBytes().toString(Charsets.UTF_8)
+          // 読み切ってから join していたので、タイムアウトは何も縛っていなかった
+          // （相手が黙って流し続ける限り readBytes が返らない）。上限を決めて、
+          // そこで打ち切る。base64 で 5MB の画像を運ぶので、余裕を見て 32MB。
+          val out = readBounded(cmd.inputStream)
+          val err = readBounded(cmd.errorStream, EXEC_STDERR_LIMIT)
           cmd.join(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
           ExecResult(cmd.exitStatus ?: -1, out, err)
         } finally {
@@ -86,6 +90,24 @@ class SshChannel private constructor(
 
   fun debugState(): String =
       "sshConnected=${ssh.isConnected} shellOpen=${shell.isOpen} sessionOpen=${session.isOpen}"
+
+  /**
+   * 上限まで読んで、そこで止める。
+   *
+   * 相手が際限なく吐く可能性を握ったまま `readBytes()` を呼ぶと、タイムアウトの前に
+   * メモリを使い切る。切り詰めた場合、呼び出し側の解析（base64 のデコードなど）は
+   * 失敗して「読めなかった」になる。黙って半分のファイルを見せるより良い。
+   */
+  private fun readBounded(stream: InputStream, limit: Int = EXEC_STDOUT_LIMIT): String {
+    val buf = ByteArrayOutputStream()
+    val chunk = ByteArray(8 * 1024)
+    while (buf.size() < limit) {
+      val n = stream.read(chunk)
+      if (n < 0) break
+      buf.write(chunk, 0, minOf(n, limit - buf.size()))
+    }
+    return buf.toString("UTF-8")
+  }
 
   override fun close() {
     Logger.d("SshChannel", "close ${debugState()}")
@@ -97,6 +119,12 @@ class SshChannel private constructor(
   }
 
   companion object {
+    /** exec の標準出力の上限。base64 で 5MB の画像を運ぶので、その 4/3 に余裕を足した値。 */
+    private const val EXEC_STDOUT_LIMIT = 32 * 1024 * 1024
+
+    /** 標準エラーは人に見せる一行が欲しいだけ。 */
+    private const val EXEC_STDERR_LIMIT = 64 * 1024
+
     /** IO thread 上でのみ呼ぶこと。 */
     suspend fun connect(
         params: SshConnectParams,

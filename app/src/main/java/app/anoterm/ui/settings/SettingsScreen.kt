@@ -348,7 +348,7 @@ fun SettingsScreen(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
       ) {
-        Text("East-Asian ambiguous width → 2 cells")
+        Text(stringResource(R.string.settings_ambiguous_width))
         Switch(checked = ambiguous, onCheckedChange = { prefs.setAmbiguousWide(it) })
       }
 

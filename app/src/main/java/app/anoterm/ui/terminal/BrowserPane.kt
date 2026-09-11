@@ -3,6 +3,7 @@ package app.anoterm.ui.terminal
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
@@ -53,6 +54,11 @@ import app.anoterm.util.Logger
  *
  * https だけは転送しない。転送すると WebView から見た宛先は 127.0.0.1 になり、
  * 証明書の名前が合わなくなって必ず警告になる。素直に端末から直接開く。
+ *
+ * この面に出るのは転送の出口だけ。そこ以外への遷移は外のブラウザに渡す。ただし
+ * **ページ自身が読み込む部品（CDN のスクリプトやフォント、外部の画像）は端末が直接
+ * 取りに行く**。そこまで塞ぐと普通の開発ページが表示できなくなるので塞いでいない。
+ * 「この面の通信はすべて SSH の中を通る」とは言えない、ということ。
  */
 @Composable
 fun BrowserPane(
@@ -175,9 +181,32 @@ fun BrowserPane(
                     @SuppressLint("SetJavaScriptEnabled")
                     v.settings.javaScriptEnabled = true
                     v.settings.domStorageEnabled = true
-                    // 中のリンクを踏んでも外のブラウザに飛ばさない。転送の穴は
-                    // この WebView のためだけに開いているので、外へ出ると繋がらない。
-                    v.webViewClient = WebViewClient()
+                    // 素の WebViewClient では、ページ内のリンクを踏むと この面が
+                    // どこへでも遷移する。https なら端末から直接取得できるので繋がって
+                    // しまい、「この面に出ているものは SSH の中を通ってきた」という
+                    // 前提が黙って崩れる。転送の出口以外への遷移は、外のブラウザに渡す。
+                    // 出ていくことが目に見えるほうが、中で出られるより正直。
+                    v.webViewClient =
+                        object : WebViewClient() {
+                          override fun shouldOverrideUrlLoading(
+                              view: WebView,
+                              request: WebResourceRequest,
+                          ): Boolean {
+                            val host = request.url.host ?: return false
+                            if (host == "127.0.0.1") return false
+                            runCatching {
+                              context.startActivity(
+                                  Intent(Intent.ACTION_VIEW, request.url).addFlags(
+                                      Intent.FLAG_ACTIVITY_NEW_TASK,
+                                  ),
+                              )
+                            }
+                                .onFailure {
+                                  Logger.w("BrowserPane", "no browser for ${request.url}", it)
+                                }
+                            return true
+                          }
+                        }
                     webView = v
                   }
                 },

@@ -1,6 +1,6 @@
 # AnoTerm 安定性・電池消費 調査レポート (2026-07-07)
 
-Opus / Sonnet への実装引き継ぎ用。調査対象コミット: `3ebbab1` (main)。
+Opus / Sonnet への実装引き継ぎ用。調査対象コミット: `3ebbab1` (main)。**この SHA は現在の履歴には存在しない**（公開前の整理で履歴を書き換えたため）。当時の内容を追う手掛かりとしてのみ残している。
 targetSdk = 36 / minSdk = 24 / sshj 0.40.0。
 
 > **実装ステータス (2026-07-07 更新)**: 第 1 弾 (P0 全部 + 安全な P1 + S-01)、第 2 弾
@@ -141,7 +141,7 @@ Doze や電波断でセッションが全滅しても、FGS + プロセスは永
 - `terminal/TerminalSessionController.kt:127-131` — `resize()` はサイズ不変でも無条件に PTY resize (SIGWINCH) + 再描画発火
 - `ui/terminal/TerminalScreen.kt:445-447` — `WindowInsets.ime.getBottom()` が IME アニメーション中フレームごとに再コンポーズを誘発
 
-IME 開閉のたびに SIGWINCH が連発 → リモートの tmux / Claude Code が全画面再描画 → 受信トラフィック増 → 電池と表示のちらつき。tmux scrollback 重複問題 (直近コミット 3ebbab1 の動機) にも寄与している可能性がある。
+IME 開閉のたびに SIGWINCH が連発 → リモートの tmux / Claude Code が全画面再描画 → 受信トラフィック増 → 電池と表示のちらつき。tmux scrollback 重複問題 (当時の直近コミット 3ebbab1 の動機。前述のとおり現在の履歴には無い) にも寄与している可能性がある。
 
 **修正方針**: (1) `controller.resize()` に「rows/cols が前回と同じなら no-op」ガード、(2) `TerminalView` の各 setter に差分適用ガード、(3) `update` ブロックで渡す値を `remember` で安定化。
 
