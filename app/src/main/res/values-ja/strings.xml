@@ -223,7 +223,7 @@
     <string name="help_g_swipe_side">左右にスワイプ</string>
     <string name="help_g_swipe_side_desc">開いている接続を行き来する。</string>
     <string name="help_g_pad">浮いているパッド</string>
-    <string name="help_g_pad_desc">1 / 2 / 3 でキーボードを出さずにプロンプトへ答える。その上の小さい 2 つは答えるキーではない。片方はキーボードに戻り、もう片方は Shift+Tab を送る（Claude Code の権限モードがこれで回る）。中央のつまみをドラッグで移動、不要なら設定で消せる。</string>
+    <string name="help_g_pad_desc">1 / 2 / 3 でキーボードを出さずにプロンプトへ答える。隣に Esc。色が役割を表しており、数字と同じ色は文字を送るもの、別の色はアプリの側を変えるもの（片方はキーボードに戻り、もう片方は Shift+Tab を送る＝Claude Code の権限モードが回る）。中央のつまみをドラッグで移動、不要なら設定で消せる。</string>
     <string name="help_g_menu">左上の ☰</string>
     <string name="help_g_menu_desc">左から抽斗が出て、すべての接続のすべてのウィンドウが並ぶ。選べばそこへ直接飛ぶ。横に払えば閉じる。</string>
     <string name="help_g_keys_hidden">Esc・矢印・Ctrl</string>

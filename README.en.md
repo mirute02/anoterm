@@ -11,59 +11,92 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 
 ## Features
 
-- **Terminal emulation** — implemented in `TerminalEmulator.kt`
-- **Correct rendering of wide and combining characters** — `CharWidth.kt`
-  resolves East Asian Width; `Utf8Decoder.kt` handles surrogate pairs and
-  partial byte sequences
+### As a terminal
+
+- **Wide and combining characters at the right width** — `CharWidth.kt` resolves East
+  Asian Width and `Utf8Decoder.kt` handles surrogate pairs and partial byte sequences.
+  CJK in an Android terminal usually drifts the cursor and breaks the display; that is
+  why both are implemented here rather than borrowed
+- **Terminal emulation** — `TerminalEmulator.kt`: alternate screen, scroll regions,
+  mouse reporting, DECCKM and the rest
+- **Find in the history** — from the ⋮ menu. Searches what came through this connection,
+  not the shell's history and not the files. Matches are painted; the arrows step
+  between them
+- **Scrolling with momentum** — flick and it keeps going. While you are back in the
+  history a button says how far back, and returns you to the latest
+- **The line you are reading stays put when the screen changes height** — rows pushed off
+  the top go into the scrollback instead of being dropped, and come back out when it
+  grows again. Reading history, the top line does not move at all
+
+### Connecting and authenticating
+
 - **Host management** — host, port and username stored in Room
 - **Authentication** — password or private key, including passphrase-protected keys
-- **Key installation (`ssh-copy-id` equivalent)** — over a working password
-  session, the key icon appends your public key to the host's
-  `~/.ssh/authorized_keys`. Moving to key auth needs nothing but the phone.
-  Idempotent, and it does not disturb keys already there
-- **Automatic tmux attach** — set a session name on the host and the app sends
-  `tmux new -A -s <name>` after connecting (`-A` creates it if absent), so work
-  survives a dropped connection
-- **Window list (≡)** — every open SSH connection and the tmux behind it, as a
-  tree: connection, then session, then window. **One tap reaches any window
-  anywhere**, including one in another connection — the app moves to that tab,
-  switches which session that client is attached to, and selects the window.
-  The connections are read in parallel, only when the list is opened
-- **tmux switcher bar** — the server's tmux windows sit in a strip under the
-  connection tabs, so **one tap reaches a window in the background** instead of
-  repeating `prefix n`. When more than one session exists, the menu on the left
-  changes which one you are attached to. The list is read over a separate SSH
-  session rather than typed into the terminal, so nothing lands in the middle of
-  your work, and it refreshes every ten seconds only while the app is in front
-- **tmux dashboard** — splits, pane movement, copy mode and renaming, as buttons.
-  **No prefix key is ever sent**: each one runs a `tmux` command on a separate
-  session, so it works whatever has hold of Ctrl-B and whatever prefix you have
-  bound
-- **Open an image** — a path on screen is underlined, and tapping it shows the
-  picture. Claude Code and Codex write a chart or a screenshot and print where
-  they put it, which on a phone is the end of the road. The file is read over a
-  second SSH session, so no `base64` lands in the shell you are working in.
-  A relative path is looked for where the tmux pane is. Pinch to zoom
-- **See the page beside the terminal** — an `http://` URL on screen is
-  underlined, and tapping it opens a browser pane next to the terminal.
-  **The traffic goes through this SSH connection**, so a dev server bound to
-  `localhost` is reachable without exposing it. The forward listens on 127.0.0.1
-  on the phone only; nobody else on the Wi-Fi can reach it. The split runs
-  stacked or side by side, and the bar between them sets the share. It can also
-  be handed to the phone's browser for a full screen
-- **Floating reply pad** — while the keyboard is away, 1/2/3 sit over the
-  terminal in a triangle, so answering an approval prompt does not mean opening
-  the IME and hiding what you are approving. Drag it wherever it suits your hand
-- **Auxiliary keys only while typing** — Esc, the arrows and Ctrl come and go
-  with the keyboard. The screen is too small to hold them while reading
-- **Host key verification (TOFU)** — the first key is recorded and a **changed
-  key refuses the connection**. The fingerprint is shown on that first connect
-  so you can check it against `ssh-keygen -lf` on the server
+- **Key installation (`ssh-copy-id` equivalent)** — over a working password connection,
+  appends your public key to `~/.ssh/authorized_keys` on the far end, so you can move to
+  key auth from the phone alone. It does not duplicate an existing entry or disturb the
+  others
+- **Host key verification (TOFU)** — the first key is recorded and a **changed key
+  refuses the connection**. The fingerprint is shown on that first connect so you can
+  check it against `ssh-keygen -lf` on the server
 - **Encrypted credential storage** — `EncryptedFile` under an Android Keystore key
 - **App lock** — optional biometric
-- **Command history**
-- **Background connections** — a foreground service keeps the session alive
-- **Display options** — font size, colours
+- **Background connections** — a foreground service keeps the session alive with the
+  screen off
+
+### tmux
+
+- **Attaches itself** — put a session name in the host and `tmux new -A -s <name>` is
+  sent on connect, so a dropped connection does not cost you the work
+- **Every window, in one drawer (≡)** — pulled out from the left: every window on every
+  open connection, as connection → session → window. **One tap reaches any of them.**
+  Windows that produced output are marked, and what is running in them is shown
+- **Switching bar** — the tmux windows of the connection you are on, one tap each.
+  Can be hidden from the ⋮ menu
+- **No prefix key is ever sent** — every tmux action runs a `tmux` command instead, so it
+  works whatever has hold of Ctrl-B and whatever prefix `.tmux.conf` binds
+- The listing is read over a separate SSH session rather than typed into the terminal, so
+  it never mixes into what you are working on
+
+### Checking things from the phone
+
+- **Open an image** — a path on screen is underlined and tapping it shows the picture.
+  Claude Code and Codex write a chart or a screenshot and print where they put it, which
+  from a phone is the end of the road. Pinch to zoom
+- **Open a document** — `.md`, `.kt`, `.json`, `.diff` and some fifty more, with line
+  numbers and no wrapping (wrapped code loses its indentation and with it its shape)
+- **See the page beside the terminal** — tapping an `http://` URL opens a browser pane
+  next to the terminal. **The traffic goes through this SSH connection**, so a dev server
+  bound to `localhost` is reachable without exposing it; the forward listens on 127.0.0.1
+  on the phone only. The split runs stacked or side by side and the bar between them sets
+  the share. It can also be handed to the phone's browser for a full screen
+- All of this reads over **a separate SSH session**, so nothing lands in the command line
+  you are working in. Relative paths are looked for where the tmux pane is
+
+### Built for a small screen
+
+- **Terminal only** — the bar, the tmux row and the system bars all go. Back leaves it
+- **Tabs live in the bar** — a tab name says which connection you are on and so did the
+  bar's title, so they are one row now
+- **Floating reply pad** — while the keyboard is away, 1/2/3, Esc, a keyboard key and
+  Shift+Tab sit over the terminal, so answering an approval prompt does not mean opening
+  the IME and hiding what you are approving. Drag it wherever it suits your hand
+- **Auxiliary keys only while typing** — Esc, the arrows, Ctrl and Shift+Tab come and go
+  with the keyboard. The screen is too small to hold them while reading
+- **Avoids the inner camera** — unfolded, the camera sits inside the screen; the gap
+  follows whatever the system reports as obstructed. A left margin is settable if that
+  is not enough
+- **The cursor goes where you touched** — wherever the far end asked for mouse reporting
+  (Claude Code, vim, tmux with mouse on)
+
+### The rest
+
+- **Gestures** — bottom quarter opens the keyboard, swipe scrolls, double tap sends Tab,
+  long press and drag selects and copies, pinch changes the text size. All of it is in
+  the Help sheet
+- **Command history**, **notes**, **custom shortcuts**
+- **Display options** — text size (pinch changes it and it stays changed), line spacing,
+  colours
 
 ## Language
 
@@ -124,8 +157,14 @@ distribution.
 ./gradlew test
 ```
 
-43 unit tests cover terminal emulation, character width, UTF-8 decoding and IME
-composing state. CI runs them on every push.
+124 unit tests, run on every push. They cover terminal emulation, character width,
+UTF-8 decoding, IME composing state, rows surviving a resize, picking paths and URLs out
+of the screen (rejoining across a wrap, shell quoting), parsing tmux output, and building
+forward targets.
+
+Development happens without a device attached, so **anything that has to be looked at is
+not covered**. Whatever can be pulled out as logic is pulled out and tested; how drawing
+and input actually feel is checked by installing a release.
 
 ### Release builds
 

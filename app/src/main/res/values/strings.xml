@@ -235,7 +235,7 @@
     <string name="help_g_swipe_side">Swipe left / right</string>
     <string name="help_g_swipe_side_desc">Moves between open connections.</string>
     <string name="help_g_pad">The floating pad</string>
-    <string name="help_g_pad_desc">1 / 2 / 3 answer a prompt without the keyboard. The two smaller keys above them are not answers: one brings the keyboard back, the other sends Shift+Tab, which is how Claude Code cycles its permission mode. Drag the middle knob to move the pad; turn it off in Settings.</string>
+    <string name="help_g_pad_desc">1 / 2 / 3 answer a prompt without the keyboard, with Esc beside them. Colour says what a key does: the same colour as the numbers sends characters, the other colour changes the app -- one brings the keyboard back, the other sends Shift+Tab, which is how Claude Code cycles its permission mode. Drag the middle knob to move the pad; turn it off in Settings.</string>
     <string name="help_g_menu">☰ at the top left</string>
     <string name="help_g_menu_desc">Pulls out a drawer from the left holding every window on every connection. Tap one to jump straight to it. Swipe the drawer away to close it.</string>
     <string name="help_g_keys_hidden">Esc, arrows, Ctrl</string>

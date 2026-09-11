@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -47,9 +48,13 @@ import kotlin.math.roundToInt
  * 移動は中央のつまみをドラッグする。ボタン自体をドラッグ移動にすると、
  * 「押したつもりが動いた」「動かしたつもりが送信された」が避けられない。
  *
- * 上の 2 隅には、答えるためではないキーを置いてある。左上がキーボード、右上が ⇧Tab。
- * 数字より小さく、色も変えてあるのは、押し間違いの向きを揃えるため。答えるつもりで
- * モードを切り替えてしまうのは、その逆より取り返しがつかない。
+ * 配置と色の決めごと:
+ *   上段 Esc(小) / 1(大) / キーボード(小)、中段左に ⇧Tab(小)、下段に 2 / 3(大)、中央につまみ。
+ *   **色は役割**。文字を送るもの (Esc・1・2・3) は同じ色、アプリの側を変えるもの
+ *   (キーボード・⇧Tab) は別の色。**大きさは頻度**。1/2/3 が一番押されるので一番大きい。
+ *
+ * 押し間違いの向きを揃えてある。答えるつもりでモードを切り替えるのは、その逆より
+ * 取り返しがつかない。
  */
 @Composable
 fun FloatingReplyPad(
@@ -98,8 +103,23 @@ fun FloatingReplyPad(
       PadButton("2", Alignment.BottomStart) { onSend(replyBytes("2")) }
       PadButton("3", Alignment.BottomEnd) { onSend(replyBytes("3")) }
 
-      // 三角形の空いている 2 隅。数字より一回り小さく、色も変えてある。
-      UtilityButton(Alignment.TopStart, onShowKeyboard) {
+      // Esc。改行は付けない。付けると、閉じた直後の画面に空行が入る。
+      // 色は数字と同じ（どちらも文字を送るもの）、大きさは小さめ（頻度が下がる）。
+      UtilityButton(
+          alignment = Alignment.TopStart,
+          onClick = { onSend(byteArrayOf(0x1B)) },
+          color = MaterialTheme.colorScheme.secondaryContainer,
+      ) {
+        Text(
+            text = "Esc",
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+      }
+
+      // アプリの側を変えるキーは、送るキーと色を分ける。
+      UtilityButton(Alignment.TopEnd, onShowKeyboard) {
         Icon(
             Icons.Filled.Keyboard,
             contentDescription = stringResource(R.string.terminal_show_keyboard),
@@ -113,7 +133,7 @@ fun FloatingReplyPad(
       // セッション記録から読めるが、どの記録がこのウィンドウのものかは tmux のペインの
       // 現在地からの当て推量で、同じディレクトリに複数立てていると取り違える。
       // 「承認が自動かどうか」で嘘を吐く表示は、表示が無いより悪い。
-      UtilityButton(Alignment.TopEnd, { onSend(ESC_BACKTAB) }) {
+      UtilityButton(Alignment.CenterStart, { onSend(ESC_BACKTAB) }) {
         Text(
             text = "⇧⇥",
             fontWeight = FontWeight.Bold,
@@ -155,13 +175,15 @@ fun FloatingReplyPad(
 private fun androidx.compose.foundation.layout.BoxScope.UtilityButton(
     alignment: Alignment,
     onClick: () -> Unit,
+    /** 既定はアプリの側を変えるキーの色。文字を送るキーは数字と同じ色を渡す。 */
+    color: Color = Color.Unspecified,
     content: @Composable () -> Unit,
 ) {
   Surface(
       onClick = onClick,
       modifier = Modifier.align(alignment).size(UTILITY_BUTTON_SIZE),
       shape = CircleShape,
-      color = MaterialTheme.colorScheme.surfaceVariant,
+      color = if (color == Color.Unspecified) MaterialTheme.colorScheme.surfaceVariant else color,
       shadowElevation = 3.dp,
   ) {
     Box(contentAlignment = Alignment.Center) { content() }
@@ -196,7 +218,14 @@ private fun androidx.compose.foundation.layout.BoxScope.PadButton(
 /** 番号を選ばせるプロンプトは改行まで来て初めて確定する。 */
 private fun replyBytes(key: String): ByteArray = (key + "\r").toByteArray(Charsets.US_ASCII)
 
-private val PAD_SIZE = 136.dp
+/**
+ * パッドの一辺。
+ *
+ * 6 つ置くので 136dp では角が足りない。中段左 (⇧Tab) と下段左 (2) が 4dp 重なり、
+ * 重なった分は後に描いた側が持っていく = 押せない帯ができる。152dp なら
+ * 40dp の中段と 52dp の下段が干渉しない。
+ */
+private val PAD_SIZE = 152.dp
 private val BUTTON_SIZE = 52.dp
 private val UTILITY_BUTTON_SIZE = 40.dp
 
