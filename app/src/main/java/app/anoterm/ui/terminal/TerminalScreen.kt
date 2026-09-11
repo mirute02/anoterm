@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
@@ -45,6 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -101,6 +103,7 @@ import app.anoterm.terminal.TerminalSessionController
 import app.anoterm.terminal.compose.TerminalHost
 import app.anoterm.terminal.view.TerminalView
 import app.anoterm.util.Logger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 sealed interface TabScreenState {
@@ -182,6 +185,17 @@ fun TerminalScreen(
   // 抽斗で長押しされた「消す対象」。確認を出すまで実行しない。
   var killWindow by remember { mutableStateOf<TmuxJump?>(null) }
   var killSession by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+  // 全画面のとき、タップで数秒だけ出す出口。`nonce` は「同じ true でも数え直す」ため
+  // （出ている最中にもう一度触られたら、そこから測り直したい）。
+  var exitChipAt by remember { mutableStateOf(0L) }
+  var exitChipVisible by remember { mutableStateOf(false) }
+  LaunchedEffect(exitChipAt) {
+    if (exitChipAt == 0L) return@LaunchedEffect
+    exitChipVisible = true
+    delay(3500)
+    exitChipVisible = false
+  }
 
   // 履歴の検索。開いている間だけ端末の上に一行出る。
   var searchOpen by remember { mutableStateOf(false) }
@@ -505,6 +519,10 @@ fun TerminalScreen(
               connections = tmuxTree,
               currentTabId = currentTabId,
               activity = tmuxActivity,
+              onGoHome = {
+                coroutineScope.launch { drawerState.close() }
+                onBack()
+              },
               onKillWindow = { jump -> killWindow = jump },
               onKillSession = { tabId, session -> killSession = tabId to session },
               onJump = { jump ->
@@ -902,6 +920,7 @@ fun TerminalScreen(
                 onScrollPosition = { n -> linesBack = n },
                 onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
                 onTwoFingerDoubleTap = { app.prefs.setFullScreen(!fullScreen) },
+                onAnyTap = { if (fullScreen) exitChipAt = System.currentTimeMillis() },
                   modifier = Modifier.fillMaxSize(),
                   viewBinding = { v -> terminalViews[currentTabId] = v },
               )
@@ -926,6 +945,7 @@ fun TerminalScreen(
                     onScrollPosition = { n -> if (pageTabId == currentTabId) linesBack = n },
                     onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
                     onTwoFingerDoubleTap = { app.prefs.setFullScreen(!fullScreen) },
+                    onAnyTap = { if (fullScreen) exitChipAt = System.currentTimeMillis() },
                       modifier = Modifier.fillMaxSize(),
                       viewBinding = { v -> terminalViews[pageTabId] = v },
                   )
@@ -934,6 +954,27 @@ fun TerminalScreen(
                 }
               }
             }
+            // 全画面のときだけ、タップしてしばらくの間だけ出口を出す。上から降りてくるのは
+            // 「隠れているバーがそこにあった」ことを思い出させるため。触れば出る物なので、
+            // 常に置いておく必要はない。
+            androidx.compose.animation.AnimatedVisibility(
+                visible = fullScreen && exitChipVisible,
+                enter =
+                    androidx.compose.animation.slideInVertically { -it } +
+                        androidx.compose.animation.fadeIn(),
+                exit =
+                    androidx.compose.animation.slideOutVertically { -it } +
+                        androidx.compose.animation.fadeOut(),
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            ) {
+              FilledTonalIconButton(onClick = { app.prefs.setFullScreen(false) }) {
+                Icon(
+                    Icons.Filled.FullscreenExit,
+                    contentDescription = stringResource(R.string.terminal_leave_full_screen),
+                )
+              }
+            }
+
             // 遡っている間だけ、最新へ一息で戻る道を出す。惰性で流せるようになっても、
             // 「読み終わったので今に戻る」は擦って戻る作業ではない。何行前にいるかも
             // 出す。数字が無いと、どれだけ戻ればいいのか見当が付かない。

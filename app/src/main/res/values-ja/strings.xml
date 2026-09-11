@@ -165,6 +165,7 @@
     <string name="terminal_memo">メモ</string>
     <string name="terminal_help">ヘルプ</string>
     <string name="terminal_full_screen">端末だけにする</string>
+    <string name="terminal_leave_full_screen">全画面をやめる</string>
     <string name="help_g_fullscreen">⋮ メニューの「端末だけにする」</string>
     <string name="help_g_fullscreen_desc">上のバーもウィンドウの行もステータスバーも消え、端末と浮遊パッドだけが残る。**二本指のダブルタップで行き来できる**（戻る操作でも抜けられる。⋮ メニューからも入れる）。ナビゲーションバーを残してあるのは戻る操作のため。一本指のダブルタップは Tab のまま。</string>
     <string name="terminal_hide_window_bar">ウィンドウの行を隠す</string>

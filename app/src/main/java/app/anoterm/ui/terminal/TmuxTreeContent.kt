@@ -2,6 +2,7 @@ package app.anoterm.ui.terminal
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,13 +11,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -51,6 +58,8 @@ fun TmuxTreeContent(
     onKillWindow: (TmuxJump) -> Unit = {},
     /** 長押しで「消す」と言われたセッション。(タブ, セッション名)。 */
     onKillSession: (String, String) -> Unit = { _, _ -> },
+    /** ホスト一覧へ戻る。抽斗は「行き先の一覧」なので、いちばん外側の行き先もここに置く。 */
+    onGoHome: () -> Unit = {},
 ) {
   Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
     // 版を出しておく。手元の端末に何が入っているのか確かめる手段が無いと、
@@ -72,6 +81,32 @@ fun TmuxTreeContent(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
+
+    // 全画面のときは上のバーが無く、⋮ メニューも出せない。抽斗は ≡ で必ず開けるので、
+    // 「ここから外へ出る」道はここにも要る。ウィンドウの行き先より前に置くのは、
+    // 迷ったときに探されるのが上だから。
+    Row(
+        modifier =
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onGoHome)
+                .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Icon(
+          Icons.AutoMirrored.Filled.ArrowBack,
+          contentDescription = null,
+          modifier = Modifier.size(18.dp),
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+          text = stringResource(R.string.terminal_back_to_hosts),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    HorizontalDivider()
 
     when {
       connections == null ->

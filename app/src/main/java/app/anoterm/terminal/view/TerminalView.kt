@@ -175,6 +175,15 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
    */
   var onTwoFingerDoubleTap: (() -> Unit)? = null
 
+  /**
+   * 単タップが確定したことだけを伝える。そのタップが何をしたかは問わない。
+   *
+   * 全画面のときに「出口をしばらく出す」ために使う。タップを消費しないのが要点で、
+   * 下 1/4 ならキーボードは今までどおり出るし、パスの上ならその中身が開く。
+   * 出口が出るのはそれに**加えて**であって、代わりにではない。
+   */
+  var onAnyTap: (() -> Unit)? = null
+
   // 二本指タップの判定。GestureDetector は一本指しか見ないので自前で数える。
   private var twoFingerDownAt = 0L
   private var twoFingerMaxPointers = 0
@@ -238,6 +247,8 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
                 return true
               }
               if (selectionActive) return false // ActionMode が拾うので素通し
+              // 何をするタップであれ、まずここを通ったことだけ伝える。
+              onAnyTap?.invoke()
               val h = height
               if (h <= 0) return false
               // パスの上を押したなら、そこはパスを開く場所。位置より優先する。

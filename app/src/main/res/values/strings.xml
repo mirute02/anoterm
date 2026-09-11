@@ -177,6 +177,7 @@
     <string name="terminal_memo">Notes</string>
     <string name="terminal_help">Help</string>
     <string name="terminal_full_screen">Terminal only</string>
+    <string name="terminal_leave_full_screen">Leave full screen</string>
     <string name="help_g_fullscreen">Terminal only, in the ⋮ menu</string>
     <string name="help_g_fullscreen_desc">Drops the bar, the window row and the status bar, leaving the terminal and the floating pad. **A two-finger double tap goes in and out**, and so does Back; the ⋮ menu has it too. The navigation bar stays so Back keeps working. One-finger double tap still sends Tab.</string>
     <string name="terminal_hide_window_bar">Hide the window row</string>
