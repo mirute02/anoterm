@@ -75,12 +75,15 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 
 ### Built for a small screen
 
-- **Terminal only** — the bar, the tmux row and the system bars all go. Back leaves it
+- **Terminal only** — the bar, the tmux row and the status bar all go. Double tap goes in
+  and out, a single tap drops a shrink button in at the top right for a few seconds, and
+  Back leaves it too
 - **Tabs live in the bar** — a tab name says which connection you are on and so did the
   bar's title, so they are one row now
-- **Floating reply pad** — while the keyboard is away, 1/2/3, Esc, a keyboard key and
-  Shift+Tab sit over the terminal, so answering an approval prompt does not mean opening
-  the IME and hiding what you are approving. Drag it wherever it suits your hand
+- **Floating reply pad** — while the keyboard is away, 1/2/3, Esc and a keyboard key sit
+  over the terminal, so answering an approval prompt does not mean opening the IME and
+  hiding what you are approving. Long-press its knob and it becomes arrows and Enter, for
+  moving through a list instead. Drag it wherever it suits your hand
 - **Auxiliary keys only while typing** — Esc, the arrows, Ctrl and Shift+Tab come and go
   with the keyboard. The screen is too small to hold them while reading
 - **Avoids the inner camera** — unfolded, the camera sits inside the screen; the gap
@@ -91,9 +94,10 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 
 ### The rest
 
-- **Gestures** — bottom quarter opens the keyboard, swipe scrolls, double tap sends Tab,
-  long press and drag selects and copies, pinch changes the text size. All of it is in
-  the Help sheet
+- **Gestures** — bottom quarter opens the keyboard, swipe scrolls (flick and it keeps
+  going), double tap goes in and out of terminal-only, long press and drag selects and
+  copies, pinch changes the text size. Underlined paths and URLs open on a tap. All of it
+  is in the Help sheet
 - **Command history**, **notes**, **custom shortcuts**
 - **Display options** — text size (pinch changes it and it stays changed), line spacing,
   colours
