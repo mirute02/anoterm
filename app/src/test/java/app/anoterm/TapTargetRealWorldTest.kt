@@ -15,7 +15,7 @@ class TapTargetRealWorldTest {
   fun findsThemInSentences() {
     val cases =
         listOf(
-            "Wrote /srv/site/work/android/sshclient/CHANGELOG.md" to 30,
+            "Wrote /srv/site/android/sshclient/CHANGELOG.md" to 30,
             "  Update(README.md)" to 12,
             "saved the chart to /tmp/chart.png" to 24,
             "> /srv/w/shot.jpg" to 12,

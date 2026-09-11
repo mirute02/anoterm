@@ -77,9 +77,11 @@ class ScreenScanTest {
 
   @Test
   fun joinsAPathBrokenAcrossTheWrap() {
-    // 幅 20 で折り返した状態。前の行が右端まで埋まっているので続きとみなす。
+    // 幅 20 で折り返した状態。1 行目は右端 (20 桁目) まで文字が届いているので続きとみなす。
+    // 長さが意味を持つテストなので、文字列の長さを変えるときは cols と揃えること。
     val cols = 20
     val lines = listOf("saved /srv/site/work", "/pictures/shot.png ok")
+    check(lines[0].length == cols)
     assertEquals("/srv/site/work/pictures/shot.png", at(lines, cols, 0, 15))
     assertEquals("/srv/site/work/pictures/shot.png", at(lines, cols, 1, 3))
   }

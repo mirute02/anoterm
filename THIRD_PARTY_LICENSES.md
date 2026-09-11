@@ -11,7 +11,7 @@ from project READMEs.
 | [sshj](https://github.com/hierynomus/sshj) | 0.40.0 | Apache-2.0 | SSH transport, key exchange, authentication |
 | [Bouncy Castle](https://www.bouncycastle.org/) `bcprov-jdk18on` | 1.78.1 | Bouncy Castle Licence (MIT-style) | Cryptographic primitives for sshj |
 | [Bouncy Castle](https://www.bouncycastle.org/) `bcpkix-jdk18on` | 1.78.1 | Bouncy Castle Licence (MIT-style) | Private key parsing (PKCS#8, OpenSSH) |
-| [slf4j-android](https://www.slf4j.org/android/) | 1.7.36 | MIT | Logging binding required by sshj |
+| [slf4j-android](https://www.slf4j.org/android/) | 2.0.17-0 | MIT | Logging binding required by sshj |
 | AndroidX (core, lifecycle, activity, compose, navigation3, room, biometric, security-crypto, appcompat) | see `gradle/libs.versions.toml` | Apache-2.0 | Application framework |
 | Kotlin standard library, kotlinx-coroutines, kotlinx-serialization | 1.10.2 / 1.7.3 | Apache-2.0 | Language runtime |
 | Google Tink (transitive via `security-crypto`) | — | Apache-2.0 | Encrypted file storage |
@@ -21,8 +21,20 @@ None are copyleft. All permit distribution of a closed or open binary.
 ## Fonts
 
 [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) (regular, bold) is
-bundled under the SIL Open Font License 1.1. The OFL permits bundling in an
-application; the font is not renamed and is not sold on its own.
+bundled under the SIL Open Font License 1.1.
+
+Copyright 2020 The JetBrains Mono Project Authors
+(https://github.com/JetBrains/JetBrainsMono)
+
+The OFL permits bundling in an application; the font is not renamed and is not
+sold on its own. The OFL also requires the copyright notice and the license to
+travel with the font, so the full text ships inside the APK at
+`app/src/main/assets/OFL-1.1.txt` rather than only being linked from here.
+
+Licences above were read from the artefacts themselves, not from project READMEs:
+sshj from `Bundle-License` in its jar manifest, Bouncy Castle from the
+`org/bouncycastle/LICENSE` class it carries, slf4j-android from the `META-INF/LICENSE`
+and POM inside its jar, and the font from its own `name` table (IDs 0, 13, 14).
 
 ## Not used
 
