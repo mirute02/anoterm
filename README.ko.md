@@ -112,7 +112,7 @@ Android용 SSH 클라이언트 겸 터미널 에뮬레이터. Kotlin + Jetpack C
 
 ### APK 넣기(권장)
 
-[Releases](https://github.com/mirute02/wanoterm/releases)에서 Android 기기의 브라우저로
+[Releases](https://github.com/mirute02/anoterm/releases)에서 Android 기기의 브라우저로
 내려받아, 알림이나 파일 앱에서 누릅니다. PC도 adb도 필요 없습니다.
 
 처음에는 「출처를 알 수 없는 앱」 허용을 묻습니다. Android 8.0부터는 앱 단위 허용이므로,
@@ -134,8 +134,8 @@ SHA-256: 7e1677c2e1094ca36b9584990beabb2fb1668b327417ead3b0993ec1b99bbbdb
 ### 직접 빌드하기
 
 ```bash
-git clone https://github.com/mirute02/wanoterm.git
-cd wanoterm
+git clone https://github.com/mirute02/anoterm.git
+cd anoterm
 ./gradlew assembleDebug
 ```
 
@@ -169,10 +169,10 @@ cd wanoterm
 서명 키는 저장소에 넣지 않고 `gradle.properties`(또는 CI의 Secrets)에 둡니다:
 
 ```properties
-WANOTERM_STORE_FILE=/absolute/path/to/release.jks
-WANOTERM_STORE_PASSWORD=...
-WANOTERM_KEY_ALIAS=...
-WANOTERM_KEY_PASSWORD=...
+ANOTERM_STORE_FILE=/absolute/path/to/release.jks
+ANOTERM_STORE_PASSWORD=...
+ANOTERM_KEY_ALIAS=...
+ANOTERM_KEY_PASSWORD=...
 ```
 
 인증서의 DN은 APK를 손에 넣은 누구나 읽을 수 있으므로, 실명이 아니라 프로젝트 이름을 넣습니다.
@@ -191,7 +191,7 @@ SSH 클라이언트는 상대의 자격 증명을 맡고, 그 열쇠로 임의�
 ## 변경 기록
 
 [CHANGELOG.md](CHANGELOG.md)(일본어)에 판별 변경을 정리했습니다. APK는
-[Releases](https://github.com/mirute02/wanoterm/releases)에서.
+[Releases](https://github.com/mirute02/anoterm/releases)에서.
 
 ## 라이선스
 

@@ -101,7 +101,7 @@ Android 上的 SSH 客户端与终端模拟器。Kotlin + Jetpack Compose。
 
 ### 安装 APK（推荐）
 
-从 [Releases](https://github.com/mirute02/wanoterm/releases) 用 Android 设备的浏览器下载，
+从 [Releases](https://github.com/mirute02/anoterm/releases) 用 Android 设备的浏览器下载，
 在通知栏或文件管理器里点击安装。不需要 PC，也不需要 adb。
 
 首次会被要求允许「安装未知来源的应用」。Android 8.0 起该权限按应用划分，
@@ -122,8 +122,8 @@ SHA-256: 7e1677c2e1094ca36b9584990beabb2fb1668b327417ead3b0993ec1b99bbbdb
 ### 自己构建
 
 ```bash
-git clone https://github.com/mirute02/wanoterm.git
-cd wanoterm
+git clone https://github.com/mirute02/anoterm.git
+cd anoterm
 ./gradlew assembleDebug
 ```
 
@@ -156,10 +156,10 @@ tmux 输出的解析，以及转发目标的构造。
 签名密钥不放进仓库，写在 `gradle.properties`（或 CI 的 Secrets）里：
 
 ```properties
-WANOTERM_STORE_FILE=/absolute/path/to/release.jks
-WANOTERM_STORE_PASSWORD=...
-WANOTERM_KEY_ALIAS=...
-WANOTERM_KEY_PASSWORD=...
+ANOTERM_STORE_FILE=/absolute/path/to/release.jks
+ANOTERM_STORE_PASSWORD=...
+ANOTERM_KEY_ALIAS=...
+ANOTERM_KEY_PASSWORD=...
 ```
 
 证书的 DN 任何拿到 APK 的人都能读到，所以写项目名而不是真实姓名。
@@ -176,7 +176,7 @@ SSH 客户端保管着对端的凭据，并且成为一个能用那把钥匙执�
 ## 更新记录
 
 [CHANGELOG.md](CHANGELOG.md)（日文）按版本记录了改动。APK 在
-[Releases](https://github.com/mirute02/wanoterm/releases)。
+[Releases](https://github.com/mirute02/anoterm/releases)。
 
 ## 许可
 

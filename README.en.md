@@ -128,7 +128,7 @@ Terminal output is unaffected either way: that comes from the remote host.
 ### From the APK
 
 Download `app-release.apk` from
-[Releases](https://github.com/mirute02/wanoterm/releases) in the browser on your
+[Releases](https://github.com/mirute02/anoterm/releases) in the browser on your
 Android device and tap it — from the notification or a file manager. No PC and
 no adb needed.
 
@@ -153,8 +153,8 @@ not from this project.
 ### Building it yourself
 
 ```bash
-git clone https://github.com/mirute02/wanoterm.git
-cd wanoterm
+git clone https://github.com/mirute02/anoterm.git
+cd anoterm
 ./gradlew assembleDebug
 ```
 
@@ -191,10 +191,10 @@ Signing keys are not in the repository. Put them in `gradle.properties` or CI
 secrets:
 
 ```properties
-WANOTERM_STORE_FILE=/absolute/path/to/release.jks
-WANOTERM_STORE_PASSWORD=...
-WANOTERM_KEY_ALIAS=...
-WANOTERM_KEY_PASSWORD=...
+ANOTERM_STORE_FILE=/absolute/path/to/release.jks
+ANOTERM_STORE_PASSWORD=...
+ANOTERM_KEY_ALIAS=...
+ANOTERM_KEY_PASSWORD=...
 ```
 
 The certificate DN is readable by anyone holding the APK, so put a project name
@@ -219,7 +219,7 @@ Privacy policy: [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md).
 ## Changes
 
 [CHANGELOG.md](CHANGELOG.md) lists what changed in each version (in Japanese).
-APKs are on the [releases page](https://github.com/mirute02/wanoterm/releases).
+APKs are on the [releases page](https://github.com/mirute02/anoterm/releases).
 
 ## Licence
 

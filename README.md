@@ -114,7 +114,7 @@ Android 向けの SSH クライアント / ターミナルエミュレータ。K
 
 ### APK を入れる（推奨）
 
-[Releases](https://github.com/mirute02/wanoterm/releases) から `app-release.apk` を
+[Releases](https://github.com/mirute02/anoterm/releases) から `app-release.apk` を
 Android 端末のブラウザでダウンロードし、通知またはファイルアプリからタップする。
 PC も adb も要らない。
 
@@ -137,8 +137,8 @@ SHA-256: 7e1677c2e1094ca36b9584990beabb2fb1668b327417ead3b0993ec1b99bbbdb
 ### 自分でビルドする
 
 ```bash
-git clone https://github.com/mirute02/wanoterm.git
-cd wanoterm
+git clone https://github.com/mirute02/anoterm.git
+cd anoterm
 ./gradlew assembleDebug
 ```
 
@@ -173,10 +173,10 @@ cd wanoterm
 署名鍵はリポジトリに含めない。`gradle.properties`（または CI の Secrets）に置く:
 
 ```properties
-WANOTERM_STORE_FILE=/absolute/path/to/release.jks
-WANOTERM_STORE_PASSWORD=...
-WANOTERM_KEY_ALIAS=...
-WANOTERM_KEY_PASSWORD=...
+ANOTERM_STORE_FILE=/absolute/path/to/release.jks
+ANOTERM_STORE_PASSWORD=...
+ANOTERM_KEY_ALIAS=...
+ANOTERM_KEY_PASSWORD=...
 ```
 
 証明書の DN は APK から誰でも読めるので、本名ではなくプロジェクト名を入れること。
@@ -199,7 +199,7 @@ SSH クライアントは接続先の資格情報を預かり、その鍵で任�
 ## 更新履歴
 
 [CHANGELOG.md](CHANGELOG.md) に版ごとの変更をまとめている。
-APK は [リリース](https://github.com/mirute02/wanoterm/releases) から。
+APK は [リリース](https://github.com/mirute02/anoterm/releases) から。
 
 ## ライセンス
 

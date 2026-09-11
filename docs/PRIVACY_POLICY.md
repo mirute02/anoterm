@@ -1,6 +1,6 @@
 # AnoTerm プライバシーポリシー
 
-<!-- リポジトリ名は wanoterm、アプリの表示名は AnoTerm。同一のものを指す。 -->
+<!-- リポジトリ名・アプリの表示名とも AnoTerm。0.20.1 まではリポジトリ名が wanoterm だった。 -->
 
 最終更新: 2026-09-11
 
@@ -55,7 +55,7 @@ AnoTerm は**第三者へのデータ提供を一切行いません**。SSH 接�
 
 ## 8. お問い合わせ
 
-- GitHub Issues: https://github.com/mirute02/wanoterm/issues
+- GitHub Issues: https://github.com/mirute02/anoterm/issues
 
 ## 9. 改定履歴
 

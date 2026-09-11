@@ -35,15 +35,15 @@ chmod 600 ~/keys/anoterm-release-v2.jks
 `~/.gradle/gradle.properties` に置く。リポジトリ内の `gradle.properties` ではない。
 
 ```
-WANOTERM_STORE_FILE=/home/<user>/keys/anoterm-release-v2.jks
-WANOTERM_STORE_PASSWORD=<keystore password>
-WANOTERM_KEY_ALIAS=anoterm
-WANOTERM_KEY_PASSWORD=<key password>
+ANOTERM_STORE_FILE=/home/<user>/keys/anoterm-release-v2.jks
+ANOTERM_STORE_PASSWORD=<keystore password>
+ANOTERM_KEY_ALIAS=anoterm
+ANOTERM_KEY_PASSWORD=<key password>
 ```
 
 `~` は展開されないので絶対パスで書く。
 
-`app/build.gradle.kts` はこれらを `project.findProperty` 経由で読む。プロパティが
+`app/build.gradle.kts` はこれらを `project.findProperty` 経由で読む。旧名の `WANOTERM_*` も読むので、既存の設定はそのままでも動く。プロパティが
 無い環境では `signingConfigs` が素通りし、署名なしでビルドされる。CI やクローン
 直後でもビルドが通るのはそのため。
 
@@ -94,10 +94,10 @@ strings app-release.apk | grep -iE "本名|/home/<user>|メールアドレス"
 
 ## 4. Play Console への upload（初回のみ）
 
-1. Play Console → wanoterm アプリを新規作成
+1. Play Console → AnoTerm アプリを新規作成
 2. **Setup → App integrity → App Signing** で「Play App Signing を使用」を有効化
 3. Upload key（上記手順 1 で作成した key）の公開証明書を Play に登録
-4. Play が App Signing key を生成して管理（wanoterm はこの key を知らない）
+4. Play が App Signing key を生成して管理（AnoTerm はこの key を知らない）
 5. 以後のリリースは Upload key で署名した AAB を Play にアップロード → Play が App Signing key で再署名 → ユーザに配信
 
 ## 5. 継続リリース

@@ -12,19 +12,26 @@ android {
     applicationId = "app.anoterm"
     minSdk = 24
     targetSdk = 36
-    versionCode = 33
-    versionName = "0.20.1"
+    versionCode = 34
+    versionName = "0.20.2"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
     create("release") {
-      val keystorePath = (project.findProperty("WANOTERM_STORE_FILE") as String?)
+      // 名前は `ANOTERM_` に揃えた。`WANOTERM_` も読むのは、既にそちらで設定して
+      // いる手元や CI を、リポジトリ名を変えただけで壊さないため。
+      // どちらも無ければ署名なしビルドになり、クローン直後でもビルドは通る。
+      fun signingProperty(name: String): String? =
+          (project.findProperty("ANOTERM_" + name) as String?)
+              ?: (project.findProperty("WANOTERM_" + name) as String?)
+
+      val keystorePath = signingProperty("STORE_FILE")
       if (keystorePath != null) {
         storeFile = file(keystorePath)
-        storePassword = project.findProperty("WANOTERM_STORE_PASSWORD") as String?
-        keyAlias = project.findProperty("WANOTERM_KEY_ALIAS") as String?
-        keyPassword = project.findProperty("WANOTERM_KEY_PASSWORD") as String?
+        storePassword = signingProperty("STORE_PASSWORD")
+        keyAlias = signingProperty("KEY_ALIAS")
+        keyPassword = signingProperty("KEY_PASSWORD")
         // v2 だけだと API 24 未満で検証できず、v3 が無いと将来の鍵ローテーションが
         // できない。minSdk 24 なので v1 は理屈上不要だが、サイドロード時に古い
         // 検証経路を通る環境があるため付けておく。
@@ -40,7 +47,11 @@ android {
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      val hasReleaseKey = project.findProperty("WANOTERM_STORE_FILE") != null
+      // 名前は signingConfigs と必ず揃えること。片方だけ直すと、署名設定は出来ているのに
+      // buildType が拾わず、**エラーも出さずに未署名の APK が出る**。一度やった。
+      val hasReleaseKey =
+          project.findProperty("ANOTERM_STORE_FILE") != null ||
+              project.findProperty("WANOTERM_STORE_FILE") != null
       if (hasReleaseKey) {
         signingConfig = signingConfigs.getByName("release")
       }
