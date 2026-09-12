@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -59,6 +60,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -551,6 +553,22 @@ fun TerminalScreen(
                 onBack()
               },
               onCloseTab = { id -> closeTabAndMoveOn(id) },
+              onNewWindow = { tabId2, session ->
+                coroutineScope.launch {
+                  val ch = app.sessionManager.get(tabId2)?.channel as? SshChannel
+                  if (ch != null && TmuxController.newWindow(ch, session)) {
+                    tmuxTree =
+                        collectTmuxTree(
+                            sortedTabs.mapNotNull { id ->
+                              val c =
+                                  app.sessionManager.get(id)?.channel as? SshChannel
+                                      ?: return@mapNotNull null
+                              Triple(id, labelFor(id), c)
+                            },
+                        )
+                  }
+                }
+              },
               onKillWindow = { jump -> killWindow = jump },
               onKillSession = { tabId, session -> killSession = tabId to session },
               onJump = { jump ->
@@ -680,6 +698,21 @@ fun TerminalScreen(
                         app.prefs.setHideWindowBar(!hideWindowBar)
                       },
                   )
+                  // 今いる接続の tmux セッションに 1 枚足す。tmux を使っていない接続では
+                  // 行き先が無いので出さない。
+                  tabTmuxSessions[currentTabId]?.let { session ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.terminal_new_window)) },
+                        leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                        onClick = {
+                          showOverflow = false
+                          coroutineScope.launch {
+                            val ch = app.sessionManager.get(currentTabId)?.channel as? SshChannel
+                            if (ch != null) TmuxController.newWindow(ch, session)
+                          }
+                        },
+                    )
+                  }
                   DropdownMenuItem(
                       text = { Text(stringResource(R.string.terminal_search)) },
                       leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
@@ -975,9 +1008,12 @@ fun TerminalScreen(
                 }
               }
             }
-            // 全画面のときだけ、タップしてしばらくの間だけ出口を出す。上から降りてくるのは
-            // 「隠れているバーがそこにあった」ことを思い出させるため。触れば出る物なので、
-            // 常に置いておく必要はない。
+            // 全画面のときだけ、タップしてしばらくの間だけ上のバーを降ろす。
+            //
+            // 出口だけでなくタブも載せる。全画面にするとタブが消えるので、接続を移る手が
+            // 左右スワイプだけになっていた。触れば出る物なら、画面を常に譲らずに済む。
+            // **端末に重ねて描く**（高さを奪わない）のが肝で、出入りのたびに行数が変わると
+            // リモートに SIGWINCH が飛んで本文が組み直される。
             androidx.compose.animation.AnimatedVisibility(
                 visible = fullScreen && exitChipVisible,
                 enter =
@@ -986,13 +1022,41 @@ fun TerminalScreen(
                 exit =
                     androidx.compose.animation.slideOutVertically { -it } +
                         androidx.compose.animation.fadeOut(),
-                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
             ) {
-              FilledTonalIconButton(onClick = { app.prefs.setFullScreen(false) }) {
-                Icon(
-                    Icons.Filled.FullscreenExit,
-                    contentDescription = stringResource(R.string.terminal_leave_full_screen),
-                )
+              Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 4.dp) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  if (sortedTabs.size > 1) {
+                    Box(modifier = Modifier.weight(1f)) {
+                      TabStrip(
+                          tabs = sortedTabs,
+                          activeTabId = currentTabId,
+                          tabTitle = ::labelFor,
+                          activeState = currentConnectionState,
+                          onSelect = { id ->
+                            val idx = sortedTabs.indexOf(id)
+                            if (idx >= 0) {
+                              coroutineScope.launch { pagerState.animateScrollToPage(idx) }
+                            }
+                            // 使っている最中に引っ込まれると選び直せない。数え直す。
+                            exitChipAt = System.currentTimeMillis()
+                          },
+                          onClose = { id -> closeTabAndMoveOn(id) },
+                      )
+                    }
+                  } else {
+                    Spacer(Modifier.weight(1f))
+                  }
+                  FilledTonalIconButton(onClick = { app.prefs.setFullScreen(false) }) {
+                    Icon(
+                        Icons.Filled.FullscreenExit,
+                        contentDescription = stringResource(R.string.terminal_leave_full_screen),
+                    )
+                  }
+                }
               }
             }
 

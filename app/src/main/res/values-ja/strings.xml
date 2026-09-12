@@ -167,7 +167,7 @@
     <string name="terminal_full_screen">端末だけにする</string>
     <string name="terminal_leave_full_screen">全画面をやめる</string>
     <string name="help_g_fullscreen">⋮ メニューの「端末だけにする」</string>
-    <string name="help_g_fullscreen_desc">上のバーもウィンドウの行もステータスバーも消え、端末と浮遊パッドだけが残る。**二本指のダブルタップで行き来できる**（戻る操作でも抜けられる。⋮ メニューからも入れる）。ナビゲーションバーを残してあるのは戻る操作のため。一本指のダブルタップは Tab のまま。</string>
+    <string name="help_g_fullscreen_desc">上のバーもウィンドウの行もステータスバーも消え、端末と浮遊パッドだけが残る。**二本指のダブルタップで行き来できる。** 1 回タップすると上のバーが数秒だけ降りてくる（タブと縮小ボタン）。端末に重ねて描くので行数は減らない。戻る操作でも抜けられ、抽斗は ≡ で開ける。</string>
     <string name="terminal_hide_window_bar">ウィンドウの行を隠す</string>
     <string name="terminal_show_window_bar">ウィンドウの行を出す</string>
     <string name="kbd_backtab">⇧Tab</string>
@@ -221,7 +221,7 @@
     <string name="help_g_swipe">上下にスワイプ</string>
     <string name="help_g_swipe_desc">履歴をスクロールする。勢いよく払えばそのまま流れる。遡っている間は下に「何行前」のボタンが出て、押すと最新に戻る。tmux のマウスモードが有効なときは、ホイール操作としてリモートへ送る。</string>
     <string name="help_g_double_tap">ダブルタップ</string>
-    <string name="help_g_double_tap_desc">端末だけの全画面を行き来する。Tab はこのジェスチャから外した（Tab を打つのはキーボードを出している時で、その時には補助キー列に並んでいる。全画面の出口はどこにも無かった）。</string>
+    <string name="help_g_double_tap_desc">Tab を送る。シェルや Claude Code の補完用。二本指にすると端末だけの全画面を行き来する — 補完は画面の構成を変えるより桁違いに多く打つので、押しやすいほうを譲っていない。</string>
     <string name="help_g_long_press">長押ししてドラッグ</string>
     <string name="help_g_long_press_desc">文字を範囲選択する。離すとコピーが出る。両端のハンドルで範囲を調整でき、範囲の外をタップすると解除。</string>
     <string name="help_g_pinch">ピンチ</string>
@@ -234,6 +234,8 @@
     <string name="help_g_menu_desc">左から抽斗が出て、すべての接続のすべてのウィンドウが並ぶ。選べばそこへ直接飛ぶ。横に払えば閉じる。</string>
     <string name="help_g_kill">抽斗の行を長押し</string>
     <string name="help_g_kill_desc">その tmux ウィンドウ、またはセッションごと閉じる（確認あり）。短く押せば今までどおり飛ぶ。× を並べないのは、行き先を選ぶ的の隣に壊す的を置きたくないため。</string>
+    <string name="help_g_new_window">抽斗の ＋</string>
+    <string name="help_g_new_window_desc">そのセッションに tmux のウィンドウをもう 1 枚作る。整理モードに隠していないのは、作ることが壊すことと違うため。⋮ メニューにも、今いるセッション向けのものがある。</string>
     <string name="help_g_keys_hidden">Esc・矢印・Ctrl</string>
     <string name="help_g_keys_hidden_desc">キーボードを出している間だけ下に並び、閉じると一緒に消える。読んでいる間まで置いておくには画面が狭い。</string>
     <string name="terminal_menu">その他</string>
@@ -400,6 +402,7 @@
     <string name="tmux_tree_no_windows">tmux は答えたがウィンドウ 0 件 (%1$d 行返り、うち %2$d 行を解釈)</string>
     <string name="tmux_tree_attached">表示中</string>
     <string name="tmux_tree_open">ウィンドウ一覧を開く</string>
+    <string name="terminal_new_window">新しいウィンドウ</string>
     <string name="tmux_tree_manage">整理</string>
     <string name="tmux_tree_manage_done">完了</string>
     <string name="tmux_kill_window_title">このウィンドウを閉じますか？</string>

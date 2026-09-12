@@ -79,9 +79,9 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 
 ### Built for a small screen
 
-- **Terminal only** — the bar, the tmux row and the status bar all go. Double tap goes in
-  and out, a single tap drops a shrink button in at the top right for a few seconds, and
-  Back leaves it too
+- **Terminal only** — the bar, the tmux row and the status bar all go. A two-finger double tap goes
+  in and out; a single tap brings the top bar back for a few seconds with the tabs on it,
+  and Back leaves it too
 - **Tabs live in the bar** — a tab name says which connection you are on and so did the
   bar's title, so they are one row now
 - **Floating reply pad** — while the keyboard is away, 1/2/3, Esc and a keyboard key sit
@@ -99,7 +99,8 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 ### The rest
 
 - **Gestures** — bottom quarter opens the keyboard, swipe scrolls (flick and it keeps
-  going), double tap goes in and out of terminal-only, long press and drag selects and
+  going), double tap sends Tab (two fingers goes in and out of
+  terminal-only), long press and drag selects and
   copies, pinch changes the text size. Underlined paths and URLs open on a tap. All of it
   is in the Help sheet
 - **Command history**, **notes**, **custom shortcuts**

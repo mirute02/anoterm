@@ -12,8 +12,8 @@ android {
     applicationId = "app.anoterm"
     minSdk = 24
     targetSdk = 36
-    versionCode = 35
-    versionName = "0.20.3"
+    versionCode = 36
+    versionName = "0.21.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 

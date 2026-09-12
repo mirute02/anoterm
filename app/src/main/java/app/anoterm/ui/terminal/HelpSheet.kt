@@ -101,6 +101,10 @@ private val SECTIONS =
                     Shortcut(keysRes = R.string.help_g_menu, desc = R.string.help_g_menu_desc),
                     Shortcut(keysRes = R.string.help_g_kill, desc = R.string.help_g_kill_desc),
                     Shortcut(
+                        keysRes = R.string.help_g_new_window,
+                        desc = R.string.help_g_new_window_desc,
+                    ),
+                    Shortcut(
                         keysRes = R.string.help_g_keys_hidden,
                         desc = R.string.help_g_keys_hidden_desc,
                     ),

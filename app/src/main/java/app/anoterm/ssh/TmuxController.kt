@@ -321,6 +321,21 @@ object TmuxController {
     return run(channel, "kill-window -t " + quote(window.target))
   }
 
+  /**
+   * セッションに新しいウィンドウを作る。
+   *
+   * `-t` は `=` を付けて完全一致にする。付けないと前方一致で、`work` を指したつもりが
+   * `work2` に生えることがある。作られたウィンドウは tmux 側でそのセッションの
+   * カレントになるので、そこに attach しているクライアントの表示は自動で追従する。
+   */
+  suspend fun newWindow(channel: SshChannel, session: String): Boolean {
+    if (!isSafeSessionName(session)) {
+      Logger.w("Tmux", "refusing to open a window in a session whose name cannot be quoted")
+      return false
+    }
+    return run(channel, "new-window -t " + quote("=" + session))
+  }
+
   /** セッションごと閉じる。中のウィンドウも全部道連れ。 */
   suspend fun killSession(channel: SshChannel, session: String): Boolean {
     if (!isSafeSessionName(session)) {

@@ -179,7 +179,7 @@
     <string name="terminal_full_screen">Terminal only</string>
     <string name="terminal_leave_full_screen">Leave full screen</string>
     <string name="help_g_fullscreen">Terminal only, in the ⋮ menu</string>
-    <string name="help_g_fullscreen_desc">Drops the bar, the window row and the status bar, leaving the terminal and the floating pad. **A two-finger double tap goes in and out**, and so does Back; the ⋮ menu has it too. The navigation bar stays so Back keeps working. One-finger double tap still sends Tab.</string>
+    <string name="help_g_fullscreen_desc">Drops the bar, the window row and the status bar, leaving the terminal and the floating pad. **A two-finger double tap goes in and out.** A single tap brings the top bar back down for a few seconds — tabs and a shrink button — drawn over the terminal rather than taking height from it. Back leaves it, and the drawer still opens with the hamburger.</string>
     <string name="terminal_hide_window_bar">Hide the window row</string>
     <string name="terminal_show_window_bar">Show the window row</string>
     <string name="kbd_backtab">⇧Tab</string>
@@ -233,7 +233,7 @@
     <string name="help_g_swipe">Swipe up / down</string>
     <string name="help_g_swipe_desc">Scrolls through the history, and keeps going if you flick. While you are back in the history a button appears at the bottom saying how far back you are; tap it to return to the latest. With tmux mouse mode on, the wheel event goes to the far end instead.</string>
     <string name="help_g_double_tap">Double tap</string>
-    <string name="help_g_double_tap_desc">Goes in and out of terminal-only. Tab is not on this gesture any more: Tab is pressed while typing, and the key row is right there when you are, whereas the way out of full screen was nowhere.</string>
+    <string name="help_g_double_tap_desc">Sends Tab, for completion in the shell or in Claude Code. Two fingers instead of one goes in and out of terminal-only — completion is typed far more often than the screen is reconfigured, so it keeps the easier gesture.</string>
     <string name="help_g_long_press">Long press, then drag</string>
     <string name="help_g_long_press_desc">Selects text. Release to get Copy; drag either end handle to adjust. Tap outside to clear.</string>
     <string name="help_g_pinch">Pinch</string>
@@ -246,6 +246,8 @@
     <string name="help_g_menu_desc">Pulls out a drawer from the left holding every window on every connection. Tap one to jump straight to it. Swipe the drawer away to close it.</string>
     <string name="help_g_kill">Long-press a row in the drawer</string>
     <string name="help_g_kill_desc">Closes that tmux window, or that whole session, after a confirmation. A short press still jumps there. No × is shown: a destructive target next to a navigation one is a bad trade.</string>
+    <string name="help_g_new_window">＋ in the drawer</string>
+    <string name="help_g_new_window_desc">Opens another tmux window in that session. It is not hidden behind Manage: making something is not like destroying it. The ⋮ menu has it too, for the session you are on.</string>
     <string name="help_g_keys_hidden">Esc, arrows, Ctrl</string>
     <string name="help_g_keys_hidden_desc">They appear under the keyboard while you type, and go away with it — the screen is too small to keep them there while you read.</string>
     <string name="terminal_menu">More</string>
@@ -412,6 +414,7 @@
     <string name="tmux_tree_no_windows">tmux answered but listed no window (%1$d lines back, %2$d understood)</string>
     <string name="tmux_tree_attached">attached</string>
     <string name="tmux_tree_open">Open the window list</string>
+    <string name="terminal_new_window">New window</string>
     <string name="tmux_tree_manage">Manage</string>
     <string name="tmux_tree_manage_done">Done</string>
     <string name="tmux_kill_window_title">Close this window?</string>

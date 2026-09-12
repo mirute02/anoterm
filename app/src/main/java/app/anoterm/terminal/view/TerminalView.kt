@@ -164,10 +164,11 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   var onScrollPositionChanged: ((linesBack: Int) -> Unit)? = null
 
   /**
-   * 全画面を行き来する。ダブルタップ（一本指・二本指のどちらでも）から呼ぶ。
+   * 全画面を行き来する。**二本指の**ダブルタップから呼ぶ。
    *
-   * メニューからも入れるが、出るときにメニューは無い。入りと出が同じ操作で、
-   * どちらの向きにも効くものが要る。
+   * 一本指は Tab に譲っている（そちらのほうが桁違いに頻度が高い）。二本指にしたのは、
+   * メニューからは入れても出るときにメニューが無く、入りと出が同じ操作で
+   * どちらの向きにも効くものが要るため。
    */
   var onToggleFullScreen: (() -> Unit)? = null
 
@@ -187,6 +188,16 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   private var twoFingerStartY = 0f
   private var twoFingerMoved = false
   private var lastTwoFingerTapAt = 0L
+
+  /**
+   * 直近に一本指のダブルタップ (Tab) が成立した時刻。
+   *
+   * Tab は連打される。補完候補を送るたびに切り替えるので、続けて何度も叩くのが普通の
+   * 使い方。速く叩くと指が一瞬重なり、`ACTION_POINTER_DOWN` が来て「二本指のタップ」
+   * として数えられることがある。それが 2 回続くと、補完を回していただけで全画面に
+   * 飛ばされる。Tab が出た直後は二本指を受け付けないようにして塞ぐ。
+   */
+  private var lastDoubleTapAt = 0L
 
   private var searchQuery: String? = null
 
@@ -211,20 +222,20 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
             }
 
             /**
-             * ダブルタップで全画面を行き来する。
+             * 一本指のダブルタップで Tab (0x09) を送る。他の端末アプリ (Termius 等) と
+             * 同じ慣習で、シェルや Claude Code の補完を素早く呼ぶためのもの。
              *
-             * 以前は Tab (0x09) を送っていた（Termius 等の慣習）。やめたのは、補完のために
-             * Tab を打つのはキーボードを出している時で、その時には補助キー列に Tab が
-             * 並んでいるから。同じ物が指の届く所に二つある一方で、全画面の出口は
-             * メニューの中にしか無く、全画面ではそのメニューが出せなかった。
-             * 出口の無いほうに割り当て直した。
+             * 一度これを全画面の切り替えに振り替えたが、戻した。補完は「途中まで打って
+             * 続きを出させる」操作で、打っている流れの中にあるほど効く。一方、全画面の
+             * 切り替えは一日に数回で、頻度が二桁違う。頻度の高いほうに一本指を残し、
+             * 全画面は二本指のダブルタップに置いた ([onToggleFullScreen])。
              */
             override fun onDoubleTap(e: MotionEvent): Boolean {
-              performHapticFeedback(
-                  HapticFeedbackConstants.LONG_PRESS,
-                  HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
-              )
-              onToggleFullScreen?.invoke()
+              // Tab が出たら、二本指の数え上げは白紙に戻す。連打の途中に紛れ込んだ
+              // 「二本指っぽい 1 回」が、次の紛れ込みと組になって成立するのを防ぐ。
+              lastDoubleTapAt = e.eventTime
+              lastTwoFingerTapAt = 0L
+              sendBytes(byteArrayOf(0x09))
               return true
             }
 
@@ -1084,7 +1095,10 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
                 !scaleDetector.isInProgress &&
                 event.actionMasked == MotionEvent.ACTION_UP &&
                 event.eventTime - twoFingerDownAt <
-                    android.view.ViewConfiguration.getLongPressTimeout()
+                    android.view.ViewConfiguration.getLongPressTimeout() &&
+                // Tab を連打している最中は受け付けない。指が重なって二本と数えられた
+                // ものを、二本指の意思表示と取り違えないため。
+                event.eventTime - lastDoubleTapAt > TAB_BURST_GUARD_MS
         if (tapped) {
           val gap = event.eventTime - lastTwoFingerTapAt
           if (gap < android.view.ViewConfiguration.getDoubleTapTimeout()) {
@@ -1103,6 +1117,14 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
       }
     }
   }
+
+  /**
+   * 一本指のダブルタップ (Tab) の直後、二本指のタップを無視する時間。
+   *
+   * 補完を回すための連打は数百 ms 間隔で続く。その間ずっと塞いでおきたいので、
+   * ダブルタップの判定時間 (既定 300ms) より長く取る。
+   */
+  private val TAB_BURST_GUARD_MS = 800L
 
   private fun cellAtPixel(x: Float, y: Float): CellPos? {
     val cw = renderer.cellWidth

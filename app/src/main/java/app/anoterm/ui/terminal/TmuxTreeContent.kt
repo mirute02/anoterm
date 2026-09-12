@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.HorizontalDivider
@@ -70,6 +71,8 @@ fun TmuxTreeContent(
     onGoHome: () -> Unit = {},
     /** 接続タブごと閉じる。 */
     onCloseTab: (String) -> Unit = {},
+    /** そのセッションに新しいウィンドウを作る。(タブ, セッション名)。 */
+    onNewWindow: (String, String) -> Unit = { _, _ -> },
 ) {
   // 「整理」に入っている間だけ × を出す。長押しだけだと、そんな操作があること自体が
   // 見えない。かといって常に × を並べると、行き先を選ぶ的の隣に壊す的が並ぶ。
@@ -157,6 +160,7 @@ fun TmuxTreeContent(
                       attached = session == conn.snapshot?.attached,
                       managing = managing,
                       onKill = { onKillSession(conn.tabId, session) },
+                      onNewWindow = { onNewWindow(conn.tabId, session) },
                   )
                 }
                 items(
@@ -225,6 +229,7 @@ private fun SessionHeader(
     attached: Boolean,
     managing: Boolean,
     onKill: () -> Unit,
+    onNewWindow: () -> Unit,
 ) {
   Row(
       modifier =
@@ -236,6 +241,18 @@ private fun SessionHeader(
   ) {
     if (managing) KillButton(onKill)
     Text(session, style = MaterialTheme.typography.labelMedium)
+    // ＋ は整理モードに隠さない。作ることは壊すことと違って、押し間違えても取り返しがつく。
+    Box(
+        modifier = Modifier.size(28.dp).clip(CircleShape).clickable(onClick = onNewWindow),
+        contentAlignment = Alignment.Center,
+    ) {
+      Icon(
+          Icons.Filled.Add,
+          contentDescription = stringResource(R.string.terminal_new_window),
+          modifier = Modifier.size(16.dp),
+          tint = MaterialTheme.colorScheme.primary,
+      )
+    }
     if (attached) {
       Text(
           text = stringResource(R.string.tmux_tree_attached),
