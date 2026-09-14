@@ -98,7 +98,7 @@ UTF-8 decoding are implemented here rather than delegated, which is why.
 
 ### The rest
 
-- **Gestures** — bottom quarter opens the keyboard, swipe scrolls (flick and it keeps
+- **Gestures** — bottom quarter opens the keyboard (tap anywhere above it to put it away), swipe scrolls (flick and it keeps
   going), double tap sends Tab (two fingers goes in and out of
   terminal-only), long press and drag selects and
   copies, pinch changes the text size. Underlined paths and URLs open on a tap. All of it

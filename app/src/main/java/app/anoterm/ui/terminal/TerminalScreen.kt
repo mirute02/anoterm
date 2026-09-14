@@ -876,7 +876,16 @@ fun TerminalScreen(
             val imeVisible by
                 remember(imeTarget, density) { derivedStateOf { imeTarget.getBottom(density) > 0 } }
 
-            // キーボードを開く経路はここ 1 本。TerminalView に focus を渡してから
+            // キーボードを閉じる経路もここ 1 本。上側のタップからも補助キー列の
+          // ボタンからも、同じ手順を通す。
+          val hideKeyboard: () -> Unit = {
+            val imm =
+                context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
+            Unit
+          }
+
+          // キーボードを開く経路はここ 1 本。TerminalView に focus を渡してから
             // soft input を要求する。focus が取れていないと IME は開かない。
             val showKeyboard: () -> Unit = {
               currentView?.let { v ->
@@ -975,6 +984,8 @@ fun TerminalScreen(
                 onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
                 onToggleFullScreen = { app.prefs.setFullScreen(!fullScreen) },
                 onAnyTap = { if (fullScreen) exitChipAt = System.currentTimeMillis() },
+                isKeyboardVisible = { imeVisible },
+                onHideKeyboard = hideKeyboard,
                   modifier = Modifier.fillMaxSize(),
                   viewBinding = { v -> terminalViews[currentTabId] = v },
               )
@@ -1000,6 +1011,8 @@ fun TerminalScreen(
                     onFontSizeChanged = { app.prefs.setFontSizeSp(it) },
                     onToggleFullScreen = { app.prefs.setFullScreen(!fullScreen) },
                     onAnyTap = { if (fullScreen) exitChipAt = System.currentTimeMillis() },
+                    isKeyboardVisible = { imeVisible },
+                    onHideKeyboard = hideKeyboard,
                       modifier = Modifier.fillMaxSize(),
                       viewBinding = { v -> terminalViews[pageTabId] = v },
                   )
@@ -1136,14 +1149,7 @@ fun TerminalScreen(
                   },
                   onToggleShortcutBar = { showShortcutBar = !showShortcutBar },
                   onToggleKeyboard = {
-                    if (imeVisible) {
-                      val imm =
-                          context.getSystemService(Context.INPUT_METHOD_SERVICE)
-                              as? InputMethodManager
-                      imm?.hideSoftInputFromWindow(composeView.windowToken, 0)
-                    } else {
-                      showKeyboard()
-                    }
+                    if (imeVisible) hideKeyboard() else showKeyboard()
                   },
                   onSend = sendBytes,
               )

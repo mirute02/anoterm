@@ -35,6 +35,8 @@ fun TerminalHost(
     onFontSizeChanged: (Float) -> Unit = {},
     onToggleFullScreen: () -> Unit = {},
     onAnyTap: () -> Unit = {},
+    isKeyboardVisible: () -> Boolean = { false },
+    onHideKeyboard: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewBinding: (TerminalView) -> Unit = {},
 ) {
@@ -55,8 +57,12 @@ fun TerminalHost(
           it.onFontSizeChanged = onFontSizeChanged
         it.onToggleFullScreen = onToggleFullScreen
         it.onAnyTap = onAnyTap
+        it.isKeyboardVisible = isKeyboardVisible
+        it.onHideKeyboard = onHideKeyboard
           it.onToggleFullScreen = onToggleFullScreen
           it.onAnyTap = onAnyTap
+          it.isKeyboardVisible = isKeyboardVisible
+          it.onHideKeyboard = onHideKeyboard
           viewRef.view = it
           viewBinding(it)
         }

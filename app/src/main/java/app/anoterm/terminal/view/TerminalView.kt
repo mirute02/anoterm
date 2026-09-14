@@ -181,6 +181,14 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
    */
   var onAnyTap: (() -> Unit)? = null
 
+  /**
+   * キーボードが今出ているか。View 自身は window の inset を見ていないので UI 層に聞く。
+   */
+  var isKeyboardVisible: () -> Boolean = { false }
+
+  /** キーボードを閉じる。開ける側と違い、閉じるのは window の状態を触るので UI 層に任せる。 */
+  var onHideKeyboard: (() -> Unit)? = null
+
   // 二本指タップの判定。GestureDetector は一本指しか見ないので自前で数える。
   private var twoFingerDownAt = 0L
   private var twoFingerMaxPointers = 0
@@ -279,6 +287,25 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
                     HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
                 )
                 onTapTarget?.invoke(target)
+                return true
+              }
+              // キーボードが出ている間は、下 1/4 の外を触ったら閉じる。
+              //
+              // 開けるのが「下 1/4 のタップ」なのに、閉じるのが補助キー列の中のボタン
+              // だけでは釣り合わない。読んでいる場所を触ったら退く、が素直。
+              // 下 1/4 を除くのは、そこが入力行のある場所だから。打つために触ったのに
+              // 閉じられては困る。
+              //
+              // Tab の連打とは、二つの仕組みで両立させる:
+              //   1. `onSingleTapConfirmed` はダブルタップ待機を越えてから発火する。
+              //      2 回組で消費されたタップはここへ来ない。
+              //   2. 連打が奇数回で終わると最後の 1 回が余り、ここへ落ちてくる。
+              //      それは閉じる意思ではないので、[TAB_BURST_GUARD_MS] の間は見送る。
+              //      二本指タップ (全画面) を塞いでいるのと同じ理由・同じ窓。
+              if (isKeyboardVisible() &&
+                  e.y <= h * 0.75f &&
+                  e.eventTime - lastDoubleTapAt > TAB_BURST_GUARD_MS) {
+                onHideKeyboard?.invoke()
                 return true
               }
               // リモートがマウスを見ているなら、触った所にカーソルを置ける。Claude Code の
@@ -1119,7 +1146,8 @@ constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs
   }
 
   /**
-   * 一本指のダブルタップ (Tab) の直後、二本指のタップを無視する時間。
+   * 一本指のダブルタップ (Tab) の直後、連打の余りとして落ちてくるタップを
+   * 無視する時間。二本指タップ (全画面) と、単タップ (キーボードを隠す) の両方。
    *
    * 補完を回すための連打は数百 ms 間隔で続く。その間ずっと塞いでおきたいので、
    * ダブルタップの判定時間 (既定 300ms) より長く取る。
